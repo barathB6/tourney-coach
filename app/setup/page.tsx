@@ -255,4 +255,4 @@ export default function TournamentSetupWizard() {
       </div>
     </div>
   );
-}// v2
+}
