@@ -1,8 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:wght@600;700&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Design system tokens */
+  --primary: #1B6B3A; /* Forest Green */
+  --deep-green: #0F4A26; /* Deep Green */
+  --gold: #C8A04A; /* Heritage Gold */
+  --cream: #FAF8F3; /* Cream canvas */
+  --ink: #1A1F1C; /* Body text */
+  --alert: #B8442C;
+  --info: #4A7BA6;
+  --line: #E5E0D5;
+  --background: var(--cream);
+  --foreground: var(--ink);
 }
 
 @theme inline {
@@ -22,5 +32,86 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.auth-container {
+  max-width: 520px;
+  margin: 48px auto;
+  background: white;
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 6px 18px rgba(26,31,28,0.06);
+  border: 1px solid var(--line);
+}
+.auth-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.auth-hero h1 {
+  font-family: 'Fraunces', serif;
+  color: var(--deep-green);
+  font-size: 28px;
+  margin: 0;
+}
+.auth-hero p {
+  margin: 0;
+  color: #39403b;
+  font-size: 14px;
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.form-row label {
+  font-size: 13px;
+  color: #3b3f3a;
+}
+.form-input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 14px;
+}
+.primary-btn {
+  background: linear-gradient(180deg, var(--primary), var(--deep-green));
+  color: white;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.secondary-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.hint {
+  font-size: 13px;
+  color: #596057;
+}
+.message {
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .auth-container { margin: 20px; padding: 18px; }
+  .auth-hero h1 { font-size: 24px; }
 }
