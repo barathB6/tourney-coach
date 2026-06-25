@@ -34,3 +34,17 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Auth setup (local development)
+
+ - Add Supabase env vars to `.env.local`:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+ - The app includes example pages for sign-up, sign-in, forgot-password and a protected `/profile` page.
+ - Sign-up attempts to insert a `profiles` row; create a `profiles` table in Supabase with `id, name, phone, role` to persist extra fields.
+

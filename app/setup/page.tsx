@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -16,6 +17,7 @@ interface Course {
 }
 
 export default function TournamentSetupWizard() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -93,17 +95,8 @@ export default function TournamentSetupWizard() {
 
       if (tourneyError) throw tourneyError;
 
-      setSuccess(`✓ Tournament created! ID: ${data.id.slice(0, 8)}...`);
-
-      setTimeout(() => {
-        setFormData({
-          name: '',
-          causeName: '',
-          eventDate: '',
-          courseId: '',
-        });
-        setStep(1);
-      }, 2000);
+      setSuccess(`✓ Tournament created! Redirecting to live coach...`);
+      router.push('/index.html');
     } catch (err) {
       console.log('Full error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');
