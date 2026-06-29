@@ -37,21 +37,14 @@ export async function POST(req: NextRequest) {
     .insert({
       organizer_id: user.id,
       name: body.name.trim(),
-      organization: body.organization?.trim() || null,
       event_date: body.event_date,
       course_id: body.course_id || null,
-      custom_course_name: body.custom_course_name?.trim() || null,
-      custom_course_city: body.custom_course_city?.trim() || null,
-      custom_course_state: body.custom_course_state?.trim() || null,
       format: body.format || 'scramble',
-      team_size: body.team_size || 4,
       max_score_rule: body.max_score_rule || 'par',
       shotgun_type: body.shotgun_type || 'double',
       max_players: body.max_players || 128,
-      entry_fee: body.entry_fee ?? 125,
-      cause_what: body.cause_what?.trim() || null,
-      cause_who: body.cause_who?.trim() || null,
-      cause_why: body.cause_why?.trim() || null,
+      entry_fee_cents: body.entry_fee_cents ?? 12500,
+      cause_story: body.cause_story?.trim() || null,
       status: 'draft',
     })
     .select()

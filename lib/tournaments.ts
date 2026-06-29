@@ -1,4 +1,4 @@
-export const FORMATS = ['scramble', 'best_ball', 'alternate_shot', 'stroke_play'] as const;
+export const FORMATS = ['scramble', 'best_ball', 'stableford', 'captains_choice', 'alternate_shot', 'stroke_play'] as const;
 export const MAX_SCORE_RULES = ['par', 'double_bogey', 'none'] as const;
 export const START_METHODS = ['single', 'double', 'wave', 'tee_times'] as const;
 export const STATUSES = ['draft', 'published', 'live', 'completed'] as const;
@@ -10,21 +10,14 @@ export type TournamentStatus = (typeof STATUSES)[number];
 
 export interface TournamentInput {
   name: string;
-  organization?: string;
   event_date: string;
   course_id?: string;
-  custom_course_name?: string;
-  custom_course_city?: string;
-  custom_course_state?: string;
   format?: TournamentFormat;
-  team_size?: number;
   max_score_rule?: MaxScoreRule;
   shotgun_type?: StartMethod;
   max_players?: number;
-  entry_fee?: number;
-  cause_what?: string;
-  cause_who?: string;
-  cause_why?: string;
+  entry_fee_cents?: number;
+  cause_story?: string;
 }
 
 // --- Validation ---
@@ -56,20 +49,12 @@ export function validateTournament(data: Partial<TournamentInput>): ValidationEr
     }
   }
 
-  if (!data.course_id && !data.custom_course_name) {
-    errors.push({ field: 'course_id', message: 'Select a course or enter one manually' });
-  }
-
   if (data.course_id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.course_id)) {
     errors.push({ field: 'course_id', message: 'Invalid course ID' });
   }
 
   if (data.format && !FORMATS.includes(data.format)) {
     errors.push({ field: 'format', message: `Format must be one of: ${FORMATS.join(', ')}` });
-  }
-
-  if (data.team_size !== undefined && (data.team_size < 2 || data.team_size > 5)) {
-    errors.push({ field: 'team_size', message: 'Team size must be between 2 and 5' });
   }
 
   if (data.max_score_rule && !MAX_SCORE_RULES.includes(data.max_score_rule)) {
@@ -84,8 +69,8 @@ export function validateTournament(data: Partial<TournamentInput>): ValidationEr
     errors.push({ field: 'max_players', message: 'Player count must be between 1 and 300' });
   }
 
-  if (data.entry_fee !== undefined && data.entry_fee < 0) {
-    errors.push({ field: 'entry_fee', message: 'Entry fee cannot be negative' });
+  if (data.entry_fee_cents !== undefined && data.entry_fee_cents < 0) {
+    errors.push({ field: 'entry_fee_cents', message: 'Entry fee cannot be negative' });
   }
 
   return errors;
