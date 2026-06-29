@@ -2,16 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import supabase from '@/lib/supabaseClient';
 import type { TournamentInput } from '@/lib/tournaments';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-const TOTAL_STEPS = 7;
-const STEP_LABELS = ['Cause', 'Format', 'Field', 'Course', 'Pricing', 'Sponsors', 'Review'];
+const TOTAL_STEPS = 6;
+const STEP_LABELS = ['Format', 'Field', 'Course', 'Pricing', 'Sponsors', 'Review'];
 
 const FORMAT_OPTIONS = [
   { value: 'scramble', label: '4-Person Scramble', recommended: true, desc: 'Every player tees off, team picks the best ball, all play from there. Forgiving, fast, fun. Mixed skill levels welcome.', team: '4 per team', time: '4-4.5 hrs avg play', skill: 'Any' },
@@ -113,12 +108,11 @@ export default function SetupClient() {
 
   const canAdvance = (): boolean => {
     switch (step) {
-      case 1: return true;
-      case 2: return !!formData.format;
-      case 3: return !!(formData.maxPlayers && formData.shotgunType);
-      case 4: return !!(formData.eventDate && (formData.courseId || (useCustomCourse && formData.customCourseName)));
-      case 5: return !!(formData.entryFee && formData.name);
-      case 6: return true;
+      case 1: return !!formData.format;
+      case 2: return !!(formData.maxPlayers && formData.shotgunType);
+      case 3: return !!(formData.eventDate && (formData.courseId || (useCustomCourse && formData.customCourseName)));
+      case 4: return !!(formData.entryFee && formData.name);
+      case 5: return true;
       default: return true;
     }
   };
@@ -128,19 +122,17 @@ export default function SetupClient() {
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      const causeStory = [formData.causeHook, formData.causeOrigin, formData.causeWhat, formData.causeWho, formData.causeWhy, formData.causeGoal].filter(Boolean).join('\n\n') || undefined;
       const payload: TournamentInput = {
-        name: formData.name, organization: formData.causeName || undefined,
-        event_date: formData.eventDate, course_id: formData.courseId || undefined,
-        custom_course_name: useCustomCourse ? formData.customCourseName : undefined,
-        custom_course_city: useCustomCourse ? formData.customCourseCity : undefined,
-        custom_course_state: useCustomCourse ? formData.customCourseState : undefined,
+        name: formData.name,
+        event_date: formData.eventDate,
+        course_id: formData.courseId || undefined,
         format: formData.format as TournamentInput['format'],
-        team_size: parseInt(formData.teamSize),
         max_score_rule: formData.maxScoreRule as TournamentInput['max_score_rule'],
         shotgun_type: formData.shotgunType as TournamentInput['shotgun_type'],
-        max_players: parseInt(formData.maxPlayers), entry_fee: parseInt(formData.entryFee),
-        cause_what: formData.causeWhat || undefined, cause_who: formData.causeWho || undefined,
-        cause_why: formData.causeWhy || undefined,
+        max_players: parseInt(formData.maxPlayers),
+        entry_fee_cents: parseInt(formData.entryFee) * 100,
+        cause_story: causeStory,
       };
       const res = await fetch('/api/tournaments', {
         method: 'POST',
@@ -149,15 +141,15 @@ export default function SetupClient() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.errors?.[0]?.message || data.error || 'Something went wrong');
-      setSuccess('Tournament created! Launching TourneyCoach...');
-      setTimeout(() => router.push('/index.html'), 1200);
+      setSuccess('Tournament created!');
+      setTimeout(() => router.push('/coach'), 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally { setLoading(false); }
   };
 
-  const prevLabel = step === 2 ? '← Back to cause' : step === 3 ? '← Back to format' : step === 4 ? '← Back to field' : step === 5 ? '← Back to course' : step === 6 ? '← Back to pricing' : step === 7 ? '← Back to sponsors' : '← Back';
-  const nextLabel = step === 1 ? 'Continue to format →' : step === 2 ? 'Continue to field size →' : step === 3 ? 'Continue to course →' : step === 4 ? 'Continue to pricing →' : step === 5 ? 'Continue to sponsors →' : step === 6 ? 'Continue to review →' : 'Continue →';
+  const prevLabel = step === 2 ? '← Back to format' : step === 3 ? '← Back to field' : step === 4 ? '← Back to course' : step === 5 ? '← Back to pricing' : step === 6 ? '← Back to sponsors' : '← Back';
+  const nextLabel = step === 1 ? 'Continue to field size →' : step === 2 ? 'Continue to course →' : step === 3 ? 'Continue to pricing →' : step === 4 ? 'Continue to sponsors →' : step === 5 ? 'Continue to review →' : 'Continue →';
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
@@ -190,42 +182,8 @@ export default function SetupClient() {
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
 
-          {/* STEP 1: Cause */}
+          {/* STEP 1: Format — 2x2 grid */}
           {step === 1 && (
-            <div className="space-y-5">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Your cause</h2>
-                <p className="text-sm text-gray-500 mt-1">Tell donors why this tournament matters. We'll help you write a story that fills your field.</p>
-              </div>
-              {formData.causeHook ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-sm font-medium text-green-800">{formData.causeHook}</p>
-                  {formData.causeName && <p className="text-xs text-green-600 mt-1">{formData.causeName}</p>}
-                  <button onClick={() => router.push('/story')} className="text-xs text-green-700 font-medium mt-2 hover:underline">Edit story →</button>
-                </div>
-              ) : (
-                <button onClick={() => router.push('/story')}
-                  className="w-full text-left px-5 py-4 rounded-lg border-2 border-dashed border-green-300 bg-green-50/50 hover:bg-green-50 transition-colors">
-                  <p className="text-sm font-semibold text-green-800">Build your cause story →</p>
-                  <p className="text-xs text-green-600 mt-1">Our guided builder asks four questions and writes your donor page for you. Takes 3 minutes.</p>
-                </button>
-              )}
-              <div className="relative flex items-center gap-3">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400">or add a quick summary</span>
-                <div className="flex-1 h-px bg-gray-200" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-1.5">Organization / Cause Name</label>
-                <input type="text" name="causeName" value={formData.causeName} onChange={handleChange}
-                  placeholder="e.g., St. Michael's Catholic School"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-700 focus:border-transparent outline-none text-sm" />
-              </div>
-            </div>
-          )}
-
-          {/* STEP 2: Format — 2x2 grid */}
-          {step === 2 && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Pick your tournament format</h2>
@@ -258,8 +216,8 @@ export default function SetupClient() {
             </div>
           )}
 
-          {/* STEP 3: Field Size */}
-          {step === 3 && (
+          {/* STEP 2: Field Size */}
+          {step === 2 && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Field size & start method</h2>
@@ -306,8 +264,8 @@ export default function SetupClient() {
             </div>
           )}
 
-          {/* STEP 4: Course & Date */}
-          {step === 4 && (
+          {/* STEP 3: Course & Date */}
+          {step === 3 && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Date & course</h2>
@@ -359,8 +317,8 @@ export default function SetupClient() {
             </div>
           )}
 
-          {/* STEP 5: Pricing */}
-          {step === 5 && (
+          {/* STEP 4: Pricing */}
+          {step === 4 && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Pricing</h2>
@@ -387,8 +345,8 @@ export default function SetupClient() {
             </div>
           )}
 
-          {/* STEP 6: Sponsors */}
-          {step === 6 && (
+          {/* STEP 5: Sponsors */}
+          {step === 5 && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Sponsorship plan</h2>
@@ -417,8 +375,8 @@ export default function SetupClient() {
             </div>
           )}
 
-          {/* STEP 7: Review */}
-          {step === 7 && (
+          {/* STEP 6: Review */}
+          {step === 6 && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Review & publish</h2>

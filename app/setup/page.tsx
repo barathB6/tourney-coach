@@ -1,10 +1,5 @@
-import { Suspense } from 'react';
-import SetupClient from './SetupClient';
+import { redirect } from 'next/navigation';
 
 export default function SetupPage() {
-  return (
-    <Suspense>
-      <SetupClient />
-    </Suspense>
-  );
+  redirect('/setup/format');
 }

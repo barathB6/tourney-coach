@@ -85,7 +85,7 @@ export default function CauseStoryBuilder() {
     for (const [k, v] of Object.entries(fields)) {
       if (v.trim()) params.set(k, v.trim());
     }
-    router.push(`/setup?${params.toString()}`);
+    router.push(`/setup/format?${params.toString()}`);
   };
 
   // Extract dollar amount from stat for display
@@ -93,35 +93,35 @@ export default function CauseStoryBuilder() {
   const statDesc = preview.stat?.replace(/\$[\d,]+\s*[-—]?\s*/, '');
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row min-h-screen">
+    <div className="min-h-screen" style={{ background: 'var(--cream)' }}>
+      <div className="flex flex-col md:flex-row min-h-screen">
 
         {/* LEFT — Prompts */}
-        <div className="flex-1 p-6 sm:p-10 lg:pr-8">
-          <div className="max-w-xl">
+        <div className="flex-1 p-6 sm:p-10 md:p-12 lg:p-16 lg:pr-12">
+          <div className="max-w-xl mx-auto">
             {/* Step progress bars */}
             <div className="flex gap-2 mb-6">
               {STEPS.map((_, i) => (
-                <div key={i} className={`flex-1 h-1 rounded-full ${i <= step ? 'bg-green-800' : 'bg-gray-300'}`} />
+                <div key={i} className={`flex-1 h-1 rounded-full`} style={{ background: i <= step ? 'var(--primary)' : 'var(--line)' }} />
               ))}
             </div>
 
-            <p className="text-xs font-semibold text-green-800 uppercase tracking-wider mb-1">
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--primary)' }}>
               Step {step + 1} of {STEPS.length} · {currentStep.title}
             </p>
-            <h1 className="text-2xl font-bold text-gray-900 mb-6">{currentStep.subtitle}</h1>
+            <h1 className="text-2xl mb-6" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>{currentStep.subtitle}</h1>
 
             <div className="space-y-5">
               {currentStep.fields.map((f) => (
                 <div key={f.key}>
-                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">{f.label}</label>
+                  <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>{f.label}</label>
                   {f.key === 'impactNumber' || f.key === 'askHook' || f.key === 'askGoal' ? (
                     <input
                       type="text"
                       value={fields[f.key] || ''}
                       onChange={(e) => update(f.key, e.target.value)}
                       placeholder={f.placeholder}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-700 focus:border-transparent outline-none text-sm"
+                      className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none text-sm" style={{ border: '1px solid var(--line)' }}
                     />
                   ) : (
                     <textarea
@@ -129,10 +129,10 @@ export default function CauseStoryBuilder() {
                       onChange={(e) => update(f.key, e.target.value)}
                       placeholder={f.placeholder}
                       rows={3}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-700 focus:border-transparent outline-none resize-none text-sm leading-relaxed"
+                      className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }}
                     />
                   )}
-                  <p className="text-xs text-gray-400 mt-1">{f.hint}</p>
+                  <p className="text-xs mt-1" style={{ color: '#596057' }}>{f.hint}</p>
                 </div>
               ))}
             </div>
@@ -140,18 +140,18 @@ export default function CauseStoryBuilder() {
             <div className="mt-8 flex justify-between">
               {step > 0 ? (
                 <button onClick={() => setStep(step - 1)}
-                  className="px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                  className="px-5 py-2.5 text-sm font-medium rounded-lg transition-colors" style={{ color: 'var(--ink)', background: 'white', border: '1px solid var(--line)' }}>
                   ← Back
                 </button>
               ) : <div />}
               {step < STEPS.length - 1 ? (
                 <button onClick={() => setStep(step + 1)}
-                  className="px-5 py-2.5 text-sm font-medium text-white bg-green-800 rounded-lg hover:bg-green-900 transition-colors">
+                  className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
                   Continue →
                 </button>
               ) : (
                 <button onClick={handleFinish}
-                  className="px-5 py-2.5 text-sm font-medium text-white bg-green-800 rounded-lg hover:bg-green-900 transition-colors">
+                  className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
                   Save & Continue to Setup →
                 </button>
               )}
@@ -160,32 +160,34 @@ export default function CauseStoryBuilder() {
         </div>
 
         {/* RIGHT — Live Donor Preview (dark green) */}
-        <div className="flex-1 bg-[#1a3a2a] p-6 sm:p-10 flex items-start justify-center">
-          <div className="max-w-md w-full lg:sticky lg:top-10">
-            <span className="inline-block text-[10px] font-bold text-green-300 uppercase tracking-widest bg-green-900/50 px-3 py-1 rounded mb-6">
+        <div className="flex-1 p-6 sm:p-10 md:p-12 flex items-start justify-center relative overflow-hidden" style={{ background: 'var(--deep-green)' }}>
+          <div className="absolute top-0 right-0 w-[400px] h-[400px] rounded-full translate-x-1/3 -translate-y-1/3" style={{ border: '1px solid rgba(27,107,58,0.2)' }} />
+          <div className="absolute top-0 right-0 w-[300px] h-[300px] rounded-full translate-x-1/4 -translate-y-1/4" style={{ border: '1px solid rgba(27,107,58,0.15)' }} />
+          <div className="max-w-md w-full md:sticky md:top-10 relative z-10">
+            <span className="inline-block text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded mb-6" style={{ color: 'var(--deep-green)', background: 'var(--gold)', border: '1px solid var(--gold)' }}>
               Live Donor View
             </span>
 
             {!hasContent ? (
-              <p className="text-green-600 text-sm mt-8">Start writing on the left — your donor story will appear here in real time.</p>
+              <p className="text-sm mt-8" style={{ color: 'rgba(27,107,58,0.7)' }}>Start writing on the left — your donor story will appear here in real time.</p>
             ) : (
               <div className="space-y-5">
                 {preview.hook && (
-                  <h2 className="text-2xl sm:text-3xl font-bold text-white leading-tight">{preview.hook}</h2>
+                  <h2 className="text-2xl sm:text-3xl text-white leading-tight" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>{preview.hook}</h2>
                 )}
                 {preview.org && !preview.hook && (
-                  <h2 className="text-2xl font-bold text-white">{preview.org}</h2>
+                  <h2 className="text-2xl text-white" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>{preview.org}</h2>
                 )}
                 {preview.paragraphs.map((p, i) => (
-                  <p key={i} className="text-sm text-green-100/80 leading-relaxed">{p}</p>
+                  <p key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.8)' }}>{p}</p>
                 ))}
                 {preview.stat && (
-                  <div className="bg-green-900/60 border border-green-700/30 rounded-lg p-5 mt-6">
+                  <div className="rounded-lg p-5 mt-6" style={{ background: 'rgba(27,107,58,0.4)', border: '1px solid rgba(27,107,58,0.3)' }}>
                     {statAmount && (
-                      <p className="text-2xl font-bold text-amber-400">{statAmount}</p>
+                      <p className="text-2xl font-bold" style={{ color: 'var(--gold)', fontFamily: "'Fraunces', serif" }}>{statAmount}</p>
                     )}
                     {statDesc && (
-                      <p className="text-sm text-green-200/70 mt-1">{statDesc}</p>
+                      <p className="text-sm mt-1" style={{ color: 'rgba(250,248,243,0.6)' }}>{statDesc}</p>
                     )}
                   </div>
                 )}
