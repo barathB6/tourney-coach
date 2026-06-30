@@ -35,7 +35,7 @@ export default function SignInClient() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/story`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
       },
     });
     if (error) {
@@ -84,7 +84,7 @@ export default function SignInClient() {
                 <p className="text-sm" style={{ color: 'var(--ink)', opacity: 0.5 }}>{user.email}</p>
               </div>
               <button
-                onClick={() => router.push('/story')}
+                onClick={() => router.push('/dashboard')}
                 className="w-full px-4 py-3 rounded-lg text-white font-medium transition-colors"
                 style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}
               >

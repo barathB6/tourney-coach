@@ -11,7 +11,7 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const url = new URL(window.location.href);
     const code = url.searchParams.get('code');
-    const next = url.searchParams.get('next') || '/story';
+    const next = url.searchParams.get('next') || '/dashboard';
 
     if (code) {
       supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {

@@ -142,7 +142,7 @@ export default function SetupClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.errors?.[0]?.message || data.error || 'Something went wrong');
       setSuccess('Tournament created!');
-      setTimeout(() => router.push('/coach'), 1200);
+      setTimeout(() => router.push('/dashboard'), 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally { setLoading(false); }
