@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TourneyCoach — Organizer Surface (Setup vs. Build the Field)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:    #1B6B3A;   /* forest green — primary */
+    --deep:     #0F4A26;   /* deep green — coach panels, headers */
+    --gold:     #C8A04A;   /* heritage gold — achievement, CTAs */
+    --cream:    #FAF8F3;   /* canvas background */
+    --ink:      #1A1F1C;   /* body text */
+    --alert:    #B8442C;   /* you're here, warnings */
+    --info:     #4A7BA6;   /* neutral info */
+    --line:     #E5E0D5;   /* borders */
+    --turf:     #EAF2ED;   /* light green tint */
+    --muted:    #5C6B62;
+    --white:    #FFFFFF;
+    --r:        16px;
+    --shadow:   0 1px 3px rgba(15,74,38,.06), 0 8px 28px rgba(15,74,38,.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--cream);
+    color:var(--ink);
+    font-family:"DM Sans",system-ui,sans-serif;
+    font-size:15px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .tc{max-width:1180px;margin:0 auto;padding:28px 22px 56px;}
+
+  /* ——— top bar ——— */
+  .topbar{
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+    padding:16px 20px;background:var(--white);
+    border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);
+  }
+  .brand{display:flex;align-items:center;gap:11px;}
+  .brand .mark{
+    width:38px;height:38px;flex:0 0 38px;border-radius:11px;
+    background:var(--green);display:grid;place-items:center;
+  }
+  .brand .name{
+    font-family:"Fraunces",Georgia,serif;
+    font-weight:700;font-size:19px;letter-spacing:-.02em;color:var(--ink);
+  }
+  .brand .name b{color:var(--green);}
+  .tourney{padding-left:18px;border-left:1px solid var(--line);}
+  .tourney .t-name{
+    font-family:"Fraunces",Georgia,serif;
+    font-weight:600;font-size:16px;line-height:1.2;color:var(--ink);
+  }
+  .tourney .t-meta{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .topbar .spacer{flex:1;}
+  .team{display:flex;align-items:center;gap:9px;}
+  .team .avi{
+    width:32px;height:32px;border-radius:50%;background:var(--turf);color:var(--green);
+    display:grid;place-items:center;font-weight:700;font-size:13px;
+    border:1px solid var(--line);font-family:"Fraunces",Georgia,serif;
+  }
+  .team .who{font-size:12.5px;color:var(--muted);line-height:1.25;}
+  .team .who b{color:var(--ink);font-weight:600;}
+
+  /* ——— strip ——— */
+  .strip{margin:18px 2px 14px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
+  .strip h1{
+    font-family:"Fraunces",Georgia,serif;
+    font-weight:600;font-size:20px;margin:0;letter-spacing:-.02em;color:var(--ink);
+  }
+  .strip p{margin:0;color:var(--muted);font-size:13.5px;}
+
+  /* ——— two-phase grid ——— */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media(max-width:880px){.grid{grid-template-columns:1fr;}}
+
+  .phase{
+    background:var(--white);border:1px solid var(--line);
+    border-radius:var(--r);box-shadow:var(--shadow);
+    overflow:hidden;display:flex;flex-direction:column;
+  }
+  .phead{
+    padding:14px 18px;display:flex;align-items:center;
+    justify-content:space-between;gap:10px;
+    border-bottom:1px solid var(--line);
+  }
+  .phead .ptag{
+    font-family:"DM Sans",sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--green);
+    background:var(--turf);padding:4px 10px;border-radius:999px;
+  }
+  .phead .clock{
+    font-family:"DM Sans",sans-serif;font-size:12.5px;
+    color:var(--muted);font-weight:600;white-space:nowrap;
+  }
+  .pbody{padding:18px;display:flex;flex-direction:column;gap:16px;flex:1;}
+
+  /* ——— coach card ——— */
+  .coach{
+    background:var(--deep);color:var(--white);
+    border-radius:14px;padding:16px 16px 15px;
+    position:relative;overflow:hidden;
+  }
+  .coach::after{
+    content:"";position:absolute;right:-26px;bottom:-26px;
+    width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.04);
+  }
+  .coach .ey{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+  .coach .ey .pin{
+    width:22px;height:22px;flex:0 0 22px;border-radius:7px;
+    background:rgba(255,255,255,.12);display:grid;place-items:center;
+  }
+  .coach .ey span{
+    font-family:"DM Sans",sans-serif;font-size:10.5px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;color:#A9D9BD;
+  }
+  .coach .msg{font-size:14.5px;line-height:1.5;position:relative;z-index:1;}
+  .coach .msg b{color:var(--gold);font-weight:700;}
+  .coach .acts{display:flex;gap:9px;margin-top:14px;flex-wrap:wrap;position:relative;z-index:1;}
+  .btn{
+    font-family:"DM Sans",sans-serif;font-weight:700;font-size:13.5px;
+    border:none;cursor:pointer;border-radius:10px;padding:9px 15px;
+  }
+  .btn--gold{background:var(--gold);color:#2e1f04;}
+  .btn--ghost{background:transparent;color:#CFE9D8;border:1px solid rgba(255,255,255,.28);}
+  .btn:focus-visible{outline:3px solid var(--gold);outline-offset:2px;}
+
+  /* ——— scoreboard tiles ——— */
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .tile{border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:var(--white);}
+  .tile.lead{background:var(--green);border-color:var(--green);color:var(--white);}
+  .tile .lab{
+    font-family:"DM Sans",sans-serif;font-size:10px;font-weight:600;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  }
+  .tile.lead .lab{color:rgba(255,255,255,.8);}
+  .tile .num{
+    font-family:"Fraunces",Georgia,serif;font-weight:700;
+    font-size:26px;line-height:1.05;margin-top:5px;letter-spacing:-.02em;
+    color:var(--ink);
+  }
+  .tile.lead .num{color:var(--white);}
+  .tile .sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .tile.lead .sub{color:rgba(255,255,255,.8);}
+  .bar{height:6px;border-radius:999px;background:rgba(255,255,255,.25);margin-top:9px;overflow:hidden;}
+  .bar > i{display:block;height:100%;border-radius:999px;background:var(--gold);}
+  .tile .num-green{color:var(--green);}
+
+  /* ——— section headings ——— */
+  .block-h{
+    font-family:"DM Sans",sans-serif;font-size:10.5px;font-weight:600;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 2px;
+  }
+
+  /* ——— game plan spine ——— */
+  .spine{list-style:none;margin:6px 0 0;padding:0;position:relative;}
+  .spine::before{
+    content:"";position:absolute;left:13px;top:10px;bottom:10px;
+    width:2px;background:var(--line);
+  }
+  .step{position:relative;display:flex;align-items:flex-start;gap:12px;padding:7px 0;}
+  .dot{
+    width:28px;height:28px;flex:0 0 28px;border-radius:50%;
+    background:var(--white);border:2px solid var(--line);
+    display:grid;place-items:center;z-index:1;
+    color:var(--muted);font-size:13px;font-weight:600;
+  }
+  .step.done .dot{background:var(--green);border-color:var(--green);color:#fff;}
+  .step.now .dot{background:#fff;border-color:var(--alert);}
+  .step .lab{padding-top:4px;font-size:14px;}
+  .step.upcoming .lab{color:var(--muted);}
+  .step.now .lab{font-weight:600;}
+  .nowtag{
+    font-family:"DM Sans",sans-serif;font-size:9.5px;font-weight:600;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--alert);
+    border:1px solid #e7c3ba;background:#fbeeeb;
+    border-radius:999px;padding:2px 7px;margin-left:8px;vertical-align:2px;
+  }
+  .donelab{
+    font-family:"DM Sans",sans-serif;font-size:11px;
+    color:var(--green);font-weight:600;margin-left:6px;
+  }
+
+  /* ——— note box ——— */
+  .note{
+    background:var(--turf);border:1px solid #C8DDD1;
+    border-radius:12px;padding:13px 14px;
+    font-size:13px;color:#2c4537;
+  }
+  .note b{color:var(--ink);font-weight:700;}
+
+  /* ——— 347 circle widget ——— */
+  .circle{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;gap:13px;align-items:flex-start;}
+  .circle .big{
+    font-family:"Fraunces",Georgia,serif;font-weight:700;font-size:30px;
+    color:var(--green);line-height:1;letter-spacing:-.02em;flex-shrink:0;
+  }
+  .circle .cx{font-size:13px;}
+  .circle .cx .pv{font-size:11px;color:var(--muted);margin-top:3px;}
+
+  /* ——— quick jump buttons ——— */
+  .quick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;}
+  .q{
+    border:1px solid var(--line);border-radius:11px;
+    padding:11px 10px;text-align:left;background:var(--white);cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .q:hover{transform:translateY(-2px);box-shadow:var(--shadow);}
+  .q .qt{font-weight:700;font-size:12.5px;color:var(--ink);}
+  .q .qn{font-family:"DM Sans",sans-serif;font-size:11px;color:var(--muted);margin-top:3px;font-weight:500;}
+  .q:focus-visible{outline:3px solid var(--green);outline-offset:2px;}
+
+  /* ——— team line ——— */
+  .teamline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);}
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;
+    background:var(--white);border:1px solid var(--line);
+    border-radius:999px;padding:4px 11px 4px 5px;font-size:12.5px;
+  }
+  .chip .ci{
+    width:20px;height:20px;border-radius:50%;background:var(--turf);color:var(--green);
+    display:grid;place-items:center;font-weight:700;font-size:10px;
+    font-family:"Fraunces",Georgia,serif;
+  }
+  .chip b{color:var(--ink);font-weight:700;}
+  .chip .scope{color:var(--muted);font-weight:400;}
+  .addbtn{
+    border:1px dashed var(--line);background:transparent;color:var(--green);
+    border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;
+    cursor:pointer;font-family:"DM Sans",sans-serif;
+  }
+  .addbtn:hover{background:var(--turf);}
+
+  /* ——— footer ——— */
+  footer{margin-top:26px;text-align:center;color:var(--muted);font-size:12px;line-height:1.6;}
+  footer b{color:var(--green);}
+
+  /* ——— subtle load animation ——— */
+  @media(prefers-reduced-motion:no-preference){
+    .topbar,.phase{opacity:0;transform:translateY(8px);animation:rise .45s ease forwards;}
+    .phase:nth-child(2){animation-delay:.07s;}
+    @keyframes rise{to{opacity:1;transform:none;}}
+  }
+</style>
+</head>
+<body>
+<div class="tc">
+
+  <!-- top bar -->
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M7 21V4.2c0-.4.3-.7.7-.6l9.7 2.3c.5.1.6.8.1 1l-5.6 2.7c-.3.1-.3.6 0 .7l3.2 1.6c.5.2.4.9-.1 1L7 16" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="name">Tourney<b>Coach</b></span>
+    </div>
+    <div class="tourney">
+      <div class="t-name">St. Michael&#8217;s Cup</div>
+      <div class="t-meta">Live Oak Golf Club &middot; Scramble &middot; 72 players</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="team">
+      <div class="avi" aria-hidden="true">M</div>
+      <div class="who"><b>Maria</b><br>organizer</div>
+    </div>
+  </div>
+
+  <div class="strip">
+    <h1>One surface, every stage.</h1>
+    <p>The organizer dashboard is a single screen that re-weights itself as the event moves. Here are its first two stages, side by side.</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- ═══════════════ PHASE 1 — SETUP ═══════════════ -->
+    <section class="phase">
+      <div class="phead">
+        <div class="ptag">Stage 1 &middot; Setup</div>
+        <div class="clock">12 weeks to tee off</div>
+      </div>
+      <div class="pbody">
+
+        <div class="coach">
+          <div class="ey">
+            <span class="pin" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path d="M7 21V4.2c0-.4.3-.7.7-.6l9.7 2.3c.5.1.6.8.1 1l-5.6 2.7c-.3.1-.3.6 0 .7l3.2 1.6c.5.2.4.9-.1 1L7 16" stroke="#A9D9BD" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span>From your coach</span>
+          </div>
+          <div class="msg">Welcome back, Maria. The heart of every great tournament is the story of <b>why</b>. Let&#8217;s write yours first &mdash; it&#8217;s what makes sponsors say yes and players show up.</div>
+          <div class="acts">
+            <button class="btn btn--gold">Start your cause story</button>
+            <button class="btn btn--ghost">See the whole plan</button>
+          </div>
+        </div>
+
+        <div>
+          <p class="block-h">Your game plan</p>
+          <ul class="spine">
+            <li class="step now">
+              <span class="dot" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                  <path d="M7 21V4.2c0-.4.3-.7.7-.6l9.7 2.3c.5.1.6.8.1 1l-5.6 2.7c-.3.1-.3.6 0 .7l3.2 1.6c.5.2.4.9-.1 1L7 16" stroke="#B8442C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="lab">Tell your cause story<span class="nowtag">You&#8217;re here</span></span>
+            </li>
+            <li class="step upcoming"><span class="dot">2</span><span class="lab">Set up the event details</span></li>
+            <li class="step upcoming"><span class="dot">3</span><span class="lab">Open registration</span></li>
+            <li class="step upcoming"><span class="dot">4</span><span class="lab">Line up your sponsors</span></li>
+            <li class="step upcoming"><span class="dot">5</span><span class="lab">Rally your volunteers</span></li>
+            <li class="step upcoming"><span class="dot">6</span><span class="lab">Build your day-of game plan</span></li>
+          </ul>
+        </div>
+
+        <div class="note">
+          First-year tournaments usually raise <b>$5,000&ndash;$15,000</b>. We&#8217;ll take it one step at a time and aim higher together &mdash; no rush, no pressure.
+        </div>
+
+        <div>
+          <p class="block-h">Your team</p>
+          <div class="teamline">
+            <span>Running this solo? That&#8217;s how most great tournaments start.</span>
+            <button class="addbtn">+ Invite someone to help</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ═══════════════ PHASE 2 — BUILD THE FIELD ═══════════════ -->
+    <section class="phase">
+      <div class="phead">
+        <div class="ptag">Stage 2 &middot; Build the field &amp; money</div>
+        <div class="clock">38 days to tee off</div>
+      </div>
+      <div class="pbody">
+
+        <div class="tiles">
+          <div class="tile lead">
+            <div class="lab">Field filled</div>
+            <div class="num">14<span style="font-size:16px;opacity:.8;font-weight:400;"> / 18</span></div>
+            <div class="sub">foursomes &middot; 4 to go</div>
+            <div class="bar"><i style="width:78%"></i></div>
+          </div>
+          <div class="tile lead">
+            <div class="lab">Raised so far</div>
+            <div class="num">$11,200</div>
+            <div class="sub">of $18,000 goal</div>
+            <div class="bar"><i style="width:62%"></i></div>
+          </div>
+          <div class="tile">
+            <div class="lab">Sponsors</div>
+            <div class="num num-green">6</div>
+            <div class="sub">of about 10</div>
+          </div>
+          <div class="tile">
+            <div class="lab">Days left</div>
+            <div class="num num-green">38</div>
+            <div class="sub">tee off Aug 8</div>
+          </div>
+        </div>
+
+        <div class="coach">
+          <div class="ey">
+            <span class="pin" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path d="M7 21V4.2c0-.4.3-.7.7-.6l9.7 2.3c.5.1.6.8.1 1l-5.6 2.7c-.3.1-.3.6 0 .7l3.2 1.6c.5.2.4.9-.1 1L7 16" stroke="#A9D9BD" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span>From your coach</span>
+          </div>
+          <div class="msg">You&#8217;re <b>4 foursomes short</b> with 38 days to go &mdash; right on track. The fastest way to fill them: send one invite to nearby golfers who&#8217;ve asked to hear about events like yours.</div>
+          <div class="acts">
+            <button class="btn btn--gold">Send the invite &middot; $29 flat</button>
+            <button class="btn btn--ghost">Maybe later</button>
+          </div>
+        </div>
+
+        <div class="circle">
+          <div class="big">347</div>
+          <div class="cx">
+            <div>golfers within 35 miles want to hear about tournaments like yours.</div>
+            <div class="pv">One message, sent for you &mdash; about 1 in 4 click through. We never share their names or emails.</div>
+          </div>
+        </div>
+
+        <div>
+          <p class="block-h">Your progress</p>
+          <ul class="spine">
+            <li class="step done">
+              <span class="dot" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="lab">Cause story<span class="donelab">done</span></span>
+            </li>
+            <li class="step done">
+              <span class="dot" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="lab">Event set up<span class="donelab">done</span></span>
+            </li>
+            <li class="step now">
+              <span class="dot" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                  <path d="M7 21V4.2c0-.4.3-.7.7-.6l9.7 2.3c.5.1.6.8.1 1l-5.6 2.7c-.3.1-.3.6 0 .7l3.2 1.6c.5.2.4.9-.1 1L7 16" stroke="#B8442C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="lab">Registration &amp; sponsors<span class="nowtag">You&#8217;re here</span></span>
+            </li>
+            <li class="step upcoming">
+              <span class="dot">4</span>
+              <span class="lab">Rally your volunteers <span style="font-family:'DM Sans',sans-serif;font-size:11px;color:var(--muted);font-weight:500;">8 / 12</span></span>
+            </li>
+            <li class="step upcoming"><span class="dot">5</span><span class="lab">Day-of game plan</span></li>
+          </ul>
+        </div>
+
+        <div>
+          <p class="block-h">Jump back in</p>
+          <div class="quick">
+            <button class="q"><div class="qt">Registration</div><div class="qn">14 foursomes</div></button>
+            <button class="q"><div class="qt">Sponsors</div><div class="qn">6 secured</div></button>
+            <button class="q"><div class="qt">Volunteers</div><div class="qn">8 of 12</div></button>
+          </div>
+        </div>
+
+        <div>
+          <p class="block-h">Your team</p>
+          <div class="teamline">
+            <span class="chip"><span class="ci">M</span><b>You</b><span class="scope">&middot; everything</span></span>
+            <span class="chip"><span class="ci">S</span><b>Sarah</b><span class="scope">&middot; sponsorships</span></span>
+            <button class="addbtn">+ Invite</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <footer>
+    <b>TourneyCoach</b> &middot; Organizer surface mock v1 &middot; the same screen in two stages<br>
+    One role, surfaced as &#8220;who&#8217;s helping with what&#8221; &mdash; never a permission tier the organizer has to think about.
+  </footer>
+
+</div>
+</body>
+</html>

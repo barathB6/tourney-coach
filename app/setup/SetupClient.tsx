@@ -70,23 +70,41 @@ export default function SetupClient() {
   });
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) router.replace(`/sign-in?next=/setup/format`);
+    });
     fetchCourses();
+
+    const mapping: Record<string, string> = {
+      orgName: 'causeName', originStory: 'causeOrigin', missionWhat: 'causeWhat',
+      impactWho: 'causeWho', impactWhat: 'causeWhy', impactNumber: 'causeStat',
+      askHook: 'causeHook', askGoal: 'causeGoal', askStat: 'causeStat',
+    };
+    const updates: Record<string, string> = {};
+
+    // Load from localStorage story save first
+    try {
+      const saved = localStorage.getItem('tourney_story');
+      if (saved) {
+        const story = JSON.parse(saved) as Record<string, string>;
+        for (const [param, field] of Object.entries(mapping)) {
+          if (story[param]?.trim()) updates[field] = story[param].trim();
+        }
+      }
+    } catch { /* ignore */ }
+
+    // URL params override localStorage
     if (searchParams) {
-      const mapping: Record<string, string> = {
-        orgName: 'causeName', originStory: 'causeOrigin', missionWhat: 'causeWhat',
-        impactWho: 'causeWho', impactWhat: 'causeWhy', impactNumber: 'causeStat',
-        askHook: 'causeHook', askGoal: 'causeGoal', askStat: 'causeStat',
-      };
-      const updates: Record<string, string> = {};
       for (const [param, field] of Object.entries(mapping)) {
         const val = searchParams.get(param);
         if (val) updates[field] = val;
       }
-      if (Object.keys(updates).length > 0) {
-        setFormData((prev) => ({ ...prev, ...updates }));
-      }
     }
-  }, [searchParams]);
+
+    if (Object.keys(updates).length > 0) {
+      setFormData((prev) => ({ ...prev, ...updates }));
+    }
+  }, [searchParams, router]);
 
   const fetchCourses = async () => {
     try {
@@ -122,6 +140,10 @@ export default function SetupClient() {
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace('/sign-in?next=/setup/format');
+        return;
+      }
       const causeStory = [formData.causeHook, formData.causeOrigin, formData.causeWhat, formData.causeWho, formData.causeWhy, formData.causeGoal].filter(Boolean).join('\n\n') || undefined;
       const payload: TournamentInput = {
         name: formData.name,

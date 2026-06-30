@@ -81,11 +81,8 @@ export default function CauseStoryBuilder() {
   const hasContent = Object.values(fields).some((v) => v.trim());
 
   const handleFinish = () => {
-    const params = new URLSearchParams();
-    for (const [k, v] of Object.entries(fields)) {
-      if (v.trim()) params.set(k, v.trim());
-    }
-    router.push(`/setup/format?${params.toString()}`);
+    localStorage.setItem('tourney_story', JSON.stringify(fields));
+    router.push('/dashboard');
   };
 
   // Extract dollar amount from stat for display
