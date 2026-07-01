@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import supabase from '@/lib/supabaseClient';
 
 const STEPS = [
   {
@@ -44,6 +45,13 @@ export default function CauseStoryBuilder() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [fields, setFields] = useState<Record<string, string>>({});
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
+    });
+  }, []);
 
   const update = (key: string, value: string) => {
     setFields((prev) => ({ ...prev, [key]: value }));
@@ -81,7 +89,7 @@ export default function CauseStoryBuilder() {
   const hasContent = Object.values(fields).some((v) => v.trim());
 
   const handleFinish = () => {
-    localStorage.setItem('tourney_story', JSON.stringify(fields));
+    if (userId) localStorage.setItem(`tourney_story_${userId}`, JSON.stringify(fields));
     router.push('/dashboard');
   };
 
