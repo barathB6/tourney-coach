@@ -70,40 +70,40 @@ export default function SetupClient() {
   });
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) router.replace(`/sign-in?next=/setup/format`);
-    });
-    fetchCourses();
-
     const mapping: Record<string, string> = {
       orgName: 'causeName', originStory: 'causeOrigin', missionWhat: 'causeWhat',
       impactWho: 'causeWho', impactWhat: 'causeWhy', impactNumber: 'causeStat',
       askHook: 'causeHook', askGoal: 'causeGoal', askStat: 'causeStat',
     };
-    const updates: Record<string, string> = {};
 
-    // Load from localStorage story save first
-    try {
-      const saved = localStorage.getItem('tourney_story');
-      if (saved) {
-        const story = JSON.parse(saved) as Record<string, string>;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { router.replace(`/sign-in?next=/setup/format`); return; }
+
+      const updates: Record<string, string> = {};
+
+      try {
+        const saved = localStorage.getItem(`tourney_story_${user.id}`);
+        if (saved) {
+          const story = JSON.parse(saved) as Record<string, string>;
+          for (const [param, field] of Object.entries(mapping)) {
+            if (story[param]?.trim()) updates[field] = story[param].trim();
+          }
+        }
+      } catch { /* ignore */ }
+
+      if (searchParams) {
         for (const [param, field] of Object.entries(mapping)) {
-          if (story[param]?.trim()) updates[field] = story[param].trim();
+          const val = searchParams.get(param);
+          if (val) updates[field] = val;
         }
       }
-    } catch { /* ignore */ }
 
-    // URL params override localStorage
-    if (searchParams) {
-      for (const [param, field] of Object.entries(mapping)) {
-        const val = searchParams.get(param);
-        if (val) updates[field] = val;
+      if (Object.keys(updates).length > 0) {
+        setFormData((prev) => ({ ...prev, ...updates }));
       }
-    }
+    });
 
-    if (Object.keys(updates).length > 0) {
-      setFormData((prev) => ({ ...prev, ...updates }));
-    }
+    fetchCourses();
   }, [searchParams, router]);
 
   const fetchCourses = async () => {

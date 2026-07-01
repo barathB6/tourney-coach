@@ -49,19 +49,28 @@ export default function Dashboard() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [storyDone, setStoryDone] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.replace('/sign-in');
+  };
 
   useEffect(() => {
     async function load() {
       const { data: { user: u } } = await supabase.auth.getUser();
       if (!u) { router.replace('/sign-in'); return; }
 
-      const fullName = u.user_metadata?.full_name || u.email || 'Organizer';
+      const fullName = u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Organizer';
       const firstName = fullName.split(' ')[0];
       const initials = fullName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
-      setUser({ name: firstName, fullName, initials, avatar: u.user_metadata?.avatar_url || '' });
+      const avatar = u.user_metadata?.avatar_url || u.user_metadata?.picture || '';
+      console.log('[Dashboard] user_metadata:', u.user_metadata, '| avatar:', avatar);
+      setUser({ name: firstName, fullName, initials, avatar });
 
       try {
-        const saved = localStorage.getItem('tourney_story');
+        const saved = localStorage.getItem(`tourney_story_${u.id}`);
         if (saved) {
           const story = JSON.parse(saved);
           setStoryDone(Object.values(story).some((v) => (v as string)?.trim?.()));
@@ -213,15 +222,49 @@ export default function Dashboard() {
 
           <div style={{ flex: 1 }} />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            {user?.avatar ? (
-              <img src={user.avatar} alt={user.fullName} width={32} height={32} style={{ borderRadius: '50%', border: '1px solid var(--line)', flexShrink: 0 }} referrerPolicy="no-referrer" />
-            ) : (
-              <div style={s.avi}>{user?.initials}</div>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setMenuOpen(o => !o)}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: 10 }}
+            >
+              {user?.avatar && !avatarError ? (
+                <img
+                  src={user.avatar}
+                  alt={user.fullName}
+                  width={34}
+                  height={34}
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarError(true)}
+                  style={{ borderRadius: '50%', border: '2px solid var(--line)', flexShrink: 0, objectFit: 'cover' }}
+                />
+              ) : (
+                <div style={s.avi}>{user?.initials}</div>
+              )}
+              <div style={{ fontSize: 12.5, color: '#5C6B62', lineHeight: 1.25, textAlign: 'left' }}>
+                <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{user?.name}</strong><br />organizer
+              </div>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ color: '#5C6B62', flexShrink: 0 }}>
+                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {menuOpen && (
+              <>
+                <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
+                <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', background: '#fff', border: '1px solid var(--line)', borderRadius: 12, boxShadow: '0 4px 20px rgba(15,74,38,.12)', minWidth: 160, zIndex: 20, overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{user?.fullName}</div>
+                    <div style={{ fontSize: 11, color: '#5C6B62', marginTop: 1 }}>organizer</div>
+                  </div>
+                  <button
+                    onClick={handleSignOut}
+                    style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--alert)', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </>
             )}
-            <div style={{ fontSize: 12.5, color: '#5C6B62', lineHeight: 1.25 }}>
-              <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{user?.name}</strong><br />organizer
-            </div>
           </div>
         </div>
 
