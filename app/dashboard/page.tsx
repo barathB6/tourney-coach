@@ -411,7 +411,7 @@ export default function Dashboard() {
                 </div>
                 <div style={s.coachActs}>
                   {setupDone
-                    ? <button style={s.btnGold}>Open registration</button>
+                    ? <button style={s.btnGold} onClick={() => router.push(`/register?id=${tournament!.id}`)}>Open registration</button>
                     : <button style={s.btnGold} onClick={() => steps[activeIdx]?.href && router.push(steps[activeIdx].href!)}>
                         Complete Phase 1 first
                       </button>
