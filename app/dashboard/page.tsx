@@ -47,6 +47,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<{ name: string; fullName: string; initials: string; avatar: string } | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [registrationCount, setRegistrationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [storyDone, setStoryDone] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -85,7 +86,15 @@ export default function Dashboard() {
         .limit(1)
         .maybeSingle();
 
-      if (data) setTournament(data);
+      if (data) {
+        setTournament(data);
+        const { count } = await supabase
+          .from('registrations')
+          .select('*', { count: 'exact', head: true })
+          .eq('tournament_id', data.id)
+          .in('payment_status', ['pending', 'paid']);
+        setRegistrationCount(count ?? 0);
+      }
       setLoading(false);
     }
     load();
@@ -116,6 +125,7 @@ export default function Dashboard() {
   const weeks = tournament ? weeksUntil(tournament.event_date) : null;
   const days = tournament ? daysUntil(tournament.event_date) : null;
   const foursomes = tournament ? Math.floor(tournament.max_players / 4) : 18;
+  const foursomesFilled = registrationCount;
 
   const coachMsg = activeIdx === 0
     ? `Welcome back, ${user?.name}. The heart of every great tournament is the story of why. Let's write yours first — it's what makes sponsors say yes and players show up.`
@@ -375,9 +385,9 @@ export default function Dashboard() {
               <div style={s.tiles}>
                 <div style={s.tileLead}>
                   <div style={s.tileLab}>Field filled</div>
-                  <div style={s.tileNum}>0<span style={{ fontSize: 16, opacity: .8, fontWeight: 400 }}> / {foursomes}</span></div>
-                  <div style={s.tileSub}>foursomes · {foursomes} to go</div>
-                  <div style={s.bar}><span style={{ display: 'block', height: '100%', borderRadius: 999, background: 'var(--gold)', width: '0%' }} /></div>
+                  <div style={s.tileNum}>{foursomesFilled}<span style={{ fontSize: 16, opacity: .8, fontWeight: 400 }}> / {foursomes}</span></div>
+                  <div style={s.tileSub}>foursomes · {foursomes - foursomesFilled} to go</div>
+                  <div style={s.bar}><span style={{ display: 'block', height: '100%', borderRadius: 999, background: 'var(--gold)', width: `${Math.min(100, (foursomesFilled / foursomes) * 100)}%` }} /></div>
                 </div>
                 <div style={s.tileLead}>
                   <div style={s.tileLab}>Raised so far</div>
