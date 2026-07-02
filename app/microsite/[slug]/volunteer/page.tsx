@@ -1,6 +1,6 @@
 'use client';
 
-import { createClient } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
@@ -27,14 +27,13 @@ export default function VolunteerPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const supabase = createClient();
     supabase
       .from('tournaments')
       .select('id, name, event_date, microsite_color, volunteer_info, contact_email')
       .eq('slug', slug)
       .in('status', ['published', 'live', 'completed'])
       .single()
-      .then(({ data }) => setTournament(data));
+      .then((res) => setTournament(res.data));
   }, [slug]);
 
   const primaryColor = tournament?.microsite_color ?? '#1B6B3A';

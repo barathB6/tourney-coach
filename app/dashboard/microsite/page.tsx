@@ -1,6 +1,6 @@
 'use client';
 
-import { createClient } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -23,7 +23,6 @@ type Tournament = MicrositeFields & { id: string; name: string; status: string }
 
 export default function MicrositeEditorPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [form, setForm] = useState<MicrositeFields>({
@@ -45,7 +44,8 @@ export default function MicrositeEditorPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getUser().then(async (response) => {
+      const user = response.data.user;
       if (!user) { router.replace('/sign-in?next=/dashboard/microsite'); return; }
 
       const { data } = await supabase
