@@ -11,6 +11,12 @@ type MicrositeFields = {
   location_name: string;
   volunteer_info: string;
   social_links: { instagram?: string; facebook?: string; twitter?: string };
+  cause_tagline: string;
+  edition_label: string;
+  shotgun_time: string;
+  historical_raised_cents: string;
+  cause_org: string;
+  sponsor_hole_url: string;
 };
 
 type Tournament = MicrositeFields & { id: string; name: string; status: string };
@@ -27,6 +33,12 @@ export default function MicrositeEditorPage() {
     location_name: '',
     volunteer_info: '',
     social_links: {},
+    cause_tagline: '',
+    edition_label: '',
+    shotgun_time: '',
+    historical_raised_cents: '',
+    cause_org: '',
+    sponsor_hole_url: '',
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -38,7 +50,7 @@ export default function MicrositeEditorPage() {
 
       const { data } = await supabase
         .from('tournaments')
-        .select('id, name, status, slug, microsite_color, contact_email, location_name, volunteer_info, social_links')
+        .select('id, name, status, slug, microsite_color, contact_email, location_name, volunteer_info, social_links, cause_tagline, edition_label, shotgun_time, historical_raised_cents, cause_org, sponsor_hole_url')
         .eq('organizer_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -53,6 +65,12 @@ export default function MicrositeEditorPage() {
           location_name: data.location_name ?? '',
           volunteer_info: data.volunteer_info ?? '',
           social_links: (data.social_links as MicrositeFields['social_links']) ?? {},
+          cause_tagline: data.cause_tagline ?? '',
+          edition_label: data.edition_label ?? '',
+          shotgun_time: data.shotgun_time ?? '',
+          historical_raised_cents: data.historical_raised_cents ? String(data.historical_raised_cents / 100) : '',
+          cause_org: data.cause_org ?? '',
+          sponsor_hole_url: data.sponsor_hole_url ?? '',
         });
       }
     });
@@ -70,6 +88,11 @@ export default function MicrositeEditorPage() {
     setError('');
     setSaved(false);
 
+    const raisedDollars = parseFloat(form.historical_raised_cents);
+    const raisedCents = !isNaN(raisedDollars) && raisedDollars > 0
+      ? Math.round(raisedDollars * 100)
+      : null;
+
     const { error: err } = await supabase
       .from('tournaments')
       .update({
@@ -78,6 +101,12 @@ export default function MicrositeEditorPage() {
         location_name: form.location_name || null,
         volunteer_info: form.volunteer_info || null,
         social_links: form.social_links,
+        cause_tagline: form.cause_tagline || null,
+        edition_label: form.edition_label || null,
+        shotgun_time: form.shotgun_time || null,
+        historical_raised_cents: raisedCents,
+        cause_org: form.cause_org || null,
+        sponsor_hole_url: form.sponsor_hole_url || null,
       })
       .eq('id', tournament.id);
 
@@ -95,6 +124,7 @@ export default function MicrositeEditorPage() {
     page: { fontFamily: "'DM Sans', sans-serif", background: '#FAF8F3', minHeight: '100vh', padding: '32px 24px', color: '#1A1F1C' } as React.CSSProperties,
     card: { background: '#fff', border: '1px solid #E5E0D5', borderRadius: 8, padding: '28px', marginBottom: 20 } as React.CSSProperties,
     label: { display: 'block', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#6B7775', marginBottom: 6 },
+    hint: { fontSize: 12, color: '#9BA8A4', marginTop: 4 },
     input: { width: '100%', padding: '10px 12px', border: '1px solid #E5E0D5', borderRadius: 4, fontSize: 15, background: '#FAFAF8', boxSizing: 'border-box' as const },
     textarea: { width: '100%', padding: '10px 12px', border: '1px solid #E5E0D5', borderRadius: 4, fontSize: 15, background: '#FAFAF8', boxSizing: 'border-box' as const, minHeight: 100, resize: 'vertical' as const },
     btn: { padding: '12px 28px', background: '#1B6B3A', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 4, cursor: 'pointer' },
@@ -140,6 +170,44 @@ export default function MicrositeEditorPage() {
           )}
         </div>
 
+        {/* Hero content */}
+        <div style={s.card}>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginBottom: 20, marginTop: 0 }}>Hero Section</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={s.row}>
+              <label style={s.label}>Impact Headline</label>
+              <input style={s.input} value={form.cause_tagline} onChange={e => set('cause_tagline', e.target.value)}
+                placeholder="Every swing drives St. Michael's forward" />
+              <p style={s.hint}>Large headline shown on your microsite hero. Falls back to tournament name if left blank.</p>
+            </div>
+            <div style={s.row}>
+              <label style={s.label}>Edition Label</label>
+              <input style={s.input} value={form.edition_label} onChange={e => set('edition_label', e.target.value)}
+                placeholder="5TH ANNUAL" />
+              <p style={s.hint}>Shown in the pill badge next to the date (e.g. "5TH ANNUAL").</p>
+            </div>
+            <div style={s.row}>
+              <label style={s.label}>Benefiting Organization</label>
+              <input style={s.input} value={form.cause_org} onChange={e => set('cause_org', e.target.value)}
+                placeholder="St. Michael's Catholic School" />
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div style={s.card}>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginBottom: 20, marginTop: 0 }}>Stats Strip</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={s.row}>
+              <label style={s.label}>Total Raised (all-time, $)</label>
+              <input style={s.input} type="number" min="0" value={form.historical_raised_cents}
+                onChange={e => set('historical_raised_cents', e.target.value)}
+                placeholder="25000" />
+              <p style={s.hint}>Dollar amount raised across all previous editions. Shown as "$25K raised for the cause".</p>
+            </div>
+          </div>
+        </div>
+
         {/* Brand color */}
         <div style={s.card}>
           <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginBottom: 16, marginTop: 0 }}>Brand Color</h2>
@@ -148,7 +216,7 @@ export default function MicrositeEditorPage() {
               style={{ width: 48, height: 48, border: '1px solid #E5E0D5', borderRadius: 4, cursor: 'pointer', padding: 2 }} />
             <div>
               <p style={{ margin: '0 0 4px', fontWeight: 600 }}>{form.microsite_color}</p>
-              <p style={{ margin: 0, fontSize: 13, color: '#6B7775' }}>Used for headings, buttons, and accents on your microsite</p>
+              <p style={{ margin: 0, fontSize: 13, color: '#6B7775' }}>Used for the hero background, headings, and accent buttons</p>
             </div>
           </div>
         </div>
@@ -163,6 +231,11 @@ export default function MicrositeEditorPage() {
                 placeholder="Pebble Beach Golf Links" />
             </div>
             <div style={s.row}>
+              <label style={s.label}>Shotgun Start Time</label>
+              <input style={s.input} value={form.shotgun_time} onChange={e => set('shotgun_time', e.target.value)}
+                placeholder="8:30 AM" />
+            </div>
+            <div style={s.row}>
               <label style={s.label}>Contact Email</label>
               <input style={s.input} type="email" value={form.contact_email} onChange={e => set('contact_email', e.target.value)}
                 placeholder="organizer@yourorg.com" />
@@ -170,11 +243,22 @@ export default function MicrositeEditorPage() {
           </div>
         </div>
 
+        {/* Sponsor hole */}
+        <div style={s.card}>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginBottom: 16, marginTop: 0 }}>Hole Sponsorship</h2>
+          <div style={s.row}>
+            <label style={s.label}>Sponsor a Hole URL</label>
+            <input style={s.input} value={form.sponsor_hole_url} onChange={e => set('sponsor_hole_url', e.target.value)}
+              placeholder="https://your-sponsor-form.com" />
+            <p style={s.hint}>Link shown on the "Sponsor a hole" ghost button in the hero. Leave blank to show a Volunteer button instead.</p>
+          </div>
+        </div>
+
         {/* Volunteer info */}
         <div style={s.card}>
           <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginBottom: 8, marginTop: 0 }}>Volunteer Recruitment</h2>
           <p style={{ fontSize: 13, color: '#6B7775', marginBottom: 16 }}>
-            This text appears on your volunteer sign-up page at <code>{form.slug ? `${form.slug}.tourneycoach.com/volunteer` : 'your-event.tourneycoach.com/volunteer'}</code>
+            Shown at <code>{form.slug ? `${form.slug}.tourneycoach.com/volunteer` : 'your-event.tourneycoach.com/volunteer'}</code>
           </p>
           <div style={s.row}>
             <label style={s.label}>What volunteers should know</label>
@@ -204,7 +288,7 @@ export default function MicrositeEditorPage() {
           <button style={s.btn} onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
-          {saved && <p style={{ color: '#1B6B3A', fontSize: 14, margin: 0 }}>✓ Saved</p>}
+          {saved && <p style={{ color: '#1B6B3A', fontSize: 14, margin: 0 }}>Saved</p>}
         </div>
       </div>
     </div>
