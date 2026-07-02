@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validateTournament, TournamentInput } from '@/lib/tournaments';
 
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
 function getSupabase(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
   const client = createClient(
@@ -37,6 +46,7 @@ export async function POST(req: NextRequest) {
     .insert({
       organizer_id: user.id,
       name: body.name.trim(),
+      slug: generateSlug(body.name.trim()),
       event_date: body.event_date,
       course_id: body.course_id || null,
       format: body.format || 'scramble',
