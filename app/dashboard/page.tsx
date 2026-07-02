@@ -60,7 +60,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user: u } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const u = session?.user ?? null;
       if (!u) { router.replace('/sign-in'); return; }
 
       const fullName = u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Organizer';
