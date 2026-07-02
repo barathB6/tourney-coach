@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
+const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -22,6 +22,7 @@ const PLAYERS_PER_TYPE: Record<string, number> = {
 };
 
 async function assignFoursomeAndHole(tournamentId: string, registrationType: string) {
+  const supabase = getSupabase();
   const { count } = await supabase
     .from('registrations')
     .select('*', { count: 'exact', head: true })
@@ -89,6 +90,7 @@ async function sendConfirmationEmail(params: {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = getSupabase();
     const body = await req.json();
     const {
       tournament_id,
@@ -207,6 +209,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const supabase = getSupabase();
   const { searchParams } = new URL(req.url);
   const tournamentId = searchParams.get('tournament_id');
   if (!tournamentId) {
