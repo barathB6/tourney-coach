@@ -93,9 +93,13 @@ export default function MicrositeEditorPage() {
       ? Math.round(raisedDollars * 100)
       : null;
 
+    const cleanSlug = form.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    if (!cleanSlug) { setError('Microsite URL slug cannot be empty.'); setSaving(false); return; }
+
     const { error: err } = await supabase
       .from('tournaments')
       .update({
+        slug: cleanSlug,
         microsite_color: form.microsite_color,
         contact_email: form.contact_email || null,
         location_name: form.location_name || null,
@@ -109,6 +113,8 @@ export default function MicrositeEditorPage() {
         sponsor_hole_url: form.sponsor_hole_url || null,
       })
       .eq('id', tournament.id);
+
+    if (!err) setForm(f => ({ ...f, slug: cleanSlug }));
 
     setSaving(false);
     if (err) { setError(err.message); return; }
@@ -159,15 +165,26 @@ export default function MicrositeEditorPage() {
 
         {/* URL */}
         <div style={s.card}>
-          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginBottom: 16, marginTop: 0 }}>Your Microsite URL</h2>
-          <div style={{ background: '#F0F4F2', borderRadius: 4, padding: '12px 16px', fontFamily: 'monospace', fontSize: 14, color: '#1B6B3A' }}>
-            {micrositeUrl ?? 'Publish your tournament to activate your microsite'}
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginBottom: 4, marginTop: 0 }}>Your Microsite URL</h2>
+          <p style={{ fontSize: 13, color: '#6B7775', margin: '0 0 16px' }}>This becomes the subdomain for your public microsite.</p>
+          <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E5E0D5', borderRadius: 4, overflow: 'hidden', background: '#FAFAF8' }}>
+            <span style={{ padding: '10px 12px', background: '#F0F4F2', borderRight: '1px solid #E5E0D5', fontSize: 14, color: '#6B7775', whiteSpace: 'nowrap' as const }}>
+              https://
+            </span>
+            <input
+              style={{ flex: 1, padding: '10px 10px', border: 'none', background: 'transparent', fontSize: 14, color: '#1A1F1C', outline: 'none' }}
+              value={form.slug}
+              onChange={e => set('slug', e.target.value)}
+              placeholder="event-name"
+              spellCheck={false}
+            />
+            <span style={{ padding: '10px 12px', background: '#F0F4F2', borderLeft: '1px solid #E5E0D5', fontSize: 14, color: '#6B7775', whiteSpace: 'nowrap' as const }}>
+              .tourneycoach.com
+            </span>
           </div>
-          {micrositeUrl && (
-            <p style={{ fontSize: 12, color: '#6B7775', marginTop: 8 }}>
-              Share this link with players, sponsors, and supporters.
-            </p>
-          )}
+          <p style={{ fontSize: 12, color: '#9BA8A4', marginTop: 6 }}>
+            Use lowercase letters, numbers, and hyphens only. Spaces are converted automatically.
+          </p>
         </div>
 
         {/* Hero content */}
