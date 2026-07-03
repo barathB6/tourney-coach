@@ -28,6 +28,12 @@ async function getRegistrationCount(tournamentId: string) {
   return count ?? 0;
 }
 
+const EVENT_STATUS: Record<string, string> = {
+  published: 'https://schema.org/EventScheduled',
+  live: 'https://schema.org/EventScheduled',
+  completed: 'https://schema.org/EventPast',
+};
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const t = await getTournament(slug);
@@ -37,15 +43,30 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
 
+  const canonicalUrl = `https://${slug}.tourneycoach.com`;
+  const description = (t.cause_tagline ?? t.cause_story?.slice(0, 155) ?? `Join us for ${t.name} on ${dateStr}.`).slice(0, 160);
+  const ogImage = (t.cause_photos as string[])?.[0];
+
   return {
     title: `${t.name} — TourneyCoach`,
-    description: t.cause_tagline ?? t.cause_story?.slice(0, 160) ?? `Join us for ${t.name} on ${dateStr}.`,
+    description,
+    metadataBase: new URL('https://tourneycoach.com'),
+    alternates: { canonical: canonicalUrl },
     openGraph: {
       title: t.name,
-      description: t.cause_tagline ?? t.cause_story?.slice(0, 160) ?? `Join us for ${t.name} on ${dateStr}.`,
+      description,
       type: 'website',
-      images: (t.cause_photos as string[])?.[0] ? [{ url: (t.cause_photos as string[])[0] }] : [],
+      url: canonicalUrl,
+      siteName: 'TourneyCoach',
+      ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: t.name }] } : {}),
     },
+    twitter: {
+      card: ogImage ? 'summary_large_image' : 'summary',
+      title: t.name,
+      description,
+      ...(ogImage ? { images: [ogImage] } : {}),
+    },
+    robots: { index: true, follow: true },
   };
 }
 
@@ -93,6 +114,9 @@ export default async function MicrositePage({ params }: { params: Promise<{ slug
   const daysLeft = daysUntil(t.event_date);
   const isCompleted = t.status === 'completed';
 
+  const canonicalUrl = `https://${slug}.tourneycoach.com`;
+  const ogImage = photos[0] ?? null;
+
   const navLinks = [
     { href: '#cause', label: 'Our Cause' },
     { href: '#format', label: 'Format' },
@@ -109,10 +133,26 @@ export default async function MicrositePage({ params }: { params: Promise<{ slug
             '@context': 'https://schema.org',
             '@type': 'SportsEvent',
             name: t.name,
+            url: canonicalUrl,
+            description: t.cause_tagline ?? t.cause_story ?? undefined,
             startDate: t.event_date,
-            location: t.location_name ? { '@type': 'Place', name: t.location_name } : undefined,
-            description: t.cause_story ?? undefined,
-            organizer: { '@type': 'Organization', name: 'TourneyCoach' },
+            endDate: t.event_date,
+            eventStatus: EVENT_STATUS[t.status] ?? 'https://schema.org/EventScheduled',
+            eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+            location: t.location_name
+              ? { '@type': 'Place', name: t.location_name }
+              : undefined,
+            image: ogImage ? [ogImage] : undefined,
+            organizer: { '@type': 'Organization', name: 'TourneyCoach', url: 'https://tourneycoach.com' },
+            offers: t.entry_fee_cents
+              ? {
+                  '@type': 'Offer',
+                  price: (t.entry_fee_cents / 100).toFixed(2),
+                  priceCurrency: 'USD',
+                  availability: isCompleted ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
+                  url: `${canonicalUrl}#register`,
+                }
+              : undefined,
           }),
         }}
       />
