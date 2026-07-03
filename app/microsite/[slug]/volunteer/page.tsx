@@ -44,11 +44,13 @@ export default function VolunteerPage() {
     setSubmitting(true);
     setError('');
 
-    // For now, send to organizer email via a simple mailto or just show success.
-    // Volunteer signups table can be added when ready.
-    await new Promise(r => setTimeout(r, 600));
-    setSubmitted(true);
+    const { error: err } = await supabase
+      .from('volunteer_signups')
+      .insert({ tournament_id: tournament!.id, name, email, phone: phone || null, role: role || null });
+
     setSubmitting(false);
+    if (err) { setError('Something went wrong. Please try again.'); return; }
+    setSubmitted(true);
   };
 
   if (!tournament) return null;
