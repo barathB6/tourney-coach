@@ -123,6 +123,9 @@ export default function MicrositeEditorPage() {
   };
 
   const micrositeUrl = form.slug
+    ? `https://www.tourneycoach.com/microsite/${form.slug}`
+    : null;
+  const subdomainUrl = form.slug
     ? `https://${form.slug}.tourneycoach.com`
     : null;
 
@@ -185,6 +188,23 @@ export default function MicrositeEditorPage() {
           <p style={{ fontSize: 12, color: '#9BA8A4', marginTop: 6 }}>
             Use lowercase letters, numbers, and hyphens only. Spaces are converted automatically.
           </p>
+          {micrositeUrl && (
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#F0F4F2', borderRadius: 4, padding: '10px 14px' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#1B6B3A' }}>{micrositeUrl}</span>
+                <a href={micrositeUrl} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: '#1B6B3A', fontWeight: 600, textDecoration: 'none', marginLeft: 12, whiteSpace: 'nowrap' as const }}>
+                  Open ↗
+                </a>
+              </div>
+              {subdomainUrl && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FAF8F3', border: '1px dashed #E5E0D5', borderRadius: 4, padding: '10px 14px' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#9BA8A4' }}>{subdomainUrl}</span>
+                  <span style={{ fontSize: 11, color: '#9BA8A4', marginLeft: 12, whiteSpace: 'nowrap' as const }}>DNS pending</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Hero content */}
