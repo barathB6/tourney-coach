@@ -34,41 +34,48 @@ function fmtMoney(cents: number) {
   return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
+type TournamentOption = { id: string; name: string };
+
 export default function RegistrationsPage() {
   const router = useRouter();
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [tournamentName, setTournamentName] = useState('');
+  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
+  const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [refunding, setRefunding] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  async function loadData() {
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user ?? null;
-    if (!user) { router.replace('/sign-in'); return; }
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const user = session?.user ?? null;
+      if (!user) { router.replace('/sign-in'); return; }
 
-    const { data: tournament } = await supabase
-      .from('tournaments')
-      .select('id, name')
-      .eq('organizer_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      const { data } = await supabase
+        .from('tournaments')
+        .select('id, name')
+        .eq('organizer_id', user.id)
+        .order('created_at', { ascending: false });
 
-    if (!tournament) { setLoading(false); return; }
-    setTournamentName(tournament.name);
+      const list = data ?? [];
+      setTournaments(list);
+      if (list.length > 0) setSelectedTournament(list[0].id);
+      else setLoading(false);
+    });
+  }, [router]);
 
-    const { data } = await supabase
+  useEffect(() => {
+    if (!selectedTournament) return;
+    setLoading(true);
+    supabase
       .from('registrations')
       .select('id, registration_type, team_name, contact_name, contact_email, total_amount_cents, payment_status, foursome_number, starting_hole, created_at')
-      .eq('tournament_id', tournament.id)
-      .order('created_at', { ascending: false });
-
-    setRegistrations(data ?? []);
-    setLoading(false);
-  }
-
-  useEffect(() => { loadData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [router]);
+      .eq('tournament_id', selectedTournament)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setRegistrations(data ?? []);
+        setLoading(false);
+      });
+  }, [selectedTournament]);
 
   async function handleRefund(reg: Registration) {
     if (!window.confirm(`Refund ${fmtMoney(reg.total_amount_cents)} to ${reg.contact_name}? This cannot be undone.`)) return;
@@ -119,9 +126,22 @@ export default function RegistrationsPage() {
             ← Back to dashboard
           </button>
           <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 700, margin: 0 }}>Registrations</h1>
-          <p style={{ color: '#6B7775', margin: '4px 0 0', fontSize: 14 }}>
-            {tournamentName} · {registrations.length} {registrations.length === 1 ? 'registration' : 'registrations'} · {fmtMoney(paidTotal)} collected
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '6px 0 0' }}>
+            {tournaments.length > 1 ? (
+              <select
+                value={selectedTournament}
+                onChange={e => setSelectedTournament(e.target.value)}
+                style={{ padding: '6px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 13.5, fontFamily: "'DM Sans', sans-serif", color: '#1A1F1C', background: '#fff', cursor: 'pointer' }}
+              >
+                {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            ) : (
+              <span style={{ color: '#6B7775', fontSize: 14 }}>{tournaments[0]?.name}</span>
+            )}
+            <span style={{ color: '#6B7775', fontSize: 14 }}>
+              {registrations.length} {registrations.length === 1 ? 'registration' : 'registrations'} · {fmtMoney(paidTotal)} collected
+            </span>
+          </div>
         </div>
 
         {error && (
