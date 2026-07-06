@@ -21,6 +21,9 @@ const PLAYERS_PER_TYPE: Record<string, number> = {
   sponsor: 4,
 };
 
+// Platform fee: 2.5% on entry fees (confirmed Day 6)
+const PLATFORM_FEE_RATE = 0.025;
+
 async function assignFoursomeAndHole(tournamentId: string, registrationType: string) {
   const supabase = getSupabase();
   const { count } = await supabase
@@ -125,6 +128,7 @@ export async function POST(req: NextRequest) {
     const base = PRICES[registration_type];
     const addOnTotal = (add_ons as string[]).reduce((s, a) => s + (ADD_ON_PRICES[a] ?? 0), 0);
     const total_amount_cents = base + addOnTotal;
+    const platform_fee_cents = Math.round(total_amount_cents * PLATFORM_FEE_RATE);
 
     // Fetch tournament for email
     const { data: tournament, error: tErr } = await supabase
@@ -164,6 +168,7 @@ export async function POST(req: NextRequest) {
         players,
         add_ons,
         total_amount_cents,
+        platform_fee_cents,
         registration_source: registration_source || 'direct',
         payment_status: 'pending',
         foursome_number: foursomeNumber,

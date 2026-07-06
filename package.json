@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@adyen/adyen-web": "^6.40.1",
     "@adyen/api-library": "^31.0.0",
     "@supabase/supabase-js": "^2.108.2",
     "next": "16.2.9",

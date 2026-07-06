@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
+import '@adyen/adyen-web/styles/adyen.css';
 
 interface Tournament {
   id: string;
@@ -10,7 +11,7 @@ interface Tournament {
   event_date: string;
   format: string;
   max_players: number;
-  entry_fee: number | null;
+  entry_fee_cents: number | null;
   cause_story: string | null;
 }
 
@@ -59,6 +60,12 @@ function RegisterInner() {
   const [submitted, setSubmitted] = useState<{ foursomeNumber: number; startingHole: number | null } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Payment step state
+  const [paymentSession, setPaymentSession] = useState<{ sessionId: string; sessionData: string; clientKey: string } | null>(null);
+  const [pendingReg, setPendingReg] = useState<{ id: string; foursomeNumber: number; startingHole: number | null } | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const dropinRef = useRef<HTMLDivElement>(null);
+
   // Form state
   const [selectedType, setSelectedType] = useState('foursome');
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
@@ -84,7 +91,7 @@ function RegisterInner() {
     async function load() {
       if (!tournamentId) { setLoading(false); return; }
       const [{ data: t }, { count }] = await Promise.all([
-        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee, cause_story').eq('id', tournamentId).single(),
+        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story').eq('id', tournamentId).single(),
         supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('tournament_id', tournamentId).in('payment_status', ['pending', 'paid']),
       ]);
       if (t) setTournament(t);
@@ -139,13 +146,62 @@ function RegisterInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Registration failed');
-      setSubmitted({ foursomeNumber: data.foursome_number, startingHole: data.starting_hole });
+
+      // Create payment session and move to payment step
+      const intentRes = await fetch('/api/payments/intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registration_id: data.id,
+          return_url: `${window.location.origin}/register?id=${tournamentId}&payment_complete=1`,
+        }),
+      });
+      const session = await intentRes.json();
+      if (!intentRes.ok) throw new Error(session.error || 'Failed to start payment');
+
+      setPendingReg({ id: data.id, foursomeNumber: data.foursome_number, startingHole: data.starting_hole });
+      setPaymentSession(session);
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
       setSubmitting(false);
     }
   }
+
+  // Mount Adyen Drop-in when payment session is ready
+  useEffect(() => {
+    if (!paymentSession || !dropinRef.current) return;
+    let dropin: { unmount: () => void } | null = null;
+
+    (async () => {
+      const { AdyenCheckout, Dropin, Card } = await import('@adyen/adyen-web');
+      const checkout = await AdyenCheckout({
+        session: { id: paymentSession.sessionId, sessionData: paymentSession.sessionData },
+        environment: paymentSession.clientKey.startsWith('live_') ? 'live' : 'test',
+        clientKey: paymentSession.clientKey,
+        amount: { value: total * 100, currency: 'USD' },
+        locale: 'en-US',
+        onPaymentCompleted: (result: { resultCode?: string }) => {
+          if (result.resultCode === 'Authorised' || result.resultCode === 'Received') {
+            setSubmitted({ foursomeNumber: pendingReg!.foursomeNumber, startingHole: pendingReg!.startingHole });
+          } else {
+            setPaymentError(`Payment ${result.resultCode ?? 'failed'}. Please try again.`);
+          }
+        },
+        onPaymentFailed: (result?: { resultCode?: string }) => {
+          setPaymentError(`Payment ${result?.resultCode ?? 'failed'}. Please try a different card.`);
+        },
+        onError: (error: { message?: string }) => {
+          console.error('Adyen error:', error);
+          setPaymentError(error.message ?? 'Payment error. Please try again.');
+        },
+      });
+      dropin = new Dropin(checkout, { paymentMethodComponents: [Card] }).mount(dropinRef.current!);
+    })();
+
+    return () => { dropin?.unmount(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentSession]);
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   const s: Record<string, React.CSSProperties> = {
@@ -220,7 +276,7 @@ function RegisterInner() {
             A confirmation email is on its way to <strong>{contactEmail}</strong> with tournament details, parking info, and your hole assignment.
           </p>
           <div style={{ background: '#EAF2ED', border: '1px solid #C8DDD1', borderRadius: 12, padding: '16px 20px', fontSize: 13.5, color: '#2c4537', marginBottom: 24, lineHeight: 1.6 }}>
-            <strong>Payment:</strong> Your spot is held. Payment will be collected once registration opens — you&rsquo;ll receive a follow-up email with a secure payment link.
+            <strong>Payment received.</strong> Your spot is confirmed — see you on the course!
           </div>
           <button onClick={() => router.push('/dashboard')} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 24px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
             Back to dashboard
@@ -231,6 +287,32 @@ function RegisterInner() {
   }
 
   const heroDate = tournament?.event_date ? fmtDate(tournament.event_date) : 'DATE TBD';
+
+  // ── Payment step ──────────────────────────────────────────────────────────
+  if (paymentSession) {
+    return (
+      <div style={s.page}>
+        <header style={s.hero}>
+          <div style={s.heroWrap}>
+            <span style={s.publicBadge}>Public</span>
+            <h1 style={s.heroName}>{tournament?.name ?? 'Charity Golf Tournament'}</h1>
+          </div>
+        </header>
+        <div style={{ maxWidth: 560, margin: '40px auto', padding: '0 24px 60px' }}>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 24, color: 'var(--ink)', margin: '0 0 6px' }}>Complete your payment</h2>
+          <p style={{ fontSize: 14, color: '#5C6B62', margin: '0 0 24px' }}>
+            {regType.label.split('—')[0].trim()} · <strong style={{ color: 'var(--ink)' }}>{fmtMoney(total)}</strong>
+            {teamName && <> · Team {teamName}</>}
+          </p>
+          {paymentError && (
+            <div style={{ ...s.errorBox, marginBottom: 16 }}>{paymentError}</div>
+          )}
+          <div ref={dropinRef} />
+          <p style={{ ...s.secured, marginTop: 16 }}>Secure payment powered by Adyen</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={s.page}>
@@ -408,11 +490,10 @@ function RegisterInner() {
 
               {submitError && <div style={s.errorBox}>{submitError}</div>}
 
-              {/* PAYMENT SDK GOES HERE — insert once processor confirmed */}
               <button type="submit" style={s.ctaBtn} disabled={submitting}>
-                {submitting ? 'Submitting…' : 'Reserve my spot'}
+                {submitting ? 'Submitting…' : `Continue to payment — ${fmtMoney(total)}`}
               </button>
-              <p style={s.secured}>Payment collected when registration opens</p>
+              <p style={s.secured}>Secure payment powered by Adyen</p>
             </div>
           </div>
 
