@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabase();
-    const { eventCode, success, merchantReference, pspReference } = event;
+    const { eventCode, success, merchantReference, pspReference, originalReference } = event;
 
     if (eventCode === 'AUTHORISATION') {
       if (success) {
@@ -45,10 +45,12 @@ export async function POST(req: NextRequest) {
 
     if (eventCode === 'REFUND') {
       if (success) {
+        // REFUND events carry the original payment reference in originalReference;
+        // pspReference is the refund's own reference
         await supabase
           .from('registrations')
           .update({ payment_status: 'refunded' })
-          .eq('adyen_psp_reference', pspReference);
+          .eq('adyen_psp_reference', originalReference ?? pspReference);
       }
     }
 
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
       await supabase
         .from('registrations')
         .update({ payment_status: 'failed' })
-        .eq('adyen_psp_reference', pspReference);
+        .eq('adyen_psp_reference', originalReference ?? pspReference);
     }
 
     return ACK;

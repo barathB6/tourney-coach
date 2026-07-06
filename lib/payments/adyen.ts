@@ -82,6 +82,7 @@ export class AdyenProcessor implements PaymentProcessor {
       success: notification.success === 'true',
       merchantReference: notification.merchantReference as string,
       pspReference: notification.pspReference as string,
+      originalReference: notification.originalReference as string | undefined,
       amountCents: amount?.value,
       currency: amount?.currency,
       reason: notification.reason as string | undefined,

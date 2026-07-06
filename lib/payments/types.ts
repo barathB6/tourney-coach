@@ -31,6 +31,8 @@ export interface WebhookEvent {
   success: boolean;
   merchantReference: string;
   pspReference: string;
+  /** For REFUND/CHARGEBACK events: the pspReference of the original payment */
+  originalReference?: string;
   amountCents?: number;
   currency?: string;
   reason?: string;
