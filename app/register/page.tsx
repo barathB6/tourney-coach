@@ -57,7 +57,7 @@ function RegisterInner() {
   const [registrationCount, setRegistrationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState<{ foursomeNumber: number; startingHole: number | null } | null>(null);
+  const [submitted, setSubmitted] = useState<{ foursomeNumber: number; startingHole: number | null; regId: string } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Payment step state
@@ -71,6 +71,10 @@ function RegisterInner() {
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
   const [source, setSource] = useState('');
   const [teamName, setTeamName] = useState('');
+  // Singles: play solo (we pair you) or join an existing team with open spots
+  const [teamMode, setTeamMode] = useState<'solo' | 'join'>('solo');
+  const [openTeams, setOpenTeams] = useState<{ team_name: string; spots_left: number }[]>([]);
+  const [joinTeam, setJoinTeam] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -86,6 +90,15 @@ function RegisterInner() {
       return prev.length > n ? prev.slice(0, n) : [...prev, ...emptyPlayers(n - prev.length)];
     });
   }, [selectedType, regType.playerCount]);
+
+  // Load open teams for the "join existing team" option
+  useEffect(() => {
+    if (!tournamentId || selectedType !== 'single') return;
+    fetch(`/api/tournaments/${tournamentId}/teams`)
+      .then(r => r.json())
+      .then(d => setOpenTeams(d.teams ?? []))
+      .catch(() => setOpenTeams([]));
+  }, [tournamentId, selectedType]);
 
   useEffect(() => {
     async function load() {
@@ -126,6 +139,10 @@ function RegisterInner() {
       setSubmitError(`Please fill in all ${regType.playerCount} player name(s).`);
       return;
     }
+    if (selectedType === 'single' && teamMode === 'join' && !joinTeam) {
+      setSubmitError('Pick a team to join, or switch to playing solo.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -135,7 +152,9 @@ function RegisterInner() {
         body: JSON.stringify({
           tournament_id: tournamentId,
           registration_type: selectedType,
-          team_name: teamName.trim() || null,
+          team_name: selectedType === 'single'
+            ? (teamMode === 'join' ? joinTeam : null)
+            : (teamName.trim() || null),
           contact_name: contactName.trim(),
           contact_email: contactEmail.trim(),
           contact_phone: contactPhone.trim() || null,
@@ -183,7 +202,7 @@ function RegisterInner() {
         locale: 'en-US',
         onPaymentCompleted: (result: { resultCode?: string }) => {
           if (result.resultCode === 'Authorised' || result.resultCode === 'Received') {
-            setSubmitted({ foursomeNumber: pendingReg!.foursomeNumber, startingHole: pendingReg!.startingHole });
+            setSubmitted({ foursomeNumber: pendingReg!.foursomeNumber, startingHole: pendingReg!.startingHole, regId: pendingReg!.id });
           } else {
             setPaymentError(`Payment ${result.resultCode ?? 'failed'}. Please try again.`);
           }
@@ -258,7 +277,7 @@ function RegisterInner() {
         <header style={s.hero}>
           <div style={s.heroWrap}>
             <span style={s.publicBadge}>Public</span>
-            <h1 style={s.heroName}>{tournament?.name ?? 'Charity Golf Tournament'}</h1>
+            <h1 style={s.heroName} className="regHeroName">{tournament?.name ?? 'Charity Golf Tournament'}</h1>
           </div>
         </header>
         <div style={{ maxWidth: 560, margin: '60px auto', padding: '0 24px', textAlign: 'center' }}>
@@ -278,6 +297,20 @@ function RegisterInner() {
           <div style={{ background: '#EAF2ED', border: '1px solid #C8DDD1', borderRadius: 12, padding: '16px 20px', fontSize: 13.5, color: '#2c4537', marginBottom: 24, lineHeight: 1.6 }}>
             <strong>Payment received.</strong> Your spot is confirmed — see you on the course!
           </div>
+
+          <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 14, padding: '20px 24px', marginBottom: 24, display: 'inline-block' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${typeof window !== 'undefined' ? window.location.origin : ''}/checkin/${submitted.regId}`)}`}
+              width={160}
+              height={160}
+              alt="Check-in QR code"
+              style={{ display: 'block', margin: '0 auto' }}
+            />
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#5C6B62', margin: '12px 0 0', textAlign: 'center' }}>
+              Show this at check-in
+            </p>
+          </div>
           <button onClick={() => router.push('/dashboard')} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 24px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
             Back to dashboard
           </button>
@@ -295,7 +328,7 @@ function RegisterInner() {
         <header style={s.hero}>
           <div style={s.heroWrap}>
             <span style={s.publicBadge}>Public</span>
-            <h1 style={s.heroName}>{tournament?.name ?? 'Charity Golf Tournament'}</h1>
+            <h1 style={s.heroName} className="regHeroName">{tournament?.name ?? 'Charity Golf Tournament'}</h1>
           </div>
         </header>
         <div style={{ maxWidth: 560, margin: '40px auto', padding: '0 24px 60px' }}>
@@ -316,6 +349,16 @@ function RegisterInner() {
 
   return (
     <div style={s.page}>
+      <style>{`
+        @media (max-width: 860px) {
+          .regBody { grid-template-columns: 1fr !important; }
+          .regSummaryCard { position: static !important; }
+        }
+        @media (max-width: 560px) {
+          .regTwoCol, .regPlayerRow, .regSourceGrid { grid-template-columns: 1fr !important; }
+          .regHeroName { font-size: 30px !important; }
+        }
+      `}</style>
 
       {/* ── Hero ── */}
       <header style={s.hero}>
@@ -324,7 +367,7 @@ function RegisterInner() {
             <div>
               <div style={s.publicBadge}>Public</div>
               <div style={s.dateBadge}>{heroDate}</div>
-              <h1 style={s.heroName}>{tournament?.name ?? 'Charity Golf Tournament'}</h1>
+              <h1 style={s.heroName} className="regHeroName">{tournament?.name ?? 'Charity Golf Tournament'}</h1>
               <p style={s.heroMeta}>
                 {spotsRemaining} / {spotsTotal} spots remaining
               </p>
@@ -338,7 +381,7 @@ function RegisterInner() {
 
       {/* ── Body ── */}
       <form onSubmit={handleSubmit}>
-        <div style={s.body}>
+        <div style={s.body} className="regBody">
 
           {/* Left column */}
           <div>
@@ -380,9 +423,40 @@ function RegisterInner() {
                 </div>
               )}
 
+              {/* Singles: solo vs join existing team */}
+              {selectedType === 'single' && (
+                <div style={{ marginBottom: 20 }}>
+                  <p style={{ ...s.blockH, marginBottom: 10 }}>Team assignment</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14, color: 'var(--ink)' }}>
+                      <input type="radio" name="teamMode" checked={teamMode === 'solo'} onChange={() => setTeamMode('solo')} style={{ accentColor: 'var(--primary)' }} />
+                      Play solo — we&rsquo;ll pair you with a group
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: openTeams.length ? 'pointer' : 'not-allowed', fontSize: 14, color: openTeams.length ? 'var(--ink)' : '#9BA8A4' }}>
+                      <input type="radio" name="teamMode" disabled={!openTeams.length} checked={teamMode === 'join'} onChange={() => setTeamMode('join')} style={{ accentColor: 'var(--primary)' }} />
+                      Join an existing team{!openTeams.length && ' (no open teams yet)'}
+                    </label>
+                  </div>
+                  {teamMode === 'join' && openTeams.length > 0 && (
+                    <select
+                      value={joinTeam}
+                      onChange={e => setJoinTeam(e.target.value)}
+                      style={{ ...s.input, marginTop: 10, cursor: 'pointer' }}
+                    >
+                      <option value="">Choose a team…</option>
+                      {openTeams.map(t => (
+                        <option key={t.team_name} value={t.team_name}>
+                          {t.team_name} — {t.spots_left} spot{t.spots_left !== 1 ? 's' : ''} left
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+
               {/* Contact info */}
               <p style={{ ...s.blockH, marginBottom: 12 }}>Primary contact</p>
-              <div style={{ ...s.twoCol, marginBottom: 12 }}>
+              <div style={{ ...s.twoCol, marginBottom: 12 }} className="regTwoCol">
                 <div>
                   <label style={s.label}>Full name *</label>
                   <input style={s.input} placeholder="Jane Smith" value={contactName} onChange={e => setContactName(e.target.value)} required />
@@ -404,7 +478,7 @@ function RegisterInner() {
               {players.map((p, i) => (
                 <div key={i} style={{ marginBottom: 14 }}>
                   <div style={s.playerNum}>Player {i + 1}{i === 0 ? ' (you)' : ''}</div>
-                  <div style={s.playerRow}>
+                  <div style={s.playerRow} className="regPlayerRow">
                     <input
                       style={s.input}
                       placeholder="Full name"
@@ -444,7 +518,7 @@ function RegisterInner() {
 
             {/* Source tracking */}
             <h2 style={s.sectionH}>How did you hear about us?</h2>
-            <div style={s.sourceGrid}>
+            <div style={s.sourceGrid} className="regSourceGrid">
               {SOURCES.map((src) => (
                 <button type="button" key={src.value} style={source === src.value ? s.sourceBtnActive : s.sourceBtn} onClick={() => setSource(src.value)}>
                   {src.label}{source === src.value ? ' ✓' : ''}
@@ -456,7 +530,7 @@ function RegisterInner() {
 
           {/* Right column — summary */}
           <div>
-            <div style={s.card}>
+            <div style={s.card} className="regSummaryCard">
               <h3 style={s.cardH}>Your registration</h3>
 
               <div style={s.lineRow}>

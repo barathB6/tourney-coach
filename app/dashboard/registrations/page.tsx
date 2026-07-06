@@ -45,6 +45,14 @@ export default function RegistrationsPage() {
   const [refunding, setRefunding] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  // Manual (paper) registration form
+  const [showAdd, setShowAdd] = useState(false);
+  const [addSaving, setAddSaving] = useState(false);
+  const [addForm, setAddForm] = useState({
+    type: 'single', contactName: '', contactEmail: '', contactPhone: '',
+    teamName: '', playerNames: ['', '', '', ''], markPaid: true,
+  });
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user ?? null;
@@ -65,17 +73,82 @@ export default function RegistrationsPage() {
 
   useEffect(() => {
     if (!selectedTournament) return;
-    setLoading(true);
-    supabase
-      .from('registrations')
-      .select('id, registration_type, team_name, contact_name, contact_email, total_amount_cents, payment_status, foursome_number, starting_hole, created_at')
-      .eq('tournament_id', selectedTournament)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
+    let cancelled = false;
+
+    const fetchRegs = async (showSpinner: boolean) => {
+      if (showSpinner) setLoading(true);
+      const { data } = await supabase
+        .from('registrations')
+        .select('id, registration_type, team_name, contact_name, contact_email, total_amount_cents, payment_status, foursome_number, starting_hole, created_at')
+        .eq('tournament_id', selectedTournament)
+        .order('created_at', { ascending: false });
+      if (!cancelled) {
         setRegistrations(data ?? []);
         setLoading(false);
-      });
+      }
+    };
+
+    fetchRegs(true);
+    // Poll every 10s so new registrations appear without a manual refresh
+    const interval = setInterval(() => fetchRegs(false), 10_000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [selectedTournament]);
+
+  async function handleManualAdd(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+
+    const playerCount = addForm.type === 'single' ? 1 : 4;
+    const names = [addForm.contactName, ...addForm.playerNames].map(n => n.trim()).filter(Boolean);
+    const players = (addForm.type === 'single' ? [addForm.contactName] : names.slice(0, 4))
+      .map(n => ({ name: n, email: '' }));
+
+    if (players.length !== playerCount) {
+      setError(`Enter ${playerCount} player name${playerCount > 1 ? 's' : ''} (contact counts as player 1).`);
+      return;
+    }
+
+    setAddSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error('Not signed in');
+
+      const res = await fetch('/api/registrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          tournament_id: selectedTournament,
+          registration_type: addForm.type,
+          team_name: addForm.teamName.trim() || null,
+          contact_name: addForm.contactName.trim(),
+          contact_email: addForm.contactEmail.trim(),
+          contact_phone: addForm.contactPhone.trim() || null,
+          players,
+          add_ons: [],
+          registration_source: 'other',
+          manual: true,
+          mark_paid: addForm.markPaid,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add registration');
+
+      setShowAdd(false);
+      setAddForm({ type: 'single', contactName: '', contactEmail: '', contactPhone: '', teamName: '', playerNames: ['', '', '', ''], markPaid: true });
+      // Refresh list immediately
+      const { data: regs } = await supabase
+        .from('registrations')
+        .select('id, registration_type, team_name, contact_name, contact_email, total_amount_cents, payment_status, foursome_number, starting_hole, created_at')
+        .eq('tournament_id', selectedTournament)
+        .order('created_at', { ascending: false });
+      setRegistrations(regs ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add registration');
+    } finally {
+      setAddSaving(false);
+    }
+  }
 
   async function handleRefund(reg: Registration) {
     if (!window.confirm(`Refund ${fmtMoney(reg.total_amount_cents)} to ${reg.contact_name}? This cannot be undone.`)) return;
@@ -125,7 +198,15 @@ export default function RegistrationsPage() {
           <button onClick={() => router.push('/dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1B6B3A', fontSize: 14, padding: 0, marginBottom: 8 }}>
             ← Back to dashboard
           </button>
-          <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 700, margin: 0 }}>Registrations</h1>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 700, margin: 0 }}>Registrations</h1>
+            <button
+              onClick={() => setShowAdd(v => !v)}
+              style={{ background: showAdd ? 'none' : '#1B4425', color: showAdd ? '#1B6B3A' : '#fff', border: showAdd ? '1px solid #E5E0D5' : 'none', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}
+            >
+              {showAdd ? 'Cancel' : '+ Add registration'}
+            </button>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '6px 0 0' }}>
             {tournaments.length > 1 ? (
               <select
@@ -148,6 +229,106 @@ export default function RegistrationsPage() {
           <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B91C1C', marginBottom: 16 }}>
             {error}
           </div>
+        )}
+
+        {showAdd && (
+          <form onSubmit={handleManualAdd} style={{ ...s.card, padding: '20px 24px', marginBottom: 20 }}>
+            <p style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, margin: '0 0 4px' }}>Add paper registration</p>
+            <p style={{ color: '#6B7775', fontSize: 13, margin: '0 0 16px' }}>For sign-ups collected in person, by phone, or by check.</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Type</label>
+                <select
+                  value={addForm.type}
+                  onChange={e => setAddForm(f => ({ ...f, type: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: '#fff', boxSizing: 'border-box' }}
+                >
+                  <option value="single">Single — $165</option>
+                  <option value="foursome">Foursome — $600</option>
+                  <option value="sponsor">Sponsor + Foursome — $5,000</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Team name (optional)</label>
+                <input
+                  value={addForm.teamName}
+                  onChange={e => setAddForm(f => ({ ...f, teamName: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Contact name *</label>
+                <input
+                  required
+                  value={addForm.contactName}
+                  onChange={e => setAddForm(f => ({ ...f, contactName: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Email *</label>
+                <input
+                  required
+                  type="email"
+                  value={addForm.contactEmail}
+                  onChange={e => setAddForm(f => ({ ...f, contactEmail: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Phone</label>
+                <input
+                  value={addForm.contactPhone}
+                  onChange={e => setAddForm(f => ({ ...f, contactPhone: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            {addForm.type !== 'single' && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Players 2–4 (contact is player 1)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  {[0, 1, 2].map(i => (
+                    <input
+                      key={i}
+                      placeholder={`Player ${i + 2} name`}
+                      value={addForm.playerNames[i]}
+                      onChange={e => setAddForm(f => {
+                        const names = [...f.playerNames];
+                        names[i] = e.target.value;
+                        return { ...f, playerNames: names };
+                      })}
+                      style={{ width: '100%', padding: '9px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={addForm.markPaid}
+                  onChange={e => setAddForm(f => ({ ...f, markPaid: e.target.checked }))}
+                  style={{ accentColor: '#1B6B3A' }}
+                />
+                Mark as paid (cash / check received)
+              </label>
+              <button
+                type="submit"
+                disabled={addSaving}
+                style={{ background: '#1B4425', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: addSaving ? 'not-allowed' : 'pointer', fontSize: 13.5, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", opacity: addSaving ? 0.6 : 1 }}
+              >
+                {addSaving ? 'Saving…' : 'Save registration'}
+              </button>
+            </div>
+          </form>
         )}
 
         {registrations.length === 0 ? (
