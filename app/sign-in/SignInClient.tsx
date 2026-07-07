@@ -1,10 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "../../lib/supabaseClient";
 
 export default function SignInClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams?.get('next') || '/dashboard';
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
@@ -13,11 +15,12 @@ export default function SignInClient() {
     // Use getSession (reads localStorage, no network) to check existing auth
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.replace('/dashboard');
+        router.replace(next);
       } else {
         setChecking(false);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   const handleGoogleSignIn = async () => {
@@ -26,7 +29,7 @@ export default function SignInClient() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
       },
     });
     if (error) {

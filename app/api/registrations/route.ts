@@ -59,7 +59,9 @@ async function sendConfirmationEmail(params: {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tourneycoach.com';
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${appUrl}/checkin/${params.registrationId}`)}`;
+  const qrParams = new URLSearchParams({ size: '180x180', data: `${appUrl}/checkin/${params.registrationId}` });
+  // & must be escaped as &amp; inside an HTML attribute, or some email clients mis-parse the URL
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?${qrParams.toString().replace(/&/g, '&amp;')}`;
 
   const detailRow = (label: string, value: string) => `
     <tr>
