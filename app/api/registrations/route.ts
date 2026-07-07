@@ -22,8 +22,20 @@ const PLAYERS_PER_TYPE: Record<string, number> = {
   sponsor: 4,
 };
 
-// Platform fee: 2.5% on entry fees (confirmed Day 6)
+// New-member platform fee: 2.5% added on top of entry fee. Waived for
+// returning members (anyone who already has a player_profiles row, i.e.
+// has registered for a TourneyCoach tournament before). Confirmed Day 7.
 const PLATFORM_FEE_RATE = 0.025;
+
+async function isReturningMember(email: string): Promise<boolean> {
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from('player_profiles')
+    .select('id')
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle();
+  return !!data;
+}
 
 async function assignFoursomeAndHole(tournamentId: string, registrationType: string) {
   const supabase = getSupabase();
@@ -98,11 +110,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Calculate total
+    // Calculate total. New-member fee is added on top; returning members pay
+    // exactly the listed price. "Returning" is determined by the contact's
+    // email already having a player_profiles row from a prior registration —
+    // computed server-side, never trusted from the client.
     const base = PRICES[registration_type];
     const addOnTotal = (add_ons as string[]).reduce((s, a) => s + (ADD_ON_PRICES[a] ?? 0), 0);
-    const total_amount_cents = base + addOnTotal;
-    const platform_fee_cents = Math.round(total_amount_cents * PLATFORM_FEE_RATE);
+    const subtotal_cents = base + addOnTotal;
+    const returning = await isReturningMember(contact_email);
+    const platform_fee_cents = returning ? 0 : Math.round(subtotal_cents * PLATFORM_FEE_RATE);
+    const total_amount_cents = subtotal_cents + platform_fee_cents;
 
     // Fetch tournament for email
     const { data: tournament, error: tErr } = await supabase
@@ -191,7 +208,8 @@ export async function POST(req: NextRequest) {
         startingHole,
         registrationId: registration.id,
         locationName: tournament.location_name,
-        totalAmountCents: total_amount_cents,
+        subtotalCents: subtotal_cents,
+        platformFeeCents: platform_fee_cents,
       }).catch(err => console.error('Email send error:', err));
 
       await supabase
@@ -204,8 +222,10 @@ export async function POST(req: NextRequest) {
       id: registration.id,
       foursome_number: foursomeNumber,
       starting_hole: startingHole,
+      subtotal_cents,
+      platform_fee_cents,
       total_amount_cents,
-      // PAYMENT SDK GOES HERE — insert payment intent creation once processor confirmed
+      returning_member: returning,
     }, { status: 201 });
 
   } catch (err) {

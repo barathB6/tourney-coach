@@ -81,6 +81,23 @@ function RegisterInner() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [players, setPlayers] = useState<Player[]>(emptyPlayers(4));
+  // New members pay a 2.5% fee on top of entry; returning members don't.
+  // Checked against player_profiles as the email is typed (debounced) —
+  // the server independently re-checks this before charging, so this is
+  // just for showing an accurate total pre-payment.
+  const [isReturningMember, setIsReturningMember] = useState(false);
+
+  useEffect(() => {
+    const email = contactEmail.trim();
+    if (!email.includes('@')) { setIsReturningMember(false); return; }
+    const t = setTimeout(() => {
+      fetch(`/api/players/lookup?email=${encodeURIComponent(email)}`)
+        .then(r => r.json())
+        .then(d => setIsReturningMember(!!d.returning))
+        .catch(() => setIsReturningMember(false));
+    }, 500);
+    return () => clearTimeout(t);
+  }, [contactEmail]);
 
   const regType = REG_TYPES.find(r => r.id === selectedType) ?? REG_TYPES[0];
 
@@ -117,7 +134,9 @@ function RegisterInner() {
   }, [tournamentId]);
 
   const addOnTotal = ADD_ONS.filter(a => selectedAddOns.includes(a.id)).reduce((s, a) => s + a.price, 0);
-  const total = regType.price + addOnTotal;
+  const subtotal = regType.price + addOnTotal;
+  const platformFee = isReturningMember ? 0 : Math.round(subtotal * 0.025);
+  const total = subtotal + platformFee;
   const spotsTotal = tournament?.max_players ?? 96;
   const foursomesTotal = Math.floor(spotsTotal / 4);
   const foursomesFilled = registrationCount;
@@ -598,18 +617,27 @@ function RegisterInner() {
                 </div>
               ))}
 
+              <div style={s.lineRow}>
+                <span>{platformFee > 0 ? 'New member fee (2.5%)' : 'Platform fee'}</span>
+                <span style={{ fontWeight: 600, color: platformFee > 0 ? 'var(--ink)' : '#5C9E72' }}>
+                  {platformFee > 0 ? fmtMoney(platformFee) : 'Waived'}
+                </span>
+              </div>
+              {isReturningMember && (
+                <p style={{ fontSize: 11.5, color: '#5C9E72', margin: '2px 0 0' }}>
+                  Welcome back — returning members don&rsquo;t pay the new member fee.
+                </p>
+              )}
+
               <div style={s.totalRow}>
                 <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>Total</span>
                 <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 22, color: 'var(--ink)' }}>{fmtMoney(total)}</span>
               </div>
-              <p style={{ fontSize: 11.5, color: '#8A9E90', margin: '4px 0 0', lineHeight: 1.5 }}>
-                TourneyCoach retains a 2.5% platform fee from tournament proceeds to keep registration and payments running smoothly — this doesn&rsquo;t change your total.
-              </p>
 
               <div style={s.impact}>
                 <strong>Your impact:</strong> roughly{' '}
                 <strong style={{ color: '#7A4A00' }}>
-                  {Math.max(1, Math.floor(total / 340))} student{Math.floor(total / 340) !== 1 ? 's' : ''}
+                  {Math.max(1, Math.floor(subtotal / 340))} student{Math.floor(subtotal / 340) !== 1 ? 's' : ''}
                 </strong>{' '}
                 will have their tuition gap covered by your team&rsquo;s registration. Thank you.
               </div>
