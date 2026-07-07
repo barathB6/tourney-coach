@@ -305,10 +305,10 @@ function RegisterInner() {
             <strong>Payment received.</strong> Your spot is confirmed — see you on the course!
           </div>
 
-          <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 14, padding: '20px 24px', marginBottom: 24, display: 'inline-block' }}>
+          <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 14, padding: '20px 24px', marginBottom: 24, maxWidth: 220, marginLeft: 'auto', marginRight: 'auto' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${typeof window !== 'undefined' ? window.location.origin : ''}/checkin/${submitted.regId}`)}`}
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tourneycoach.com'}/checkin/${submitted.regId}`)}`}
               width={160}
               height={160}
               alt="Check-in QR code"
