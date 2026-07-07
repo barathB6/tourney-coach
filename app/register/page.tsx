@@ -71,10 +71,12 @@ function RegisterInner() {
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
   const [source, setSource] = useState('');
   const [teamName, setTeamName] = useState('');
-  // Singles: play solo (we pair you) or join an existing team with open spots
-  const [teamMode, setTeamMode] = useState<'solo' | 'join'>('solo');
+  // Singles: play solo (we pair you), join an existing team with open spots,
+  // or start a brand new team other singles can then join
+  const [teamMode, setTeamMode] = useState<'solo' | 'join' | 'create'>('solo');
   const [openTeams, setOpenTeams] = useState<{ team_name: string; spots_left: number }[]>([]);
   const [joinTeam, setJoinTeam] = useState('');
+  const [newTeamName, setNewTeamName] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -146,6 +148,10 @@ function RegisterInner() {
       setSubmitError('Pick a team to join, or switch to playing solo.');
       return;
     }
+    if (selectedType === 'single' && teamMode === 'create' && !newTeamName.trim()) {
+      setSubmitError('Give your team a name, or switch to playing solo.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -153,15 +159,17 @@ function RegisterInner() {
         ? [{ name: contactName.trim(), email: contactEmail.trim() }]
         : players.map(p => ({ name: p.name.trim(), email: p.email.trim() }));
 
+      const singleTeamName = teamMode === 'join' ? joinTeam
+        : teamMode === 'create' ? newTeamName.trim()
+        : null;
+
       const res = await fetch('/api/registrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tournament_id: tournamentId,
           registration_type: selectedType,
-          team_name: selectedType === 'single'
-            ? (teamMode === 'join' ? joinTeam : null)
-            : (teamName.trim() || null),
+          team_name: selectedType === 'single' ? singleTeamName : (teamName.trim() || null),
           contact_name: contactName.trim(),
           contact_email: contactEmail.trim(),
           contact_phone: contactPhone.trim() || null,
@@ -443,6 +451,10 @@ function RegisterInner() {
                       <input type="radio" name="teamMode" disabled={!openTeams.length} checked={teamMode === 'join'} onChange={() => setTeamMode('join')} style={{ accentColor: 'var(--primary)' }} />
                       Join an existing team{!openTeams.length && ' (no open teams yet)'}
                     </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14, color: 'var(--ink)' }}>
+                      <input type="radio" name="teamMode" checked={teamMode === 'create'} onChange={() => setTeamMode('create')} style={{ accentColor: 'var(--primary)' }} />
+                      Start a new team — others can join you
+                    </label>
                   </div>
                   {teamMode === 'join' && openTeams.length > 0 && (
                     <select
@@ -457,6 +469,14 @@ function RegisterInner() {
                         </option>
                       ))}
                     </select>
+                  )}
+                  {teamMode === 'create' && (
+                    <input
+                      style={{ ...s.input, marginTop: 10 }}
+                      placeholder="e.g., The Mulligan Masters"
+                      value={newTeamName}
+                      onChange={e => setNewTeamName(e.target.value)}
+                    />
                   )}
                 </div>
               )}
