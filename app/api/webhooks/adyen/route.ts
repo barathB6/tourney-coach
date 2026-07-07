@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
           .update({ payment_status: 'paid', adyen_psp_reference: pspReference })
           .eq('id', merchantReference)
           .eq('payment_status', 'pending')
-          .select('id, contact_name, contact_email, team_name, foursome_number, starting_hole, tournaments(name, event_date, location_name)')
+          .select('id, contact_name, contact_email, team_name, foursome_number, starting_hole, total_amount_cents, tournaments(name, event_date, location_name)')
           .single();
 
         if (updated) {
@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
               startingHole: updated.starting_hole,
               registrationId: updated.id,
               locationName: tournament.location_name,
+              totalAmountCents: updated.total_amount_cents,
             }).catch(err => console.error('Confirmation email error:', err));
 
             await supabase

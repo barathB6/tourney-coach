@@ -191,6 +191,7 @@ export async function POST(req: NextRequest) {
         startingHole,
         registrationId: registration.id,
         locationName: tournament.location_name,
+        totalAmountCents: total_amount_cents,
       }).catch(err => console.error('Email send error:', err));
 
       await supabase

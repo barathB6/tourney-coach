@@ -602,6 +602,9 @@ function RegisterInner() {
                 <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>Total</span>
                 <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 22, color: 'var(--ink)' }}>{fmtMoney(total)}</span>
               </div>
+              <p style={{ fontSize: 11.5, color: '#8A9E90', margin: '4px 0 0', lineHeight: 1.5 }}>
+                TourneyCoach retains a 2.5% platform fee from tournament proceeds to keep registration and payments running smoothly — this doesn&rsquo;t change your total.
+              </p>
 
               <div style={s.impact}>
                 <strong>Your impact:</strong> roughly{' '}

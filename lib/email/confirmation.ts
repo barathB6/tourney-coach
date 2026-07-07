@@ -11,6 +11,7 @@ export async function sendConfirmationEmail(params: {
   startingHole: number | null;
   registrationId: string;
   locationName?: string | null;
+  totalAmountCents: number;
 }) {
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) return; // SendGrid not configured yet — skip silently
@@ -18,6 +19,7 @@ export async function sendConfirmationEmail(params: {
   const dateStr = new Date(params.eventDate).toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
+  const totalStr = (params.totalAmountCents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tourneycoach.com';
   const qrParams = new URLSearchParams({ size: '180x180', data: `${appUrl}/checkin/${params.registrationId}` });
   // & must be escaped as &amp; inside an HTML attribute, or some email clients mis-parse the URL
@@ -46,12 +48,14 @@ export async function sendConfirmationEmail(params: {
           <td style="background:#ffffff;padding:32px 40px;border-left:1px solid #E5E0D5;border-right:1px solid #E5E0D5;">
             <p style="margin:0 0 20px;font-size:15px;color:#1A1F1C;line-height:1.6;">Hi ${params.contactName},</p>
             <p style="margin:0 0 24px;font-size:15px;color:#3A3F3C;line-height:1.6;">Your spot is confirmed. Here are your tournament details — keep this email handy for check-in day.</p>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #E5E0D5;border-bottom:1px solid #E5E0D5;margin-bottom:24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #E5E0D5;border-bottom:1px solid #E5E0D5;margin-bottom:8px;">
               ${params.teamName ? detailRow('Team', params.teamName) : ''}
               ${detailRow('Foursome', `#${params.foursomeNumber}`)}
               ${params.startingHole ? detailRow('Starting hole', `${params.startingHole}`) : ''}
               ${params.locationName ? detailRow('Location', params.locationName) : ''}
+              ${detailRow('Paid', totalStr)}
             </table>
+            <p style="margin:0 0 24px;font-size:11px;color:#9BA8A4;line-height:1.5;">TourneyCoach retains a 2.5% platform fee from tournament proceeds to keep registration and payments running smoothly — this doesn't change what you paid.</p>
             <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
               <tr><td align="center" style="padding:8px 0 4px;">
                 <img src="${qrUrl}" width="140" height="140" alt="Check-in QR code" style="border:1px solid #E5E0D5;border-radius:10px;padding:8px;background:#fff;" />
