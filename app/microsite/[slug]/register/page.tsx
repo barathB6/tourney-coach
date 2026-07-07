@@ -3,8 +3,15 @@ import { notFound, redirect } from 'next/navigation';
 
 // eventname.tourneycoach.com/register (path form: /microsite/[slug]/register)
 // resolves the slug and forwards to the registration form.
-export default async function MicrositeRegisterPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function MicrositeRegisterPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ src?: string }>;
+}) {
   const { slug } = await params;
+  const { src } = await searchParams;
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,5 +27,5 @@ export default async function MicrositeRegisterPage({ params }: { params: Promis
 
   if (!tournament) notFound();
 
-  redirect(`/register?id=${tournament.id}`);
+  redirect(`/register?id=${tournament.id}${src ? `&src=${encodeURIComponent(src)}` : ''}`);
 }

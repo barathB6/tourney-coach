@@ -48,10 +48,23 @@ function emptyPlayers(n: number): Player[] {
   return Array.from({ length: n }, () => ({ name: '', email: '' }));
 }
 
+// Maps a share link's ?src= tag to a registration_source value. Anything
+// unrecognized falls back to 'other' rather than silently dropping the tag —
+// we know they came from a link, we just don't know which category it maps to.
+const SRC_PARAM_MAP: Record<string, string> = {
+  social: 'social',
+  facebook: 'social',
+  instagram: 'social',
+  google: 'google',
+  tourneycircle: 'tourneycircle',
+};
+
 function RegisterInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tournamentId = searchParams?.get('id');
+  const srcParam = searchParams?.get('src');
+  const attributedSource = srcParam ? (SRC_PARAM_MAP[srcParam] ?? 'other') : null;
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [registrationCount, setRegistrationCount] = useState(0);
@@ -69,7 +82,7 @@ function RegisterInner() {
   // Form state
   const [selectedType, setSelectedType] = useState('foursome');
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
-  const [source, setSource] = useState('');
+  const [source, setSource] = useState(attributedSource ?? '');
   const [teamName, setTeamName] = useState('');
   // Singles: play solo (we pair you), join an existing team with open spots,
   // or start a brand new team other singles can then join
@@ -586,6 +599,11 @@ function RegisterInner() {
 
             {/* Source tracking */}
             <h2 style={s.sectionH}>How did you hear about us?</h2>
+            {attributedSource && (
+              <p style={{ fontSize: 12.5, color: '#5C9E72', margin: '-4px 0 10px' }}>
+                Detected from your link — change it below if this isn&rsquo;t right.
+              </p>
+            )}
             <div style={s.sourceGrid} className="regSourceGrid">
               {SOURCES.map((src) => (
                 <button type="button" key={src.value} style={source === src.value ? s.sourceBtnActive : s.sourceBtn} onClick={() => setSource(src.value)}>

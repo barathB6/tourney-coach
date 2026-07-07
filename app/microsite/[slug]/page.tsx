@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import LiveSpotsStat from '@/components/LiveSpotsStat';
+import { renderRichText } from '@/lib/richtext/render';
 
 function getSupabase() {
   return createClient(
@@ -94,12 +96,21 @@ function daysUntil(dateStr: string) {
   return Math.max(0, Math.ceil((event.getTime() - today.getTime()) / 86_400_000));
 }
 
-export default async function MicrositePage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function MicrositePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ src?: string }>;
+}) {
   const { slug } = await params;
+  const { src } = await searchParams;
   const t = await getTournament(slug);
   if (!t) notFound();
 
   const [regCount] = await Promise.all([getRegistrationCount(t.id)]);
+  // Preserve the attribution tag (from a shared link) through to registration
+  const registerUrl = `/register?id=${t.id}${src ? `&src=${encodeURIComponent(src)}` : ''}`;
 
   const dateStr = new Date(t.event_date).toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
@@ -191,7 +202,7 @@ export default async function MicrositePage({ params }: { params: Promise<{ slug
               </a>
             ))}
             {!isCompleted && (
-              <Link href={`/register?id=${t.id}`} style={{
+              <Link href={registerUrl} style={{
                 marginLeft: 8,
                 background: '#C8A04A',
                 color: '#fff',
@@ -278,7 +289,7 @@ export default async function MicrositePage({ params }: { params: Promise<{ slug
             {/* CTA buttons */}
             {!isCompleted && (
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' as const, marginBottom: 56 }}>
-                <Link href={`/register?id=${t.id}`} style={{
+                <Link href={registerUrl} style={{
                   display: 'inline-block',
                   background: '#C8A04A',
                   color: '#fff',
@@ -337,21 +348,27 @@ export default async function MicrositePage({ params }: { params: Promise<{ slug
             gap: 0,
           }}>
             {[
-              raisedCents > 0 ? { value: formatMoney(raisedCents), label: 'raised for the cause' } : null,
-              { value: `${spotsClaimed} / ${foursomes}`, label: 'foursomes claimed' },
-              !isCompleted ? { value: daysLeft === 0 ? 'Today' : `${daysLeft}`, label: daysLeft === 0 ? 'tee off day' : 'days to tee off' } : null,
+              raisedCents > 0 ? { live: false, value: formatMoney(raisedCents), label: 'raised for the cause' } : null,
+              { live: true, value: '', label: '' },
+              !isCompleted ? { live: false, value: daysLeft === 0 ? 'Today' : `${daysLeft}`, label: daysLeft === 0 ? 'tee off day' : 'days to tee off' } : null,
             ].filter(Boolean).map((stat, i, arr) => (
               <div key={i} style={{
                 textAlign: 'center',
                 padding: '0 40px',
                 borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.15)' : 'none',
               }}>
-                <p style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 700, margin: '0 0 4px', color: '#fff' }}>
-                  {stat!.value}
-                </p>
-                <p style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.6)', margin: 0 }}>
-                  {stat!.label}
-                </p>
+                {stat!.live ? (
+                  <LiveSpotsStat tournamentId={t.id} initialCount={spotsClaimed} foursomesTotal={foursomes} />
+                ) : (
+                  <>
+                    <p style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 700, margin: '0 0 4px', color: '#fff' }}>
+                      {stat!.value}
+                    </p>
+                    <p style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.6)', margin: 0 }}>
+                      {stat!.label}
+                    </p>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -366,9 +383,9 @@ export default async function MicrositePage({ params }: { params: Promise<{ slug
               <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 32, fontWeight: 700, color: primaryColor, marginBottom: 20 }}>
                 Why We Play
               </h2>
-              <p style={{ fontSize: 17, lineHeight: 1.8, color: '#3A3F3C', whiteSpace: 'pre-line' }}>
-                {t.cause_story}
-              </p>
+              <div style={{ fontSize: 17, lineHeight: 1.8, color: '#3A3F3C' }}>
+                {renderRichText(t.cause_story)}
+              </div>
             </section>
           )}
 
@@ -467,7 +484,7 @@ export default async function MicrositePage({ params }: { params: Promise<{ slug
               <p style={{ color: '#3A3F3C', marginBottom: 28, fontSize: 16 }}>
                 Secure your foursome before spots fill up.
               </p>
-              <Link href={`/register?id=${t.id}`} style={{
+              <Link href={registerUrl} style={{
                 display: 'inline-block',
                 background: '#C8A04A',
                 color: '#fff',

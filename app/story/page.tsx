@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
+import FormattableTextarea from '@/components/FormattableTextarea';
+import { renderRichText } from '@/lib/richtext/render';
 
 const STEPS = [
   {
@@ -129,9 +131,9 @@ export default function CauseStoryBuilder() {
                       className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none text-sm" style={{ border: '1px solid var(--line)' }}
                     />
                   ) : (
-                    <textarea
+                    <FormattableTextarea
                       value={fields[f.key] || ''}
-                      onChange={(e) => update(f.key, e.target.value)}
+                      onChange={(v) => update(f.key, v)}
                       placeholder={f.placeholder}
                       rows={3}
                       className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }}
@@ -184,7 +186,7 @@ export default function CauseStoryBuilder() {
                   <h2 className="text-2xl text-white" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>{preview.org}</h2>
                 )}
                 {preview.paragraphs.map((p, i) => (
-                  <p key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.8)' }}>{p}</p>
+                  <div key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.8)' }}>{renderRichText(p)}</div>
                 ))}
                 {preview.stat && (
                   <div className="rounded-lg p-5 mt-6" style={{ background: 'rgba(27,107,58,0.4)', border: '1px solid rgba(27,107,58,0.3)' }}>
