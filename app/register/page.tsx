@@ -134,10 +134,13 @@ function RegisterInner() {
       setSubmitError('Contact name and email are required.');
       return;
     }
-    const filledPlayers = players.filter(p => p.name.trim());
-    if (filledPlayers.length !== regType.playerCount) {
-      setSubmitError(`Please fill in all ${regType.playerCount} player name(s).`);
-      return;
+    // Singles: contact and player are the same person, no separate player rows to check.
+    if (selectedType !== 'single') {
+      const filledPlayers = players.filter(p => p.name.trim());
+      if (filledPlayers.length !== regType.playerCount) {
+        setSubmitError(`Please fill in all ${regType.playerCount} player name(s).`);
+        return;
+      }
     }
     if (selectedType === 'single' && teamMode === 'join' && !joinTeam) {
       setSubmitError('Pick a team to join, or switch to playing solo.');
@@ -146,6 +149,10 @@ function RegisterInner() {
 
     setSubmitting(true);
     try {
+      const submittedPlayers = selectedType === 'single'
+        ? [{ name: contactName.trim(), email: contactEmail.trim() }]
+        : players.map(p => ({ name: p.name.trim(), email: p.email.trim() }));
+
       const res = await fetch('/api/registrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -158,7 +165,7 @@ function RegisterInner() {
           contact_name: contactName.trim(),
           contact_email: contactEmail.trim(),
           contact_phone: contactPhone.trim() || null,
-          players: players.map(p => ({ name: p.name.trim(), email: p.email.trim() })),
+          players: submittedPlayers,
           add_ons: selectedAddOns,
           registration_source: source || 'direct',
         }),
@@ -454,47 +461,69 @@ function RegisterInner() {
                 </div>
               )}
 
-              {/* Contact info */}
-              <p style={{ ...s.blockH, marginBottom: 12 }}>Primary contact</p>
-              <div style={{ ...s.twoCol, marginBottom: 12 }} className="regTwoCol">
-                <div>
-                  <label style={s.label}>Full name *</label>
-                  <input style={s.input} placeholder="Jane Smith" value={contactName} onChange={e => setContactName(e.target.value)} required />
-                </div>
-                <div>
-                  <label style={s.label}>Email *</label>
-                  <input style={s.input} type="email" placeholder="jane@example.com" value={contactEmail} onChange={e => setContactEmail(e.target.value)} required />
-                </div>
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                <label style={s.label}>Phone (for day-of updates)</label>
-                <input style={{ ...s.input, maxWidth: 260 }} type="tel" placeholder="(555) 000-0000" value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
-              </div>
-
-              {/* Player slots */}
-              <p style={{ ...s.blockH, marginBottom: 12 }}>
-                {selectedType === 'single' ? 'Your info' : `Players (${regType.playerCount})`}
-              </p>
-              {players.map((p, i) => (
-                <div key={i} style={{ marginBottom: 14 }}>
-                  <div style={s.playerNum}>Player {i + 1}{i === 0 ? ' (you)' : ''}</div>
-                  <div style={s.playerRow} className="regPlayerRow">
-                    <input
-                      style={s.input}
-                      placeholder="Full name"
-                      value={p.name}
-                      onChange={e => updatePlayer(i, 'name', e.target.value)}
-                    />
-                    <input
-                      style={s.input}
-                      type="email"
-                      placeholder="Email"
-                      value={p.email}
-                      onChange={e => updatePlayer(i, 'email', e.target.value)}
-                    />
+              {selectedType === 'single' ? (
+                // Singles: contact and player are the same person — one set of fields.
+                <>
+                  <p style={{ ...s.blockH, marginBottom: 12 }}>Your info</p>
+                  <div style={s.playerNum}>Player 1 (you)</div>
+                  <div style={{ ...s.twoCol, marginBottom: 12 }} className="regTwoCol">
+                    <div>
+                      <label style={s.label}>Full name *</label>
+                      <input style={s.input} placeholder="Jane Smith" value={contactName} onChange={e => setContactName(e.target.value)} required />
+                    </div>
+                    <div>
+                      <label style={s.label}>Email *</label>
+                      <input style={s.input} type="email" placeholder="jane@example.com" value={contactEmail} onChange={e => setContactEmail(e.target.value)} required />
+                    </div>
                   </div>
-                </div>
-              ))}
+                  <div>
+                    <label style={s.label}>Phone (for day-of updates)</label>
+                    <input style={{ ...s.input, maxWidth: 260 }} type="tel" placeholder="(555) 000-0000" value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Contact info */}
+                  <p style={{ ...s.blockH, marginBottom: 12 }}>Primary contact</p>
+                  <div style={{ ...s.twoCol, marginBottom: 12 }} className="regTwoCol">
+                    <div>
+                      <label style={s.label}>Full name *</label>
+                      <input style={s.input} placeholder="Jane Smith" value={contactName} onChange={e => setContactName(e.target.value)} required />
+                    </div>
+                    <div>
+                      <label style={s.label}>Email *</label>
+                      <input style={s.input} type="email" placeholder="jane@example.com" value={contactEmail} onChange={e => setContactEmail(e.target.value)} required />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 20 }}>
+                    <label style={s.label}>Phone (for day-of updates)</label>
+                    <input style={{ ...s.input, maxWidth: 260 }} type="tel" placeholder="(555) 000-0000" value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
+                  </div>
+
+                  {/* Player slots */}
+                  <p style={{ ...s.blockH, marginBottom: 12 }}>Players ({regType.playerCount})</p>
+                  {players.map((p, i) => (
+                    <div key={i} style={{ marginBottom: 14 }}>
+                      <div style={s.playerNum}>Player {i + 1}{i === 0 ? ' (you)' : ''}</div>
+                      <div style={s.playerRow} className="regPlayerRow">
+                        <input
+                          style={s.input}
+                          placeholder="Full name"
+                          value={p.name}
+                          onChange={e => updatePlayer(i, 'name', e.target.value)}
+                        />
+                        <input
+                          style={s.input}
+                          type="email"
+                          placeholder="Email"
+                          value={p.email}
+                          onChange={e => updatePlayer(i, 'email', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
 
             {/* Add-ons */}

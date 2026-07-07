@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getPaymentProcessor } from '@/lib/payments';
+import { sendConfirmationEmail } from '@/lib/email/confirmation';
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,11 +30,38 @@ export async function POST(req: NextRequest) {
 
     if (eventCode === 'AUTHORISATION') {
       if (success) {
-        await supabase
+        // .eq('payment_status', 'pending') both guards against double-processing
+        // a replayed webhook and tells us whether *this* call was the one that
+        // flipped it — only that caller should send the confirmation email.
+        const { data: updated } = await supabase
           .from('registrations')
           .update({ payment_status: 'paid', adyen_psp_reference: pspReference })
           .eq('id', merchantReference)
-          .eq('payment_status', 'pending'); // idempotency guard
+          .eq('payment_status', 'pending')
+          .select('id, contact_name, contact_email, team_name, foursome_number, starting_hole, tournaments(name, event_date, location_name)')
+          .single();
+
+        if (updated) {
+          const tournament = updated.tournaments as unknown as { name: string; event_date: string; location_name: string | null } | null;
+          if (tournament) {
+            sendConfirmationEmail({
+              contactEmail: updated.contact_email,
+              contactName: updated.contact_name,
+              teamName: updated.team_name,
+              tournamentName: tournament.name,
+              eventDate: tournament.event_date,
+              foursomeNumber: updated.foursome_number,
+              startingHole: updated.starting_hole,
+              registrationId: updated.id,
+              locationName: tournament.location_name,
+            }).catch(err => console.error('Confirmation email error:', err));
+
+            await supabase
+              .from('registrations')
+              .update({ confirmation_sent_at: new Date().toISOString() })
+              .eq('id', updated.id);
+          }
+        }
       } else {
         await supabase
           .from('registrations')
