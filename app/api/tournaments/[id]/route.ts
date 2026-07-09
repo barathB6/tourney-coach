@@ -19,6 +19,14 @@ function getSupabase(req: NextRequest) {
   return client;
 }
 
+// Service-role client for the DELETE handler's cleanup step — there's no
+// DELETE policy on registrations/volunteer_signups for organizers (only
+// SELECT/INSERT), so the RLS-respecting client above can't remove them.
+const getServiceSupabase = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, context: RouteContext) {
@@ -130,4 +138,63 @@ export async function PUT(req: NextRequest, context: RouteContext) {
   }
 
   return NextResponse.json(data);
+}
+
+export async function DELETE(req: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
+  const supabase = getSupabase(req);
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { data: existing, error: fetchError } = await supabase
+    .from('tournaments')
+    .select('id, organizer_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !existing) {
+    return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+  }
+  if (existing.organizer_id !== user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Block deleting a tournament that has taken real payments — a paid
+  // registration is a financial record that shouldn't be able to silently
+  // disappear. Refund everyone first, then delete.
+  const { count: paidCount } = await supabase
+    .from('registrations')
+    .select('id', { count: 'exact', head: true })
+    .eq('tournament_id', id)
+    .eq('payment_status', 'paid');
+
+  if ((paidCount ?? 0) > 0) {
+    return NextResponse.json(
+      { error: `This tournament has ${paidCount} paid registration${paidCount === 1 ? '' : 's'}. Refund them first, then delete.` },
+      { status: 409 }
+    );
+  }
+
+  // Delete dependent rows explicitly rather than relying on the DB's ON
+  // DELETE CASCADE — testing found the live constraint didn't actually have
+  // it (see migration 013), so this doesn't assume that fix has been
+  // applied. Uses the service-role client since organizers have no DELETE
+  // policy on these tables.
+  const svc = getServiceSupabase();
+  await svc.from('volunteer_signups').delete().eq('tournament_id', id);
+  await svc.from('registrations').delete().eq('tournament_id', id);
+
+  const { error: deleteError } = await svc
+    .from('tournaments')
+    .delete()
+    .eq('id', id);
+
+  if (deleteError) {
+    return NextResponse.json({ error: 'Failed to delete tournament' }, { status: 500 });
+  }
+
+  return NextResponse.json({ deleted: true });
 }

@@ -44,6 +44,7 @@ export default function RegistrationsPage() {
   const [loading, setLoading] = useState(true);
   const [refunding, setRefunding] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deletingTournament, setDeletingTournament] = useState(false);
   const [error, setError] = useState('');
 
   // Manual (paper) registration form
@@ -203,6 +204,36 @@ export default function RegistrationsPage() {
     }
   }
 
+  async function handleDeleteTournament() {
+    const t = tournaments.find(t => t.id === selectedTournament);
+    if (!t) return;
+    if (!window.confirm(`Delete "${t.name}" entirely? This removes the tournament and all its registrations. This cannot be undone.`)) return;
+
+    setDeletingTournament(true);
+    setError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error('Not signed in');
+
+      const res = await fetch(`/api/tournaments/${selectedTournament}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete tournament');
+
+      const remaining = tournaments.filter(x => x.id !== selectedTournament);
+      setTournaments(remaining);
+      setSelectedTournament(remaining[0]?.id ?? '');
+      if (remaining.length === 0) setRegistrations([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete tournament');
+    } finally {
+      setDeletingTournament(false);
+    }
+  }
+
   const s: Record<string, React.CSSProperties> = {
     page: { fontFamily: "'DM Sans', sans-serif", background: '#FAF8F3', minHeight: '100vh', padding: '32px 24px', color: '#1A1F1C' },
     card: { background: '#fff', border: '1px solid #E5E0D5', borderRadius: 8, overflow: 'hidden' },
@@ -248,6 +279,15 @@ export default function RegistrationsPage() {
             <span style={{ color: '#6B7775', fontSize: 14 }}>
               {registrations.length} {registrations.length === 1 ? 'registration' : 'registrations'} · {fmtMoney(paidTotal)} collected
             </span>
+            {selectedTournament && (
+              <button
+                onClick={handleDeleteTournament}
+                disabled={deletingTournament}
+                style={{ marginLeft: 'auto', background: 'none', border: '1px solid #E5E0D5', borderRadius: 8, padding: '5px 11px', cursor: deletingTournament ? 'not-allowed' : 'pointer', fontSize: 12.5, fontWeight: 600, color: '#B91C1C', fontFamily: "'DM Sans', sans-serif", opacity: deletingTournament ? 0.6 : 1 }}
+              >
+                {deletingTournament ? 'Deleting…' : 'Delete this tournament'}
+              </button>
+            )}
           </div>
         </div>
 
