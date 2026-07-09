@@ -103,6 +103,8 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     'custom_course_name', 'custom_course_city', 'custom_course_state',
     'format', 'team_size', 'max_score_rule', 'shotgun_type',
     'max_players', 'entry_fee', 'cause_what', 'cause_who', 'cause_why', 'status',
+    'cause_story_answers', 'cause_story_full', 'cause_story_medium',
+    'cause_story_short', 'cause_story_one_liner', 'cause_story_photo_recs',
   ];
 
   for (const field of allowedFields) {

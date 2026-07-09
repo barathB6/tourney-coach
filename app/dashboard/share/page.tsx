@@ -10,6 +10,7 @@ type Tournament = {
   slug: string;
   event_date: string;
   cause_tagline: string | null;
+  cause_story_short: string | null;
 };
 
 function buildShareUrl(slug: string, src: string) {
@@ -29,7 +30,7 @@ export default function SharePage() {
 
       const { data } = await supabase
         .from('tournaments')
-        .select('id, name, slug, event_date, cause_tagline')
+        .select('id, name, slug, event_date, cause_tagline, cause_story_short')
         .eq('organizer_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -68,7 +69,8 @@ export default function SharePage() {
   const facebookUrl = buildShareUrl(tournament.slug, 'facebook');
   const instagramUrl = buildShareUrl(tournament.slug, 'instagram');
   const facebookIntent = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(facebookUrl)}`;
-  const caption = `${tournament.name} is coming up on ${dateStr}!${tournament.cause_tagline ? ` ${tournament.cause_tagline}` : ''} Register at ${instagramUrl}`;
+  const causeBlurb = tournament.cause_story_short || tournament.cause_tagline;
+  const caption = `${tournament.name} is coming up on ${dateStr}!${causeBlurb ? ` ${causeBlurb}` : ''} Register at ${instagramUrl}`;
 
   return (
     <div style={s.page}>

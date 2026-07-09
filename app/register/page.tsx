@@ -13,6 +13,7 @@ interface Tournament {
   max_players: number;
   entry_fee_cents: number | null;
   cause_story: string | null;
+  cause_story_one_liner: string | null;
 }
 
 interface Player { name: string; email: string; }
@@ -136,7 +137,7 @@ function RegisterInner() {
     async function load() {
       if (!tournamentId) { setLoading(false); return; }
       const [{ data: t }, { count }] = await Promise.all([
-        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story').eq('id', tournamentId).single(),
+        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_one_liner').eq('id', tournamentId).single(),
         supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('tournament_id', tournamentId).in('payment_status', ['pending', 'paid']),
       ]);
       if (t) setTournament(t);
@@ -418,6 +419,11 @@ function RegisterInner() {
               <p style={s.heroMeta}>
                 {spotsRemaining} / {spotsTotal} spots remaining
               </p>
+              {tournament?.cause_story_one_liner && (
+                <p style={{ ...s.heroMeta, marginTop: 4, fontStyle: 'italic', opacity: 0.9 }}>
+                  {tournament.cause_story_one_liner}
+                </p>
+              )}
             </div>
             <button onClick={() => router.back()} style={{ background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.25)', color: '#fff', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginTop: 4 }}>
               ← Back

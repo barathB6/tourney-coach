@@ -15,7 +15,7 @@ function getSupabase() {
 async function getTournament(slug: string) {
   const { data } = await getSupabase()
     .from('tournaments')
-    .select('id, name, slug, event_date, format, max_players, entry_fee_cents, cause_story, status, microsite_color, social_links, sponsor_logos, cause_photos, contact_email, location_name, volunteer_info, cause_tagline, edition_label, shotgun_time, historical_raised_cents, cause_org, sponsor_hole_url')
+    .select('id, name, slug, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_full, status, microsite_color, social_links, sponsor_logos, cause_photos, contact_email, location_name, volunteer_info, cause_tagline, edition_label, shotgun_time, historical_raised_cents, cause_org, sponsor_hole_url')
     .eq('slug', slug)
     .in('status', ['published', 'live', 'completed'])
     .single();
@@ -386,13 +386,13 @@ export default async function MicrositePage({
         <div style={{ maxWidth: 800, margin: '0 auto', padding: '64px 24px' }}>
 
           {/* Cause story */}
-          {t.cause_story && (
+          {(t.cause_story_full || t.cause_story) && (
             <section id="cause" style={{ marginBottom: 64, scrollMarginTop: 72 }}>
               <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 32, fontWeight: 700, color: primaryColor, marginBottom: 20 }}>
                 Why We Play
               </h2>
               <div style={{ fontSize: 17, lineHeight: 1.8, color: '#3A3F3C' }}>
-                {renderRichText(t.cause_story)}
+                {renderRichText(t.cause_story_full || t.cause_story)}
               </div>
             </section>
           )}
