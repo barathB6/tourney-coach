@@ -43,6 +43,7 @@ export default function RegistrationsPage() {
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [refunding, setRefunding] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   // Manual (paper) registration form
@@ -174,6 +175,31 @@ export default function RegistrationsPage() {
       setError(err instanceof Error ? err.message : 'Refund failed');
     } finally {
       setRefunding(null);
+    }
+  }
+
+  async function handleDelete(reg: Registration) {
+    if (!window.confirm(`Delete this registration for ${reg.contact_name}? This cannot be undone.`)) return;
+
+    setDeleting(reg.id);
+    setError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error('Not signed in');
+
+      const res = await fetch(`/api/registrations/${reg.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete registration');
+
+      setRegistrations(prev => prev.filter(r => r.id !== reg.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete registration');
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -368,14 +394,24 @@ export default function RegistrationsPage() {
                           {st.label}
                         </span>
                       </td>
-                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                         {r.payment_status === 'paid' && (
                           <button
                             onClick={() => handleRefund(r)}
                             disabled={refunding === r.id}
-                            style={{ background: 'none', border: '1px solid #E5E0D5', borderRadius: 8, padding: '6px 12px', cursor: refunding === r.id ? 'not-allowed' : 'pointer', fontSize: 12.5, fontWeight: 600, color: '#B8442C', fontFamily: "'DM Sans', sans-serif", opacity: refunding === r.id ? 0.6 : 1 }}
+                            style={{ background: 'none', border: '1px solid #E5E0D5', borderRadius: 8, padding: '6px 12px', cursor: refunding === r.id ? 'not-allowed' : 'pointer', fontSize: 12.5, fontWeight: 600, color: '#B8442C', fontFamily: "'DM Sans', sans-serif", opacity: refunding === r.id ? 0.6 : 1, marginRight: 8 }}
                           >
                             {refunding === r.id ? 'Refunding…' : 'Refund'}
+                          </button>
+                        )}
+                        {r.payment_status !== 'paid' && (
+                          <button
+                            onClick={() => handleDelete(r)}
+                            disabled={deleting === r.id}
+                            title="Delete registration"
+                            style={{ background: 'none', border: '1px solid #E5E0D5', borderRadius: 8, padding: '6px 12px', cursor: deleting === r.id ? 'not-allowed' : 'pointer', fontSize: 12.5, fontWeight: 600, color: '#6B7775', fontFamily: "'DM Sans', sans-serif", opacity: deleting === r.id ? 0.6 : 1 }}
+                          >
+                            {deleting === r.id ? 'Deleting…' : 'Delete'}
                           </button>
                         )}
                       </td>
