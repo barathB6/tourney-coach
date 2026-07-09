@@ -323,7 +323,7 @@ export default function Dashboard() {
         {/* ── Strip ── */}
         <div style={s.strip}>
           <h1 style={s.stripH1}>One surface, every stage.</h1>
-          <p style={s.stripP}>Your organizer dashboard re-weights itself as the event moves.</p>
+          <p style={s.stripP}>Your organizer dashboard re-weights itself as the event moves</p>
         </div>
 
         {/* ── Two-phase grid ── */}
