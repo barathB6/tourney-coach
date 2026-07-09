@@ -182,7 +182,7 @@ export default function Dashboard() {
     stripP: { margin: 0, color: '#5C6B62', fontSize: 13.5 },
 
     // Grid
-    grid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 },
+    grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 },
     phase: { background: '#fff', border: '1px solid var(--line)', borderRadius: 16, boxShadow: '0 1px 3px rgba(15,74,38,.06), 0 8px 28px rgba(15,74,38,.08)', overflow: 'hidden', display: 'flex', flexDirection: 'column' },
     phead: { padding: '15px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: '1px solid var(--line)' },
     ptag: { fontSize: 11, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase' as const, color: 'var(--primary)', background: '#EAF2ED', padding: '4px 10px', borderRadius: 999 },
@@ -541,18 +541,6 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* ═══ PHASE 3 — INVESTOR DEMO ═══ */}
-          <section style={s.phase}>
-            <div style={s.phead}>
-              <div style={s.ptag}>Investor demo</div>
-            </div>
-            <iframe
-              src="/investor-demo.html"
-              title="TourneyCoach Investor Demo"
-              style={{ border: 'none', width: '100%', flex: 1, minHeight: 640 }}
-            />
-          </section>
-
         </div>
 
         <footer style={s.footer}>
@@ -560,6 +548,22 @@ export default function Dashboard() {
         </footer>
 
       </div>
+
+      <button
+        onClick={() => router.push('/coach')}
+        title="Ask your AI coach"
+        style={{
+          position: 'fixed', right: 28, bottom: 28, width: 56, height: 56, borderRadius: 14,
+          background: 'var(--primary)', border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 14px rgba(15,74,38,.28), 0 1px 3px rgba(15,74,38,.2)', zIndex: 40,
+        }}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
+          <circle cx="12" cy="12" r="4" />
+        </svg>
+      </button>
     </div>
   );
 }
