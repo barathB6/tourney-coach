@@ -520,7 +520,7 @@ export default function Dashboard() {
         </div>
 
         <footer style={s.footer}>
-          <strong style={{ color: 'var(--primary)' }}>TourneyCoach</strong> &middot; Organizer dashboard
+          <strong style={{ color: 'var(--primary)' }}>TourneyCoach</strong>&nbsp;&middot;&nbsp;Organizer Dashboard
         </footer>
 
       </div>
