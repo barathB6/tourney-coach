@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
 import FormattableTextarea from '@/components/FormattableTextarea';
-import { renderRichText } from '@/lib/richtext/render';
+import { renderRichText, renderInline } from '@/lib/richtext/render';
 
 const STEPS = [
   {
@@ -179,11 +179,11 @@ export default function CauseStoryBuilder() {
               <p className="text-sm mt-8" style={{ color: 'rgba(27,107,58,0.7)' }}>Start writing on the left — your donor story will appear here in real time.</p>
             ) : (
               <div className="space-y-5">
-                {preview.hook && (
-                  <h2 className="text-2xl sm:text-3xl text-white leading-tight" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>{preview.hook}</h2>
+                {preview.org && (
+                  <h2 className="text-2xl sm:text-3xl text-white leading-tight" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>{renderInline(preview.org, 'org')}</h2>
                 )}
-                {preview.org && !preview.hook && (
-                  <h2 className="text-2xl text-white" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>{preview.org}</h2>
+                {preview.hook && (
+                  <p className="text-base" style={{ color: 'rgba(250,248,243,0.85)' }}>{renderInline(preview.hook, 'hook')}</p>
                 )}
                 {preview.paragraphs.map((p, i) => (
                   <div key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.8)' }}>{renderRichText(p)}</div>
@@ -194,7 +194,7 @@ export default function CauseStoryBuilder() {
                       <p className="text-2xl font-bold" style={{ color: 'var(--gold)', fontFamily: "'Fraunces', serif" }}>{statAmount}</p>
                     )}
                     {statDesc && (
-                      <p className="text-sm mt-1" style={{ color: 'rgba(250,248,243,0.6)' }}>{statDesc}</p>
+                      <p className="text-sm mt-1" style={{ color: 'rgba(250,248,243,0.6)' }}>{renderInline(statDesc, 'stat')}</p>
                     )}
                   </div>
                 )}

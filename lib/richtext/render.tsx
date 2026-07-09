@@ -5,7 +5,10 @@ import type { ReactNode } from 'react';
 // uses dangerouslySetInnerHTML — output is plain React elements built from
 // the input text, so there's no HTML-injection surface even though organizers
 // can type freely into the story fields.
-function renderInline(text: string, keyPrefix: string): ReactNode[] {
+// Exported for single-line contexts (headings, labels) where wrapping output
+// in block elements (<p>/<ul>) would be invalid HTML — bold/italic only, no
+// paragraphs or lists.
+export function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean);
   return tokens.map((tok, i) => {
     if (tok.startsWith('**') && tok.endsWith('**')) {

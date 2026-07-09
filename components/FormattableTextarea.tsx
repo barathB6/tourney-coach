@@ -28,12 +28,36 @@ export default function FormattableTextarea({
     const el = ref.current;
     if (!el) return;
     const { selectionStart: start, selectionEnd: end } = el;
-    const selected = value.slice(start, end) || 'text';
-    const next = value.slice(0, start) + marker + selected + marker + value.slice(end);
-    onChange(next);
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    const selected = value.slice(start, end);
+
+    // Toggle off: clicking again on a selection that's already wrapped by
+    // this marker (the common case right after inserting it, since the new
+    // text stays selected) removes the markers instead of nesting a second
+    // pair — otherwise repeated clicks stack into "****text****".
+    if (selected && before.endsWith(marker) && after.startsWith(marker)) {
+      const newBefore = before.slice(0, -marker.length);
+      onChange(newBefore + selected + after.slice(marker.length));
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(newBefore.length, newBefore.length + selected.length);
+      });
+      return;
+    }
+
+    const text = selected || 'text';
+    // Placeholder insertions (no selection) shouldn't glue onto an adjacent
+    // word — "assistance**text**" reads as one run-on word.
+    const needsLeadingSpace = !selected && before.length > 0 && !/\s$/.test(before);
+    const needsTrailingSpace = !selected && after.length > 0 && !/^\s/.test(after);
+    const insert = (needsLeadingSpace ? ' ' : '') + marker + text + marker + (needsTrailingSpace ? ' ' : '');
+
+    onChange(before + insert + after);
+    const selStart = start + (needsLeadingSpace ? 1 : 0) + marker.length;
     requestAnimationFrame(() => {
       el.focus();
-      el.setSelectionRange(start + marker.length, start + marker.length + selected.length);
+      el.setSelectionRange(selStart, selStart + text.length);
     });
   }
 
