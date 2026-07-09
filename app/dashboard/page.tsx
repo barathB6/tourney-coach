@@ -52,6 +52,7 @@ export default function Dashboard() {
   const [storyDone, setStoryDone] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [phase2CoachDismissed, setPhase2CoachDismissed] = useState(false);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -79,15 +80,39 @@ export default function Dashboard() {
         }
       } catch { /* ignore */ }
 
-      const { data } = await supabase
-        .from('tournaments')
-        .select('id, name, event_date, format, max_players, cause_story')
-        .eq('organizer_id', u.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // The top bar shows whichever tournament was last picked in the
+      // Registrations dropdown, so switching there stays consistent when you
+      // come back to the dashboard — not just always the newest tournament.
+      let selectedId: string | null = null;
+      try { selectedId = localStorage.getItem(`tourney_selected_tournament_${u.id}`); } catch { /* ignore */ }
 
-      if (data) {
+      const fields = 'id, name, event_date, format, max_players, cause_story';
+      let picked = null as { id: string; name: string; event_date: string; format: string; max_players: number; cause_story: string | null } | null;
+
+      if (selectedId) {
+        const { data } = await supabase
+          .from('tournaments')
+          .select(fields)
+          .eq('organizer_id', u.id)
+          .eq('id', selectedId)
+          .maybeSingle();
+        picked = data;
+      }
+
+      // No saved selection, or it no longer belongs to this organizer (e.g. deleted) — fall back to newest
+      if (!picked) {
+        const { data } = await supabase
+          .from('tournaments')
+          .select(fields)
+          .eq('organizer_id', u.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        picked = data;
+      }
+
+      if (picked) {
+        const data = picked;
         setTournament(data);
         const { count } = await supabase
           .from('registrations')
@@ -454,27 +479,29 @@ export default function Dashboard() {
               </div>
 
               {/* Coach card */}
-              <div style={s.coach}>
-                <div style={s.coachEy}>
-                  <span style={s.coachPin}><CoachIcon /></span>
-                  <span style={s.coachLabel}>From your coach</span>
+              {!phase2CoachDismissed && (
+                <div style={s.coach}>
+                  <div style={s.coachEy}>
+                    <span style={s.coachPin}><CoachIcon /></span>
+                    <span style={s.coachLabel}>From your coach</span>
+                  </div>
+                  <div style={s.coachMsg}>
+                    {setupDone
+                      ? <>You&rsquo;re ready to build the field. Open registration and start reaching out to sponsors — both happen in parallel.</>
+                      : <>Finish Phase 1 first. Once your event details are locked in, <strong style={{ color: 'var(--gold)' }}>registration</strong> opens up automatically.</>
+                    }
+                  </div>
+                  <div style={s.coachActs}>
+                    {setupDone
+                      ? <button style={s.btnGold} onClick={() => router.push(`/register?id=${tournament!.id}`)}>Open registration</button>
+                      : <button style={s.btnGold} onClick={() => steps[activeIdx]?.href && router.push(steps[activeIdx].href!)}>
+                          Complete Phase 1 first
+                        </button>
+                    }
+                    <button style={s.btnGhost} onClick={() => setPhase2CoachDismissed(true)}>Maybe later</button>
+                  </div>
                 </div>
-                <div style={s.coachMsg}>
-                  {setupDone
-                    ? <>You&rsquo;re ready to build the field. Open registration and start reaching out to sponsors — both happen in parallel.</>
-                    : <>Finish Phase 1 first. Once your event details are locked in, <strong style={{ color: 'var(--gold)' }}>registration</strong> opens up automatically.</>
-                  }
-                </div>
-                <div style={s.coachActs}>
-                  {setupDone
-                    ? <button style={s.btnGold} onClick={() => router.push(`/register?id=${tournament!.id}`)}>Open registration</button>
-                    : <button style={s.btnGold} onClick={() => steps[activeIdx]?.href && router.push(steps[activeIdx].href!)}>
-                        Complete Phase 1 first
-                      </button>
-                  }
-                  <button style={s.btnGhost}>Maybe later</button>
-                </div>
-              </div>
+              )}
 
               {/* 347 widget */}
               <div style={s.circle}>

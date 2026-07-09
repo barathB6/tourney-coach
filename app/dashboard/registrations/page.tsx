@@ -55,10 +55,13 @@ export default function RegistrationsPage() {
     teamName: '', playerNames: ['', '', '', ''], markPaid: true,
   });
 
+  const [userId, setUserId] = useState<string | null>(null);
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user ?? null;
       if (!user) { router.replace('/sign-in'); return; }
+      setUserId(user.id);
 
       const { data } = await supabase
         .from('tournaments')
@@ -68,10 +71,24 @@ export default function RegistrationsPage() {
 
       const list = data ?? [];
       setTournaments(list);
-      if (list.length > 0) setSelectedTournament(list[0].id);
+
+      // Resume whichever tournament was last picked here (also shown on the
+      // dashboard's top bar), falling back to the newest if it's gone.
+      let saved: string | null = null;
+      try { saved = localStorage.getItem(`tourney_selected_tournament_${user.id}`); } catch { /* ignore */ }
+      const stillExists = saved && list.some(t => t.id === saved);
+
+      if (list.length > 0) setSelectedTournament(stillExists ? saved! : list[0].id);
       else setLoading(false);
     });
   }, [router]);
+
+  function selectTournament(id: string) {
+    setSelectedTournament(id);
+    if (userId) {
+      try { localStorage.setItem(`tourney_selected_tournament_${userId}`, id); } catch { /* ignore */ }
+    }
+  }
 
   useEffect(() => {
     if (!selectedTournament) return;
@@ -225,7 +242,8 @@ export default function RegistrationsPage() {
 
       const remaining = tournaments.filter(x => x.id !== selectedTournament);
       setTournaments(remaining);
-      setSelectedTournament(remaining[0]?.id ?? '');
+      if (remaining[0]) selectTournament(remaining[0].id);
+      else setSelectedTournament('');
       if (remaining.length === 0) setRegistrations([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete tournament');
@@ -268,7 +286,7 @@ export default function RegistrationsPage() {
             {tournaments.length > 1 ? (
               <select
                 value={selectedTournament}
-                onChange={e => setSelectedTournament(e.target.value)}
+                onChange={e => selectTournament(e.target.value)}
                 style={{ padding: '6px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 13.5, fontFamily: "'DM Sans', sans-serif", color: '#1A1F1C', background: '#fff', cursor: 'pointer' }}
               >
                 {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}

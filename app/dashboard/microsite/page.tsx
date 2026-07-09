@@ -125,9 +125,6 @@ export default function MicrositeEditorPage() {
   const micrositeUrl = form.slug
     ? `https://www.tourneycoach.com/microsite/${form.slug}`
     : null;
-  const subdomainUrl = form.slug
-    ? `https://${form.slug}.tourneycoach.com`
-    : null;
 
   const s = {
     page: { fontFamily: "'DM Sans', sans-serif", background: '#FAF8F3', minHeight: '100vh', padding: '32px 24px', color: '#1A1F1C' } as React.CSSProperties,
@@ -181,28 +178,30 @@ export default function MicrositeEditorPage() {
               placeholder="event-name"
               spellCheck={false}
             />
+            {form.slug && (
+              <button
+                type="button"
+                onClick={() => set('slug', '')}
+                title="Clear this URL"
+                style={{ padding: '6px 10px', margin: '0 4px', border: 'none', background: 'transparent', color: '#9BA8A4', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}
+              >
+                ✕
+              </button>
+            )}
             <span style={{ padding: '10px 12px', background: '#F0F4F2', borderLeft: '1px solid #E5E0D5', fontSize: 14, color: '#6B7775', whiteSpace: 'nowrap' as const }}>
               .tourneycoach.com
             </span>
           </div>
           <p style={{ fontSize: 12, color: '#9BA8A4', marginTop: 6 }}>
-            Use lowercase letters, numbers, and hyphens only. Spaces are converted automatically.
+            Use lowercase letters, numbers, and hyphens only. Spaces are converted automatically. A URL is required — clearing it just lets you type a new one before saving.
           </p>
           {micrositeUrl && (
-            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#F0F4F2', borderRadius: 4, padding: '10px 14px' }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#1B6B3A' }}>{micrositeUrl}</span>
-                <a href={micrositeUrl} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 12, color: '#1B6B3A', fontWeight: 600, textDecoration: 'none', marginLeft: 12, whiteSpace: 'nowrap' as const }}>
-                  Open ↗
-                </a>
-              </div>
-              {subdomainUrl && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FAF8F3', border: '1px dashed #E5E0D5', borderRadius: 4, padding: '10px 14px' }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#9BA8A4' }}>{subdomainUrl}</span>
-                  <span style={{ fontSize: 11, color: '#9BA8A4', marginLeft: 12, whiteSpace: 'nowrap' as const }}>DNS pending</span>
-                </div>
-              )}
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#F0F4F2', borderRadius: 4, padding: '10px 14px' }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#1B6B3A' }}>{micrositeUrl}</span>
+              <a href={micrositeUrl} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 12, color: '#1B6B3A', fontWeight: 600, textDecoration: 'none', marginLeft: 12, whiteSpace: 'nowrap' as const }}>
+                Open ↗
+              </a>
             </div>
           )}
         </div>
@@ -295,7 +294,7 @@ export default function MicrositeEditorPage() {
         <div style={s.card}>
           <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginBottom: 8, marginTop: 0 }}>Volunteer Recruitment</h2>
           <p style={{ fontSize: 13, color: '#6B7775', marginBottom: 16 }}>
-            Shown at <code>{form.slug ? `${form.slug}.tourneycoach.com/volunteer` : 'your-event.tourneycoach.com/volunteer'}</code>
+            Shown at <code>{form.slug ? `www.tourneycoach.com/microsite/${form.slug}/volunteer` : 'www.tourneycoach.com/microsite/your-event/volunteer'}</code>
           </p>
           <div style={s.row}>
             <label style={s.label}>What volunteers should know</label>
