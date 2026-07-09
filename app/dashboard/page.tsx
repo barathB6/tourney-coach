@@ -357,7 +357,6 @@ export default function Dashboard() {
                       {coachBtnLabel}
                     </button>
                   )}
-                  <button style={s.btnGhost}>See the whole plan</button>
                 </div>
               </div>
 
