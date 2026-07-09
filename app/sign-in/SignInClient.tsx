@@ -86,7 +86,7 @@ export default function SignInClient() {
     window.google.accounts.id.renderButton(buttonRef.current, {
       theme: 'outline',
       size: 'large',
-      width: 320,
+      width: 376,
       shape: 'rectangular',
       text: 'signin_with',
     });
@@ -109,8 +109,8 @@ export default function SignInClient() {
           <p style={{ marginTop: 8, color: 'var(--ink)', opacity: 0.6, fontFamily: "'DM Sans', sans-serif" }}>Sign in to get started</p>
         </div>
 
-        <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 16, padding: 32, boxShadow: '0 4px 24px rgba(15,74,38,.08)', display: 'flex', justifyContent: 'center' }}>
-          <div ref={buttonRef} />
+        <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 16, padding: 24, boxShadow: '0 4px 24px rgba(15,74,38,.08)', display: 'flex', justifyContent: 'center' }}>
+          <div ref={buttonRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} />
           {!gsiReady && !error && (
             <p style={{ fontSize: 13, color: 'var(--ink)', opacity: 0.5, fontFamily: "'DM Sans', sans-serif" }}>Loading sign-in…</p>
           )}
