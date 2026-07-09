@@ -51,7 +51,15 @@ export default function CauseStoryBuilder() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id);
+      if (!user) return;
+      setUserId(user.id);
+
+      // Resume a previously saved draft instead of starting blank — the
+      // dashboard's "Cause story" card links here expecting exactly this.
+      try {
+        const saved = localStorage.getItem(`tourney_story_${user.id}`);
+        if (saved) setFields(JSON.parse(saved));
+      } catch { /* corrupt or missing draft — start blank */ }
     });
   }, []);
 
