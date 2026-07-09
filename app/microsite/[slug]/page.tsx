@@ -45,7 +45,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
 
-  const canonicalUrl = `https://${slug}.tourneycoach.com`;
+  // Subdomains (slug.tourneycoach.com) don't resolve yet — wildcard SSL/DNS
+  // is still pending (Day 8). The path URL is what actually works, so use
+  // it for canonical/OG/JSON-LD until that's sorted, or crawlers and rich
+  // results validators will hit a dead link.
+  const canonicalUrl = `https://www.tourneycoach.com/microsite/${slug}`;
   const description = (t.cause_tagline ?? t.cause_story?.slice(0, 155) ?? `Join us for ${t.name} on ${dateStr}.`).slice(0, 160);
   const ogImage = (t.cause_photos as string[])?.[0];
 
@@ -125,7 +129,11 @@ export default async function MicrositePage({
   const daysLeft = daysUntil(t.event_date);
   const isCompleted = t.status === 'completed';
 
-  const canonicalUrl = `https://${slug}.tourneycoach.com`;
+  // Subdomains (slug.tourneycoach.com) don't resolve yet — wildcard SSL/DNS
+  // is still pending (Day 8). The path URL is what actually works, so use
+  // it for canonical/OG/JSON-LD until that's sorted, or crawlers and rich
+  // results validators will hit a dead link.
+  const canonicalUrl = `https://www.tourneycoach.com/microsite/${slug}`;
   const ogImage = photos[0] ?? null;
 
   const navLinks = [
