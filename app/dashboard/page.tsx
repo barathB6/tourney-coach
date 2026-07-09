@@ -406,6 +406,7 @@ export default function Dashboard() {
 
               <div>
                 <p style={s.blockH}>Your team</p>
+                <p style={{ fontSize: 12.5, color: '#5C6B62', margin: '0 0 8px' }}>Running this solo? That&rsquo;s how most great tournaments start.</p>
                 <div style={s.teamline}>
                   <span style={s.chip}>
                     <span style={s.chipAvi}>{user?.initials}</span>
@@ -500,11 +501,6 @@ export default function Dashboard() {
                     </button>
                   ))}
                 </div>
-              </div>
-
-              <div>
-                <p style={s.blockH}>Your team</p>
-                <p style={{ fontSize: 12.5, color: '#5C6B62', margin: 0 }}>Running this solo? That&rsquo;s how most great tournaments start.</p>
               </div>
 
             </div>
