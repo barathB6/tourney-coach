@@ -406,9 +406,14 @@ export default function Dashboard() {
 
               <div>
                 <p style={s.blockH}>Your team</p>
+                <p style={{ fontSize: 12.5, color: '#5C6B62', margin: '0 0 8px' }}>Running this solo? That&rsquo;s how most great tournaments start.</p>
                 <div style={s.teamline}>
-                  <span>Running this solo? That&rsquo;s how most great tournaments start.</span>
-                  <button style={s.addBtn}>+ Invite someone to help</button>
+                  <span style={s.chip}>
+                    <span style={s.chipAvi}>{user?.initials}</span>
+                    <strong style={{ color: 'var(--ink)', fontWeight: 700 }}>You</strong>
+                    <span style={{ color: '#5C6B62', fontWeight: 400 }}>&middot; everything</span>
+                  </span>
+                  <button style={s.addBtn}>+ Invite</button>
                 </div>
               </div>
 
@@ -495,19 +500,6 @@ export default function Dashboard() {
                       <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#5C6B62', marginTop: 3, fontWeight: 500 }}>{sub}</div>
                     </button>
                   ))}
-                </div>
-              </div>
-
-              {/* Team */}
-              <div>
-                <p style={s.blockH}>Your team</p>
-                <div style={s.teamline}>
-                  <span style={s.chip}>
-                    <span style={s.chipAvi}>{user?.initials}</span>
-                    <strong style={{ color: 'var(--ink)', fontWeight: 700 }}>You</strong>
-                    <span style={{ color: '#5C6B62', fontWeight: 400 }}>&middot; everything</span>
-                  </span>
-                  <button style={s.addBtn}>+ Invite</button>
                 </div>
               </div>
 
