@@ -542,18 +542,20 @@ export default function Dashboard() {
 
       <button
         onClick={() => router.push('/coach')}
-        title="Ask your AI coach"
         style={{
-          position: 'fixed', right: 28, bottom: 28, width: 56, height: 56, borderRadius: 14,
+          position: 'fixed', right: 28, bottom: 28, height: 52, borderRadius: 26,
           background: 'var(--primary)', border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 14px rgba(15,74,38,.28), 0 1px 3px rgba(15,74,38,.2)', zIndex: 40,
+          display: 'flex', alignItems: 'center', gap: 10, padding: '0 20px 0 16px',
+          boxShadow: '0 6px 20px rgba(15,74,38,.32), 0 2px 6px rgba(15,74,38,.24)', zIndex: 40,
         }}
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
           <circle cx="12" cy="12" r="4" />
         </svg>
+        <span style={{ color: '#fff', fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+          Ask your AI coach
+        </span>
       </button>
     </div>
   );
