@@ -481,39 +481,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Progress spine */}
-              <div>
-                <p style={s.blockH}>Your progress</p>
-                <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, position: 'relative' }}>
-                  <li style={{ position: 'absolute', left: 13, top: 10, bottom: 10, width: 2, background: 'var(--line)', pointerEvents: 'none' }} />
-                  {[
-                    { label: 'Cause story', done: causeStoryDone },
-                    { label: 'Event set up', done: setupDone },
-                    { label: 'Registration & sponsors', done: false, isNow: causeStoryDone && setupDone },
-                    { label: 'Rally your volunteers', num: 4 },
-                    { label: 'Day-of game plan', num: 5 },
-                  ].map(({ label, done, isNow, num }) => {
-                    const dotStyle: React.CSSProperties = done
-                      ? { width: 28, height: 28, flexShrink: 0, borderRadius: '50%', background: 'var(--primary)', border: '2px solid var(--primary)', display: 'grid', placeItems: 'center', zIndex: 1 }
-                      : isNow
-                      ? { width: 28, height: 28, flexShrink: 0, borderRadius: '50%', background: '#fff', border: '2px solid var(--alert)', display: 'grid', placeItems: 'center', zIndex: 1 }
-                      : { width: 28, height: 28, flexShrink: 0, borderRadius: '50%', background: '#fff', border: '2px solid var(--line)', display: 'grid', placeItems: 'center', zIndex: 1, color: '#5C6B62', fontSize: 13, fontWeight: 600 };
-                    return (
-                      <li key={label} style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: 12, padding: '7px 0' }}>
-                        <span style={dotStyle}>
-                          {done ? <CheckIcon /> : isNow ? <CoachIcon color="var(--alert)" /> : num}
-                        </span>
-                        <span style={{ paddingTop: 4, fontSize: 14, fontWeight: (isNow || done) ? 600 : 400, color: done ? 'var(--ink)' : '#5C6B62' }}>
-                          {label}
-                          {done && <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600, marginLeft: 6 }}>done</span>}
-                          {isNow && <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--alert)', border: '1px solid #e7c3ba', background: '#fbeeeb', borderRadius: 999, padding: '2px 7px', marginLeft: 8, verticalAlign: 2 }}>You&rsquo;re here</span>}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-
               {/* Jump back in */}
               <div>
                 <p style={s.blockH}>Jump back in</p>
