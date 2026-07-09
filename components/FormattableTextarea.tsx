@@ -45,8 +45,21 @@ export default function FormattableTextarea({
     const selected = value.slice(start, end) || 'list item';
     const after = value.slice(end);
     const bulleted = selected.split('\n').map(l => l.startsWith('- ') ? l : `- ${l}`).join('\n');
-    onChange(before + bulleted + after);
-    requestAnimationFrame(() => el.focus());
+
+    // A bullet block must sit on its own line(s) — the renderer only treats
+    // a paragraph as a list when every line in it starts with "- ". Pad with
+    // newlines so it doesn't merge into the surrounding sentence.
+    const needsLeadingBreak = before.length > 0 && !before.endsWith('\n');
+    const needsTrailingBreak = after.length > 0 && !after.startsWith('\n');
+    const insert = (needsLeadingBreak ? '\n\n' : '') + bulleted + (needsTrailingBreak ? '\n\n' : '');
+
+    const next = before + insert + after;
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const selStart = start + (needsLeadingBreak ? 2 : 0);
+      el.setSelectionRange(selStart, selStart + bulleted.length);
+    });
   }
 
   const btnStyle: React.CSSProperties = {
