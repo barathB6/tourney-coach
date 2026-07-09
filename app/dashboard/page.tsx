@@ -488,7 +488,7 @@ export default function Dashboard() {
                   {[
                     { label: 'Cause story', sub: causeStoryDone ? 'done' : 'not started', href: '/story' },
                     { label: 'Event setup', sub: setupDone ? 'done' : 'not started', href: '/setup/format' },
-                    { label: 'Registration', sub: 'coming soon', href: null },
+                    { label: 'Registration', sub: setupDone ? 'view registrations' : 'not started', href: setupDone ? '/dashboard/registrations' : null },
                   ].map(({ label, sub, href }) => (
                     <button key={label} style={s.q} onClick={() => href && router.push(href)} disabled={!href}>
                       <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)' }}>{label}</div>
