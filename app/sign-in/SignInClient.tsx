@@ -1,15 +1,34 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "../../lib/supabaseClient";
+
+// Google Identity Services types are minimal here — we only use the one
+// method (renderButton + a credential callback), no need for the full SDK types.
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+          }) => void;
+          renderButton: (parent: HTMLElement, options: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
 
 export default function SignInClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams?.get('next') || '/dashboard';
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
+  const [gsiReady, setGsiReady] = useState(false);
+  const buttonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Use getSession (reads localStorage, no network) to check existing auth
@@ -23,20 +42,56 @@ export default function SignInClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
+  const handleCredentialResponse = async (response: { credential: string }) => {
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: 'google',
+      token: response.credential,
     });
     if (error) {
       setError(error.message);
-      setLoading(false);
+      return;
     }
+    router.replace(next);
   };
+
+  useEffect(() => {
+    if (checking) return;
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      setError('Sign-in is misconfigured — missing Google client ID.');
+      return;
+    }
+
+    // Google Identity Services runs the whole flow client-side on our own
+    // domain (no Supabase-hosted redirect), so the Google account picker
+    // shows "tourneycoach.com" instead of the Supabase project URL.
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGsiReady(true);
+    script.onerror = () => setError('Could not load Google sign-in. Check your connection and try again.');
+    document.head.appendChild(script);
+    return () => { document.head.removeChild(script); };
+  }, [checking]);
+
+  useEffect(() => {
+    if (!gsiReady || !buttonRef.current || !window.google) return;
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleCredentialResponse,
+    });
+    window.google.accounts.id.renderButton(buttonRef.current, {
+      theme: 'outline',
+      size: 'large',
+      width: 320,
+      shape: 'rectangular',
+      text: 'signin_with',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gsiReady]);
 
   if (checking) {
     return (
@@ -54,27 +109,13 @@ export default function SignInClient() {
           <p style={{ marginTop: 8, color: 'var(--ink)', opacity: 0.6, fontFamily: "'DM Sans', sans-serif" }}>Sign in to get started</p>
         </div>
 
-        <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 16, padding: 32, boxShadow: '0 4px 24px rgba(15,74,38,.08)' }}>
-          <button
-            onClick={handleGoogleSignIn}
-            disabled={loading}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-              padding: '12px 16px', borderRadius: 10, border: '1px solid var(--line)',
-              background: '#fff', color: 'var(--ink)', fontFamily: "'DM Sans', sans-serif",
-              fontSize: 15, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1,
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 48 48">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-              <path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.01 24.01 0 0 0 0 21.56l7.98-6.19z" />
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-            </svg>
-            {loading ? "Redirecting to Google…" : "Sign in with Google"}
-          </button>
+        <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 16, padding: 32, boxShadow: '0 4px 24px rgba(15,74,38,.08)', display: 'flex', justifyContent: 'center' }}>
+          <div ref={buttonRef} />
+          {!gsiReady && !error && (
+            <p style={{ fontSize: 13, color: 'var(--ink)', opacity: 0.5, fontFamily: "'DM Sans', sans-serif" }}>Loading sign-in…</p>
+          )}
           {error && (
-            <p style={{ marginTop: 16, fontSize: 13, textAlign: 'center', color: 'var(--alert)', fontFamily: "'DM Sans', sans-serif" }}>{error}</p>
+            <p style={{ fontSize: 13, textAlign: 'center', color: 'var(--alert)', fontFamily: "'DM Sans', sans-serif" }}>{error}</p>
           )}
         </div>
 
