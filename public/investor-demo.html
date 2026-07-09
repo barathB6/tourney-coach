@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TourneyCoach — Investor Demo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --tc:#1B6B3A;--tc2:#2d8a50;--tch:rgba(27,107,58,0.1);--tcb:rgba(27,107,58,0.2);
+  --bg:#fff;--bg2:#f5f5f3;--bg3:#eeede9;
+  --txt:#1a1a18;--txt2:#6b6b67;--txt3:#9b9b96;
+  --bdr:rgba(0,0,0,0.09);--bdr2:rgba(0,0,0,0.16);
+  --red:#c0392b;--purple:#6a5acd;--gold:#b8860b;--goldbg:rgba(184,134,11,0.1);
+  --nav-h:62px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#1c1c1a;--bg2:#262624;--bg3:#2e2e2b;
+  --txt:#f0efe9;--txt2:#a0a09a;--txt3:#6a6a65;
+  --bdr:rgba(255,255,255,0.09);--bdr2:rgba(255,255,255,0.16);
+}}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg3);display:flex;align-items:center;justify-content:center;font-family:-apple-system,'Helvetica Neue',sans-serif;}
+
+/* ═══════════════════════════════════════════════
+   GATE
+═══════════════════════════════════════════════ */
+#gate{position:fixed;inset:0;background:var(--bg3);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;}
+.kcard{background:var(--bg);border-radius:22px;border:0.5px solid var(--bdr);padding:28px 22px;width:100%;max-width:350px;text-align:center;}
+.klogo{width:54px;height:54px;background:var(--tc);border-radius:15px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;}
+.kcard h2{font-size:18px;font-weight:600;color:var(--txt);margin-bottom:5px;}
+.kcard .sub{font-size:13px;color:var(--txt2);line-height:1.65;margin-bottom:18px;}
+.kcard a{color:var(--tc);text-decoration:none;font-weight:500;}
+.kinput{width:100%;border:0.5px solid var(--bdr2);border-radius:10px;padding:11px 13px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--txt);outline:none;margin-bottom:8px;transition:border-color .15s;}
+.kinput:focus{border-color:var(--tc);}
+.kbtn{width:100%;background:var(--tc);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:8px;transition:background .15s;}
+.kbtn:hover{background:var(--tc2);}
+.kskip{width:100%;background:transparent;color:var(--txt2);border:0.5px solid var(--bdr2);border-radius:10px;padding:11px;font-size:13px;cursor:pointer;font-family:inherit;transition:background .15s;}
+.kskip:hover{background:var(--bg2);}
+.kerr{font-size:11px;color:var(--red);margin-top:8px;min-height:14px;}
+.knote{font-size:10px;color:var(--txt3);margin-top:12px;line-height:1.5;}
+
+/* ═══════════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════════ */
+.app{width:100%;max-width:430px;height:100vh;max-height:780px;display:flex;flex-direction:column;background:var(--bg);border-radius:28px;overflow:hidden;border:0.5px solid var(--bdr);}
+@media(max-width:440px){.app{border-radius:0;max-height:100vh;}}
+
+/* ═══════════════════════════════════════════════
+   SHARED HEADER
+═══════════════════════════════════════════════ */
+.hdr{background:var(--tc);padding:13px 16px 11px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.hdr-ic{width:34px;height:34px;background:rgba(255,255,255,0.15);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.hdr-txt h1{color:#fff;font-size:15px;font-weight:600;letter-spacing:-0.02em;}
+.hdr-txt p{color:rgba(255,255,255,0.6);font-size:10px;margin-top:1px;}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:6px;}
+.mode-toggle{display:flex;background:rgba(0,0,0,0.18);border-radius:20px;padding:2px;gap:2px;}
+.mtab{padding:4px 10px;border-radius:18px;font-size:10px;font-weight:600;cursor:pointer;border:none;background:transparent;color:rgba(255,255,255,0.5);font-family:inherit;transition:all .18s;letter-spacing:0.03em;}
+.mtab.active{background:#fff;color:var(--tc);}
+.hdr-btn{width:30px;height:30px;background:rgba(255,255,255,0.15);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;flex-shrink:0;}
+.hdr-btn:hover{background:rgba(255,255,255,0.25);}
+.hdr-btn.muted{background:rgba(255,255,255,0.07);opacity:0.5;}
+
+/* ═══════════════════════════════════════════════
+   BOTTOM NAV
+═══════════════════════════════════════════════ */
+.nav{height:var(--nav-h);background:var(--bg);border-top:0.5px solid var(--bdr);display:flex;flex-shrink:0;}
+.ntab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:transparent;font-family:inherit;transition:opacity .15s;padding:8px 4px;}
+.ntab .ni{width:22px;height:22px;display:flex;align-items:center;justify-content:center;}
+.ntab .ni svg{transition:stroke .18s;}
+.ntab .nl{font-size:10px;color:var(--txt3);font-weight:500;letter-spacing:0.02em;transition:color .18s;}
+.ntab.active .nl{color:var(--tc);}
+.ntab.active .ni svg{stroke:var(--tc);}
+.ntab-indicator{position:absolute;bottom:0;width:24px;height:2px;background:var(--tc);border-radius:2px 2px 0 0;}
+
+/* ═══════════════════════════════════════════════
+   SCREENS
+═══════════════════════════════════════════════ */
+.screens{flex:1;overflow:hidden;position:relative;}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;transition:opacity .2s,transform .2s;opacity:0;pointer-events:none;transform:translateX(30px);}
+.screen.active{opacity:1;pointer-events:all;transform:translateX(0);}
+.screen.left{transform:translateX(-30px);}
+.scr-body{flex:1;overflow-y:auto;}
+.scr-body::-webkit-scrollbar{width:3px;}
+.scr-body::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px;}
+
+/* ═══════════════════════════════════════════════
+   SCREEN 1 — AI COACH
+═══════════════════════════════════════════════ */
+.msgs{flex:1;overflow-y:auto;padding:12px 13px 6px;display:flex;flex-direction:column;gap:11px;scroll-behavior:smooth;}
+.msgs::-webkit-scrollbar{width:3px;}
+.msgs::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px;}
+.msg{display:flex;gap:7px;animation:pop .2s ease;}
+.msg.u{flex-direction:row-reverse;}
+.av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;margin-top:2px;}
+.av.c{background:var(--tc);color:#fff;}
+.av.u{background:var(--bg3);color:var(--txt2);}
+.bbl{max-width:80%;padding:9px 12px;font-size:13.5px;line-height:1.7;color:var(--txt);}
+.bbl.c{background:var(--bg2);border-radius:4px 15px 15px 15px;}
+.bbl.u{background:var(--tc);color:#fff;border-radius:15px 4px 15px 15px;}
+.bbl p+p{margin-top:6px;}
+.typing{display:flex;gap:4px;align-items:center;padding:9px 12px;}
+.td{width:5px;height:5px;background:var(--txt3);border-radius:50%;animation:bop 1.1s infinite;}
+.td:nth-child(2){animation-delay:.2s;}
+.td:nth-child(3){animation-delay:.4s;}
+
+.coach-bottom{flex-shrink:0;}
+.statbar{display:flex;align-items:center;justify-content:space-between;padding:5px 13px 0;min-height:26px;}
+.stat{font-size:11px;color:var(--txt3);flex:1;transition:color .2s;}
+.stat.on{color:var(--tc);font-weight:600;}
+.stat.spk{color:var(--purple);font-weight:500;}
+.stat.err{color:var(--red);}
+.stop-btn{display:none;align-items:center;gap:4px;background:rgba(106,90,205,0.1);border:0.5px solid rgba(106,90,205,0.25);border-radius:20px;padding:3px 9px;cursor:pointer;font-size:11px;color:var(--purple);font-weight:500;font-family:inherit;white-space:nowrap;}
+.stop-btn.visible{display:flex;}
+.wave{display:flex;align-items:center;gap:1px;}
+.wb{width:2px;background:var(--purple);border-radius:2px;animation:wave .75s ease-in-out infinite;}
+.wb:nth-child(1){height:5px;}
+.wb:nth-child(2){height:9px;animation-delay:.12s;}
+.wb:nth-child(3){height:6px;animation-delay:.24s;}
+.wb:nth-child(4){height:9px;animation-delay:.12s;}
+.wb:nth-child(5){height:4px;animation-delay:.24s;}
+
+.chips-wrap{padding:6px 13px 8px;}
+.chips-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.chips-label{font-size:10px;color:var(--txt3);font-weight:500;text-transform:uppercase;letter-spacing:0.04em;}
+.faq-btn{font-size:10px;color:var(--tc);background:var(--tch);border:none;border-radius:8px;padding:3px 9px;cursor:pointer;font-family:inherit;font-weight:500;}
+.chips{display:flex;gap:5px;flex-wrap:wrap;}
+.chip{background:var(--bg2);border:0.5px solid var(--bdr);border-radius:20px;padding:5px 11px;font-size:11.5px;color:var(--txt2);cursor:pointer;white-space:nowrap;font-family:inherit;transition:background .15s,border-color .15s,color .15s;}
+.chip:hover{background:var(--tch);border-color:var(--tc);color:var(--tc);}
+.chip.fu{background:var(--tch);border-color:var(--tcb);color:var(--tc);}
+
+.foot{border-top:0.5px solid var(--bdr);padding:7px 13px 10px;}
+.row{display:flex;gap:7px;align-items:flex-end;}
+.tin{flex:1;border:0.5px solid var(--bdr2);border-radius:18px;padding:8px 13px;font-size:13.5px;font-family:inherit;resize:none;min-height:38px;max-height:88px;background:var(--bg2);color:var(--txt);outline:none;line-height:1.45;transition:border-color .15s;}
+.tin:focus{border-color:var(--tc);}
+.tin::placeholder{color:var(--txt3);}
+.mic{width:40px;height:40px;border-radius:50%;border:none;background:var(--tc);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .12s,background .18s;}
+.mic:hover{background:var(--tc2);}
+.mic.on{background:var(--red);}
+.snd{width:40px;height:40px;border-radius:50%;border:0.5px solid var(--bdr2);background:var(--bg2);color:var(--txt2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.snd:hover{background:var(--bg3);}
+.pwr{text-align:center;font-size:10px;color:var(--txt3);margin-top:5px;}
+
+/* ═══════════════════════════════════════════════
+   SCREEN 2 — TOURNEYCIRCLE
+═══════════════════════════════════════════════ */
+.tc-tabs{display:flex;border-bottom:0.5px solid var(--bdr);flex-shrink:0;}
+.tctab{flex:1;padding:10px 8px;font-size:12px;font-weight:500;color:var(--txt3);cursor:pointer;text-align:center;border-bottom:2px solid transparent;background:none;border-left:none;border-right:none;border-top:none;font-family:inherit;transition:color .15s,border-color .15s;}
+.tctab.active{color:var(--tc);border-bottom-color:var(--tc);}
+.tc-pane{display:none;padding:16px 14px;}
+.tc-pane.active{display:block;}
+
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:14px;}
+.scard{background:var(--bg2);border-radius:8px;padding:9px 7px;text-align:center;}
+.scard .n{font-size:19px;font-weight:600;color:var(--tc);}
+.scard .l{font-size:9.5px;color:var(--txt2);margin-top:2px;line-height:1.3;}
+.radius-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.radius-row label{font-size:12px;color:var(--txt2);}
+.radius-row select{font-size:12px;border:0.5px solid var(--bdr2);border-radius:6px;padding:4px 8px;background:var(--bg2);color:var(--txt);font-family:inherit;outline:none;}
+.match-box{background:var(--tch);border:0.5px solid var(--tcb);border-radius:10px;padding:13px;margin-bottom:12px;text-align:center;}
+.match-box .big{font-size:26px;font-weight:700;color:var(--tc);}
+.match-box .sub{font-size:11.5px;color:var(--txt2);margin-top:3px;}
+.match-breakdown{display:flex;gap:10px;justify-content:center;margin-top:8px;}
+.mb-item{font-size:10.5px;color:var(--txt2);text-align:center;}
+.mb-item span{display:block;font-size:12.5px;font-weight:600;color:var(--txt);}
+.notify-btn{width:100%;background:var(--tc);color:#fff;border:none;border-radius:10px;padding:12px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:7px;}
+.notify-btn:hover{background:var(--tc2);}
+.price-note{text-align:center;font-size:10.5px;color:var(--txt3);margin-top:5px;}
+.perf-box{background:var(--bg2);border-radius:10px;padding:12px;margin-top:12px;}
+.perf-title{font-size:10px;font-weight:600;color:var(--txt2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;}
+.perf-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:0.5px solid var(--bdr);}
+.perf-row:last-child{border-bottom:none;}
+.perf-row span{font-size:11.5px;color:var(--txt2);}
+.perf-row strong{font-size:12px;color:var(--txt);}
+.conv-bar{height:3px;background:var(--bdr);border-radius:2px;margin-top:7px;overflow:hidden;}
+.conv-fill{height:100%;background:var(--tc);border-radius:2px;width:0;transition:width 1.2s ease;}
+.privacy-note{display:flex;gap:7px;background:var(--bg2);border-radius:9px;padding:9px 11px;margin-top:10px;align-items:flex-start;}
+.privacy-note p{font-size:11px;color:var(--txt2);line-height:1.5;}
+
+.exc-hero{background:linear-gradient(135deg,#163322 0%,#1B6B3A 100%);border-radius:10px;padding:14px;margin-bottom:14px;}
+.exc-hero h3{color:#fff;font-size:13.5px;font-weight:600;}
+.exc-hero p{color:rgba(255,255,255,0.65);font-size:11px;margin-top:3px;line-height:1.5;}
+.exc-hero .prize{background:rgba(255,255,255,0.1);border-radius:6px;padding:7px 9px;margin-top:9px;display:flex;align-items:center;gap:7px;}
+.exc-hero .prize span{color:#ffd700;font-size:10.5px;font-weight:600;}
+.period-tabs{display:flex;gap:5px;margin-bottom:12px;}
+.ptab{font-size:11px;padding:4px 11px;border-radius:20px;border:0.5px solid var(--bdr2);background:var(--bg2);color:var(--txt2);cursor:pointer;font-family:inherit;transition:all .15s;}
+.ptab.active{background:var(--tc);color:#fff;border-color:var(--tc);}
+.lb-item{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:0.5px solid var(--bdr);}
+.lb-item:last-child{border-bottom:none;}
+.lrank{width:20px;text-align:center;font-size:12.5px;font-weight:600;flex-shrink:0;}
+.lrank.gold{color:var(--gold);}
+.lrank.silver{color:#888;}
+.lrank.bronze{color:#a0522d;}
+.lav{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;}
+.lbi{flex:1;min-width:0;}
+.lbi .name{font-size:12.5px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lbi .loc{font-size:10.5px;color:var(--txt2);margin-top:1px;}
+.lbs{text-align:right;flex-shrink:0;}
+.lbs .pts{font-size:12.5px;font-weight:600;color:var(--tc);}
+.lbs .sub{font-size:10px;color:var(--txt3);}
+.prize-badge{font-size:9.5px;background:var(--goldbg);color:var(--gold);border-radius:4px;padding:2px 5px;font-weight:600;margin-top:2px;display:inline-block;}
+.cta-join{width:100%;background:var(--bg2);border:0.5px solid var(--bdr2);border-radius:10px;padding:10px;font-size:13px;font-weight:600;color:var(--tc);cursor:pointer;font-family:inherit;margin-top:12px;transition:background .15s;}
+.cta-join:hover{background:var(--tch);}
+
+/* ═══════════════════════════════════════════════
+   SCREEN 3 — LIVE LEADERBOARD
+═══════════════════════════════════════════════ */
+.lb-hdr{background:var(--bg);border-bottom:0.5px solid var(--bdr);padding:10px 14px;flex-shrink:0;}
+.lb-tourney{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.lb-tourney-name{font-size:14px;font-weight:600;color:var(--txt);}
+.lb-tourney-sub{font-size:11px;color:var(--txt2);margin-top:1px;}
+.live-badge{display:flex;align-items:center;gap:4px;background:rgba(27,107,58,0.1);border-radius:20px;padding:4px 10px;}
+.lpulse{width:6px;height:6px;background:var(--tc);border-radius:50%;animation:pulse 1.5s infinite;}
+.live-badge span{font-size:11px;color:var(--tc);font-weight:600;}
+
+.lb-stats-row{display:flex;gap:8px;}
+.lb-stat{flex:1;background:var(--bg2);border-radius:7px;padding:7px 10px;text-align:center;}
+.lb-stat .n{font-size:16px;font-weight:600;color:var(--txt);}
+.lb-stat .l{font-size:10px;color:var(--txt2);margin-top:1px;}
+
+.kitchen-alert{background:linear-gradient(135deg,#1B6B3A,#2d8a50);border-radius:10px;padding:11px 13px;margin:10px 14px 0;display:flex;align-items:center;gap:10px;animation:slideIn .4s ease;}
+.kitchen-alert.hidden{display:none;}
+.kitchen-ic{width:32px;height:32px;background:rgba(255,255,255,0.15);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.kitchen-txt h4{color:#fff;font-size:12px;font-weight:600;}
+.kitchen-txt p{color:rgba(255,255,255,0.75);font-size:10.5px;margin-top:1px;}
+.kitchen-time{margin-left:auto;background:rgba(255,255,255,0.15);border-radius:7px;padding:4px 8px;color:#fff;font-size:13px;font-weight:700;white-space:nowrap;}
+
+.lb-col-hdr{display:grid;grid-template-columns:28px 1fr 36px 36px 48px;gap:4px;padding:7px 14px;background:var(--bg2);border-bottom:0.5px solid var(--bdr);flex-shrink:0;}
+.lb-col-hdr span{font-size:10px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:0.05em;}
+.lb-col-hdr .right{text-align:right;}
+
+.lb-rows{padding:0 14px;}
+.lb-row{display:grid;grid-template-columns:28px 1fr 36px 36px 48px;gap:4px;align-items:center;padding:9px 0;border-bottom:0.5px solid var(--bdr);transition:background .3s;}
+.lb-row:last-child{border-bottom:none;}
+.lb-row.updated{background:rgba(27,107,58,0.06);}
+.lb-pos{font-size:13px;font-weight:600;color:var(--txt2);}
+.lb-pos.t1{color:var(--gold);}
+.lb-team{min-width:0;}
+.lb-team-name{font-size:12.5px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb-pace{display:flex;align-items:center;gap:3px;margin-top:2px;}
+.pace-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.pace-dot.good{background:#22c55e;}
+.pace-dot.warn{background:#f59e0b;}
+.pace-dot.late{background:#ef4444;}
+.pace-txt{font-size:10px;color:var(--txt3);}
+.lb-thru{font-size:12px;color:var(--txt2);text-align:right;}
+.lb-score{font-size:13px;font-weight:600;text-align:right;}
+.lb-score.under{color:#16a34a;}
+.lb-score.over{color:var(--red);}
+.lb-score.even{color:var(--txt2);}
+.lb-total{font-size:12px;font-weight:600;text-align:right;color:var(--txt);}
+.score-flash{animation:flash .6s ease;}
+
+.pace-legend{display:flex;gap:12px;padding:8px 14px;border-top:0.5px solid var(--bdr);flex-shrink:0;}
+.pl-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--txt3);}
+
+/* ═══════════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════════ */
+@keyframes pop{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+@keyframes bop{0%,60%,100%{transform:translateY(0);}30%{transform:translateY(-5px);}}
+@keyframes wave{0%,100%{transform:scaleY(1);}50%{transform:scaleY(1.9);}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(.85);}}
+@keyframes flash{0%,100%{background:transparent;}50%{background:rgba(27,107,58,0.12);}}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+
+<!-- ═══ GATE ═══ -->
+<div id="gate">
+  <div class="kcard">
+    <div class="klogo">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <h2>TourneyCoach Investor Demo</h2>
+    <div class="sub">Runs fully offline in <strong>Demo Mode</strong> — no key needed.<br>To enable Live AI for custom questions, optionally add your API key.</div>
+    <button class="kbtn" onclick="startDemo()" style="margin-bottom:14px">Start Demo Mode</button>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <div style="flex:1;height:0.5px;background:var(--bdr2)"></div>
+      <span style="font-size:11px;color:var(--txt3)">optional — for Live AI</span>
+      <div style="flex:1;height:0.5px;background:var(--bdr2)"></div>
+    </div>
+    <input class="kinput" id="apikey" type="password" placeholder="sk-ant-... (Anthropic API key)" autocomplete="off" onkeydown="if(event.key==='Enter')startWithKey()"/>
+    <div style="display:flex;gap:6px;margin-bottom:4px;">
+      <button class="kskip" style="flex:1" onclick="testKey()">Test Key</button>
+      <button class="kbtn" style="flex:1;margin:0" onclick="startWithKey()">Start + Save Key</button>
+    </div>
+    <div class="kerr" id="kerr"></div>
+    <div class="knote">Demo Mode works fully offline. API key only needed for answering custom questions not in the demo script. Key stored in memory only.</div>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div class="app" id="app" style="display:none">
+
+  <!-- Shared header -->
+  <div class="hdr">
+    <div class="hdr-ic">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div class="hdr-txt"><h1>TourneyCoach</h1><p id="hdrSub">AI Coaching Engine</p></div>
+    <div class="hdr-right">
+      <div class="mode-toggle" id="modeToggle" style="display:none">
+        <button class="mtab" id="tab-demo" onclick="setMode('demo')">Demo</button>
+        <button class="mtab" id="tab-live" onclick="setMode('live')">Live AI</button>
+      </div>
+      <button class="hdr-btn" id="speakBtn" onclick="toggleSpeak()" style="display:none">
+        <svg id="spkIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Screens -->
+  <div class="screens">
+
+    <!-- SCREEN 1: AI COACH -->
+    <div class="screen active" id="scr-coach">
+      <div class="msgs" id="msgs"></div>
+      <div class="coach-bottom">
+        <div class="statbar">
+          <div class="stat" id="stat">Tap the mic or type your question</div>
+          <button class="stop-btn" id="stopBtn" onclick="stopSpeaking()">
+            <div class="wave"><div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div></div>
+            Stop
+          </button>
+        </div>
+        <div class="chips-wrap">
+          <div class="chips-header">
+            <span class="chips-label" id="chipsLabel">Suggested questions</span>
+            <button class="faq-btn" onclick="resetChips()">FAQ</button>
+          </div>
+          <div class="chips" id="chips"></div>
+        </div>
+        <div class="foot">
+          <div class="row">
+            <textarea class="tin" id="txt" placeholder="Ask your coach anything..." rows="1"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"
+              oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,88)+'px'"></textarea>
+            <button class="mic" id="mic" onclick="toggleMic()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+            <button class="snd" onclick="send()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+          <div class="pwr">TourneyCoach.com &nbsp;•&nbsp; Patent Pending</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 2: TOURNEYCIRCLE -->
+    <div class="screen" id="scr-circle">
+      <div class="tc-tabs">
+        <button class="tctab active" onclick="tcTab('organizer',this)">Organizer View</button>
+        <button class="tctab" onclick="tcTab('excellence',this)">Circle of Excellence</button>
+      </div>
+      <div class="scr-body">
+        <div class="tc-pane active" id="tcp-organizer">
+          <div class="stat-row">
+            <div class="scard"><div class="n">347</div><div class="l">Players within 25 mi</div></div>
+            <div class="scard"><div class="n">62</div><div class="l">Corporate accounts</div></div>
+            <div class="scard"><div class="n">$29</div><div class="l">Per notification</div></div>
+          </div>
+          <div class="radius-row">
+            <label>Notification radius</label>
+            <select onchange="updateRadius(this)">
+              <option>15 miles — 184 players</option>
+              <option selected>25 miles — 347 players</option>
+              <option>35 miles — 521 players</option>
+              <option>50 miles — 789 players</option>
+            </select>
+          </div>
+          <div class="match-box">
+            <div class="big" id="matchCount">347</div>
+            <div class="sub">registered TourneyCircle players want to hear about tournaments near you</div>
+            <div class="match-breakdown">
+              <div class="mb-item"><span>285</span>Individual</div>
+              <div class="mb-item"><span>62</span>Corporate</div>
+              <div class="mb-item"><span>41</span>CoE members</div>
+            </div>
+          </div>
+          <button class="notify-btn" id="nbtn" onclick="showPerfResults()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+            Notify 347 Players — $29
+          </button>
+          <div class="price-note">TourneyCoach sends on your behalf. You never see names or emails.</div>
+          <div class="perf-box" id="perfBox" style="display:none">
+            <div class="perf-title">Notification performance</div>
+            <div class="perf-row"><span>Players notified</span><strong>347</strong></div>
+            <div class="perf-row"><span>Clicked your link</span><strong>73 (21%)</strong></div>
+            <div class="perf-row"><span>Registered</span><strong>16 players — 4 foursomes</strong></div>
+            <div class="perf-row"><span>Revenue to your cause</span><strong style="color:var(--tc)">$2,400</strong></div>
+            <div class="conv-bar"><div class="conv-fill" id="convFill"></div></div>
+            <div style="font-size:10px;color:var(--txt3);margin-top:4px;">4.6% conversion · industry avg 3.1%</div>
+          </div>
+          <div class="privacy-note">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <p>Player data never leaves TourneyCoach. You see counts and performance only — never names, emails, or contact details.</p>
+          </div>
+        </div>
+
+        <div class="tc-pane" id="tcp-excellence">
+          <div class="exc-hero">
+            <h3>TourneyCircle of Excellence</h3>
+            <p>Recognizing golfers who show up, give back, and make a difference year after year.</p>
+            <div class="prize">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+              <span>Top 5 groups earn a complimentary foursome — any TourneyCoach event</span>
+            </div>
+          </div>
+          <div class="period-tabs">
+            <button class="ptab active" onclick="setPeriod(this)">2026 Season</button>
+            <button class="ptab" onclick="setPeriod(this)">All-Time</button>
+            <button class="ptab" onclick="setPeriod(this)">Central FL</button>
+          </div>
+          <div class="lb-item"><div class="lrank gold">1</div><div class="lav" style="background:#f5e6b3;color:#7a5c00">MW</div><div class="lbi"><div class="name">Mike & Wilson Group</div><div class="loc">Orlando · 14 tournaments</div><div class="prize-badge">Free foursome awarded</div></div><div class="lbs"><div class="pts">$18,400</div><div class="sub">total given</div></div></div>
+          <div class="lb-item"><div class="lrank gold">2</div><div class="lav" style="background:#e8e8e8;color:#555">RL</div><div class="lbi"><div class="name">Riverside Law Group</div><div class="loc">Winter Park · 11 tournaments</div><div class="prize-badge">Free foursome awarded</div></div><div class="lbs"><div class="pts">$14,200</div><div class="sub">total given</div></div></div>
+          <div class="lb-item"><div class="lrank silver">3</div><div class="lav" style="background:#f5dece;color:#7a3a10">SH</div><div class="lbi"><div class="name">Sarah & The Hendersons</div><div class="loc">Sanford · 9 tournaments</div><div class="prize-badge">Free foursome awarded</div></div><div class="lbs"><div class="pts">$11,650</div><div class="sub">total given</div></div></div>
+          <div class="lb-item"><div class="lrank silver">4</div><div class="lav" style="background:#dceeff;color:#1a5fa8">CF</div><div class="lbi"><div class="name">CFR Medical Partners</div><div class="loc">Lake Mary · 8 tournaments</div><div class="prize-badge">Free foursome awarded</div></div><div class="lbs"><div class="pts">$9,800</div><div class="sub">total given</div></div></div>
+          <div class="lb-item"><div class="lrank bronze">5</div><div class="lav" style="background:#e8f5e9;color:#2e7d32">TG</div><div class="lbi"><div class="name">The Garcia Family</div><div class="loc">Deltona · 7 tournaments</div><div class="prize-badge">Free foursome awarded</div></div><div class="lbs"><div class="pts">$8,250</div><div class="sub">total given</div></div></div>
+          <div class="lb-item"><div class="lrank" style="color:var(--txt3)">6</div><div class="lav" style="background:var(--bg2);color:var(--txt2)">DP</div><div class="lbi"><div class="name">DePaolo & Associates</div><div class="loc">Oviedo · 6 tournaments</div></div><div class="lbs"><div class="pts">$6,900</div><div class="sub">total given</div></div></div>
+          <button class="cta-join">Join TourneyCircle — Free for Players</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 3: LIVE LEADERBOARD -->
+    <div class="screen" id="scr-board">
+      <div class="lb-hdr">
+        <div class="lb-tourney">
+          <div>
+            <div class="lb-tourney-name">St. Michael's Charity Classic</div>
+            <div class="lb-tourney-sub">Magnolia Club, Sanford FL &nbsp;•&nbsp; Scramble &nbsp;•&nbsp; <span id="holeCount">14</span> of 18 holes</div>
+          </div>
+          <div class="live-badge"><div class="lpulse"></div><span>LIVE</span></div>
+        </div>
+        <div class="lb-stats-row">
+          <div class="lb-stat"><div class="n" id="fieldCount">72</div><div class="l">Players</div></div>
+          <div class="lb-stat"><div class="n">18</div><div class="l">Foursomes</div></div>
+          <div class="lb-stat"><div class="n" id="raisedAmt">$18,400</div><div class="l">Raised</div></div>
+          <div class="lb-stat"><div class="n" id="finishTime">2:45</div><div class="l">Est. finish</div></div>
+        </div>
+      </div>
+
+      <div class="kitchen-alert hidden" id="kitchenAlert">
+        <div class="kitchen-ic">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+        </div>
+        <div class="kitchen-txt">
+          <h4>Kitchen Notification Sent</h4>
+          <p>Estimated finish in 45 minutes — auto-triggered by TourneyCoach</p>
+        </div>
+        <div class="kitchen-time" id="kitchenTimer">45:00</div>
+      </div>
+
+      <div class="lb-col-hdr">
+        <span>#</span><span>Team</span>
+        <span class="right">Thru</span>
+        <span class="right">Score</span>
+        <span class="right">Total</span>
+      </div>
+      <div class="scr-body">
+        <div class="lb-rows" id="lbRows"></div>
+      </div>
+      <div class="pace-legend">
+        <div class="pl-item"><div class="pace-dot good"></div>On pace</div>
+        <div class="pl-item"><div class="pace-dot warn"></div>Slightly behind</div>
+        <div class="pl-item"><div class="pace-dot late"></div>Needs attention</div>
+      </div>
+    </div>
+
+  </div><!-- /screens -->
+
+  <!-- Bottom Nav -->
+  <nav class="nav">
+    <button class="ntab active" id="ntab-coach" onclick="showScreen('coach',0)">
+      <div class="ni"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <span class="nl">AI Coach</span>
+    </button>
+    <button class="ntab" id="ntab-circle" onclick="showScreen('circle',1)">
+      <div class="ni"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></div>
+      <span class="nl">TourneyCircle</span>
+    </button>
+    <button class="ntab" id="ntab-board" onclick="showScreen('board',2)">
+      <div class="ni"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+      <span class="nl">Leaderboard</span>
+    </button>
+  </nav>
+
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════
+//  SCRIPTED RESPONSES
+// ═══════════════════════════════════════════════
+const SCRIPTS = {
+  "how do i fill my field?": {
+    answer:`Your personal network gets you most of the way there — and TourneyCircle fills the rest.\n\nMap everyone your charity knows: board members, staff, donors, volunteers, past attendees. A 72-player field is only 18 foursomes. Most organizations can identify 40 to 50 players before they even start outreach.\n\nFor the remaining spots, send a TourneyCircle notification to registered charitable golfers within 25 miles. $29, and it typically delivers 3 to 5 foursomes of people who have already proven they will show up and play for a cause.`,
+    spoken:`Your personal network gets you most of the way there, and TourneyCircle fills the rest. For 29 dollars, TourneyCoach notifies hundreds of local charitable golfers on your behalf — one organizer recently filled 4 foursomes and brought in 2,400 dollars from a single send.`,
+    followups:["How does TourneyCircle work?","What should I charge?","How do I get sponsors?"]
+  },
+  "what should i charge?": {
+    answer:`For a first-year scramble, $100 to $125 per player is the sweet spot — $400 to $500 per foursome. At a premium course, $150 to $175 is expected. Price it right and fill the field with TourneyCircle.\n\nThe math on 72 players at $125: $9,000 in entry fees. Add $8,000 to $10,000 in sponsorships and you're at $17,000 to $19,000 gross. After costs, your cause nets $9,200 to $13,400 in Year 1.`,
+    spoken:`For a local scramble, charge 100 to 125 dollars per player. At 72 players that's 9,000 dollars in entry fees before a single sponsor dollar. Add solid sponsorships and your cause nets up to 13,000 dollars in Year 1.`,
+    followups:["How much will we raise?","What expenses should I plan for?","How do I get sponsors?"]
+  },
+  "how does tourneycircle work?": {
+    answer:`TourneyCircle is TourneyCoach's network of charitable golfers who played a previous event and opted in to hear about more tournaments near them.\n\nFor $29, TourneyCoach sends a notification on your behalf to every matched player in your radius — your tournament name, date, course, cause story, and a direct registration link. You never see their names or emails. You see results: notified, clicked, registered, and revenue.\n\nThe TourneyCircle of Excellence leaderboard rewards top players by tournaments and giving. Top 5 groups earn a complimentary foursome each season.`,
+    spoken:`TourneyCircle is a network of charitable golfers who've already played in a TourneyCoach event and asked to hear about more. For 29 dollars, we notify everyone in your area on your behalf. You keep the registrations — we protect their privacy.`,
+    followups:["How do I fill my field?","What is TourneyCircle of Excellence?","How much will we raise?"]
+  },
+  "how much will we raise?": {
+    answer:`A well-run first-year event with 72 players and solid sponsorships should net $10,000 to $18,000 for your charity. The industry average is $29,500 per the National Golf Foundation — but that is skewed by large established events. A realistic Year 1 target is $12,000 to $15,000 net.\n\nThe path: $9,000 in entry fees, plus $8,000 to $10,000 in sponsorships, plus $2,000 to $4,000 from mulligans and contests. After costs, $9,200 to $14,400 net to your cause.\n\nThe Year 3 version — with returning sponsors and a TourneyCircle audience who already know you — typically raises $20,000 to $35,000.`,
+    spoken:`A well-run first-year event should net 10 to 18 thousand dollars. By Year 3, with returning sponsors and TourneyCircle, you're typically looking at 20 to 35 thousand. TourneyCoach is built to close that gap faster.`,
+    followups:["What should I charge?","How do I get sponsors?","What expenses should I plan for?"]
+  },
+  "how do i get sponsors?": {
+    answer:`Sponsorships are where the real money is — entry fees pay your costs, sponsors fund your cause.\n\nStart with hole sponsorships at $250 to $500 each. 18 holes is $4,500 to $9,000 from signs alone. Add a Presenting Sponsor at $3,000 to $5,000, Gold at $1,500 to $2,500, Silver at $750 to $1,000. A solid menu adds $10,000 to $15,000 to your gross.\n\nBest first targets: medical practices, law firms, financial advisors, local restaurants — businesses that already support your cause. TourneyCoach includes outreach scripts and a sponsorship package builder.`,
+    spoken:`Sponsorships fund your cause — entry fees just cover costs. Start with hole sponsorships at 250 to 500 dollars each, that's up to 9,000 dollars right there. Add a presenting sponsor and you're looking at 10 to 15 thousand in total sponsorship revenue.`,
+    followups:["How much will we raise?","What should I charge?","How do I fill my field?"]
+  },
+  "what expenses should i plan for?": {
+    answer:`A well-managed first-year event runs $8,600 to $12,800 all in.\n\nGolf course: $5,400 to $7,200 for 72 players at charity rate — always ask for it. Food and beverage: $1,200 to $2,500. Trophies: $400 to $800. Event shirts: $864 to $1,080.\n\nSmaller items: hole signs $350 to $600, hole-in-one insurance $350 to $600 — always worth it and get a sponsor to cover it — and the TourneyCircle notification at just $29.\n\nGoal: get sponsors covering as many line items as possible.`,
+    spoken:`Total expenses for a first-year event run 8,600 to 12,800 dollars. The golf course is your biggest cost. Always ask for the charity rate. Your goal is to get sponsors covering as many line items as possible — that is where the real profit margin gets built.`,
+    followups:["How much will we raise?","How do I get sponsors?","What should I charge?"]
+  },
+  "what is tourneycircle of excellence?": {
+    answer:`TourneyCircle of Excellence is TourneyCoach's prestige rewards tier — players ranked by tournaments played and dollars donated across all TourneyCoach events.\n\nThe leaderboard updates in real time, filterable by region or all-time. The top 5 groups each season earn a complimentary foursome at any TourneyCoach event.\n\nIt is also a sponsorship asset — a law firm or medical group will pay $2,500 to $5,000 to have their name on the Circle of Excellence leaderboard and the foursome certificates.`,
+    spoken:`The Circle of Excellence ranks charitable golfers by tournaments played and dollars donated. Top 5 groups each season earn a free foursome. It keeps your most loyal players competing and giving all year — and it's a valuable sponsorship asset.`,
+    followups:["How does TourneyCircle work?","How do I fill my field?","How much will we raise?"]
+  },
+  "how do i register?": {
+    answer:`Registering players for your tournament is handled entirely through TourneyCoach — no spreadsheets, no manual collection of checks.
+
+When you set up your tournament, TourneyCoach generates a white-label microsite at YourEventName.TourneyCoach.com automatically. Share that link with players, post it on social media, or embed it in your email campaign. Players click through, enter their team details, and pay their entry fee directly — it goes straight to your cause minus a small processing fee.
+
+Every registration is tracked in your organizer dashboard in real time. You see who has registered, who is in each foursome, and how many spots remain. When you hit your field capacity, registration closes automatically.`,
+    spoken:`Registration runs through your TourneyCoach microsite — players click your link, enter their team info, and pay online. You see every registration in real time on your dashboard. No spreadsheets, no chasing checks.`,
+    followups:["What should I charge?","How do I fill my field?","How does TourneyCircle work?"]
+  },
+  "how does scoring work?": {
+    answer:`TourneyCoach uses a scramble format with one important rule: par is your friend. Teams pick up at par on any hole.
+
+In a 4-man scramble, reaching par is a genuine achievement — especially for higher handicappers. The pick-up-at-par rule saves 30 to 45 minutes across the round, keeps pace of play smooth, and prevents the frustration that kills the energy at charity events. Players leave happy instead of exhausted.
+
+Scores are entered through the TourneyCoach mobile app hole by hole. The live leaderboard updates instantly on a TV screen in the clubhouse — players check it at every turn and it creates genuine excitement through the back nine. The pace-of-play tracker shows every group's position on the course in real time.`,
+    spoken:`TourneyCoach uses scramble format with one key rule — par is your friend, teams pick up at par. It saves 30 to 45 minutes and keeps the energy high all day. Scores update live on a leaderboard that players can follow on their phones or a TV in the clubhouse.`,
+    followups:["How does the leaderboard work?","What should I charge?","How do I fill my field?"]
+  },
+  "how does the leaderboard work?": {
+    answer:`The live leaderboard is one of TourneyCoach's most visible features on event day — and one of the things players talk about most afterward.
+
+As teams submit scores hole by hole through the TourneyCoach app, the leaderboard updates in real time. You display it on a TV screen in the clubhouse or the turn station using a simple browser URL — no app required on the display screen. Players check it constantly on the back nine, which creates genuine competitive energy at a charity event.
+
+The pace-of-play tracker runs alongside it, showing every group's position on the course. When the last group is 45 minutes from finishing, TourneyCoach automatically sends the kitchen notification to the course — so lunch is ready exactly when the last team walks off 18.`,
+    spoken:`The live leaderboard updates in real time as teams score each hole. Display it on any TV with a browser URL — no setup required. Players follow it on their phones through the back nine. And the pace tracker automatically notifies the kitchen 45 minutes before the last group finishes.`,
+    followups:["How does scoring work?","How does TourneyCircle work?","How much will we raise?"]
+  },
+  "how much does it cost to register on tourneycoach?": {
+    answer:`TourneyCoach is free for charity organizers to get started. The core platform — tournament setup, AI coaching, registration, live scoring, and leaderboard — is available at no upfront cost so first-time organizers can run their first event without any financial risk.
+
+TourneyCoach earns a small platform fee on entry fee payments processed through the system — typically 2.5% on top of standard payment processing. On a $9,000 entry fee gross, that is $225. The platform fee is optional to pass through to players or absorb — most organizers add $5 per player to cover it.
+
+The TourneyCircle notification is $29 per send. Corporate player memberships for TourneyCircle are $199 to $299 per year. Everything else — AI coaching, live scoring, leaderboard, pace tracker, kitchen notification — is included.`,
+    spoken:`TourneyCoach is free to get started for charity organizers. The platform earns a small fee on entry payments processed — about 2.5%. The TourneyCircle notification is 29 dollars per send. Everything else including AI coaching, live scoring, and the leaderboard is included.`,
+    followups:["How does TourneyCircle work?","How much will we raise?","How do I get sponsors?"]
+  },
+  "what is the kitchen notification?": {
+    answer:`The kitchen notification is the single most valuable feature TourneyCoach offers to golf course professionals — and it is the best conversation opener when you are pitching a course partnership.
+
+Here is the problem it solves: every charity tournament ends with either lunch sitting cold for two hours because the kitchen prepared it too early, or groups arriving at the clubhouse to find nothing ready. Both kill the energy at the end of a great day.
+
+TourneyCoach's pace-of-play tracker monitors every group's position on the course in real time. When the data shows the last group is approximately 45 minutes from finishing, the system automatically fires a notification to the kitchen — no organizer action required. Lunch is ready when the last team walks off 18. Every time. The golf pro never has to manage it.`,
+    spoken:`The kitchen notification fires automatically 45 minutes before the last group finishes — based on real-time pace tracking, no manual action needed. The kitchen is always ready when players walk off 18. Golf pros love this feature more than anything else TourneyCoach does.`,
+    followups:["How does the leaderboard work?","How does scoring work?","How do I get sponsors?"]
+  }
+};
+
+const FAQ_CHIPS = ["How do I fill my field?","What should I charge?","How does TourneyCircle work?","How much will we raise?"];
+
+const SYS = `You are TourneyCoach, the AI-powered coaching assistant for charity tournament organizers. Warm, encouraging, positive, plain language. Never say "let me be honest" or similar. Specific and actionable. 2-4 short paragraphs max. Key facts: 141,000+ charity golf events/year NGF 2023. First-year raise $5K-$15K, all-event average $29,500. $4.6B total golf charity giving. 13.8% first-time donor re-engagement AFP/FEP 2024. Par is your friend in scramble. Double shotgun = 128 max on par-72. TourneyCircle: $29 notification to matched players, organizers never see names or emails. Kitchen notification fires 45 min before finish. Normal Monday $2,720 vs charity tournament $9,864 guaranteed (3.6x). 5-year course value $53,389. TourneyCircle of Excellence: top 5 groups earn free foursome each season.`;
+
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+let KEY='', LIVE=false, SPEAK=true;
+let hist=[], recog=null, listening=false;
+let currentScreen=0;
+
+// ═══════════════════════════════════════════════
+//  VOICE
+// ═══════════════════════════════════════════════
+let voices=[], preferredVoice=null;
+function loadVoices(){
+  voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  const priority=['Microsoft Ryan Online (Natural) - English (United Kingdom)','Microsoft Guy Online (Natural) - English (United States)','Google UK English Male','Microsoft Christopher Online (Natural) - English (United States)','Daniel','Alex','Google US English'];
+  for(const name of priority){ const v=voices.find(v=>v.name===name); if(v){preferredVoice=v;return;} }
+  preferredVoice = voices.find(v=>v.lang==='en-GB'&&!v.name.toLowerCase().includes('female')) || voices.find(v=>v.lang.startsWith('en')&&!v.name.toLowerCase().includes('female')) || (voices.length?voices[0]:null);
+}
+if(window.speechSynthesis){ loadVoices(); window.speechSynthesis.onvoiceschanged=loadVoices; }
+
+function speak(text){
+  if(!SPEAK||!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const clean=text.replace(/\n\n/g,'. ').replace(/\n/g,' ').replace(/\$(\d)/g,'$1 dollars ').replace(/  +/g,' ').trim();
+  const utt=new SpeechSynthesisUtterance(clean);
+  if(preferredVoice) utt.voice=preferredVoice;
+  utt.rate=1.15; utt.pitch=1.0; utt.volume=1.0;
+  utt.onstart=()=>{ setStat('Coach is speaking...','spk'); document.getElementById('stopBtn').classList.add('visible'); };
+  utt.onend=()=>{ setStat('Tap the mic or type your question',''); document.getElementById('stopBtn').classList.remove('visible'); };
+  utt.onerror=()=>{ setStat('Tap the mic or type your question',''); document.getElementById('stopBtn').classList.remove('visible'); };
+  window.speechSynthesis.speak(utt);
+}
+function stopSpeaking(){ if(window.speechSynthesis) window.speechSynthesis.cancel(); document.getElementById('stopBtn').classList.remove('visible'); setStat('Tap the mic or type your question',''); }
+function toggleSpeak(){
+  SPEAK=!SPEAK;
+  const btn=document.getElementById('speakBtn');
+  btn.classList.toggle('muted',!SPEAK);
+  if(!SPEAK){ stopSpeaking(); document.getElementById('spkIcon').innerHTML=`<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>`;
+  } else { document.getElementById('spkIcon').innerHTML=`<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>`; }
+}
+
+// ═══════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════
+const SCREEN_IDS=['coach','circle','board'];
+const SCREEN_TITLES=['AI Coaching Engine','TourneyCircle Network','Live Leaderboard'];
+
+function showScreen(id, idx){
+  const prev = currentScreen;
+  document.querySelectorAll('.screen').forEach((s,i)=>{
+    s.classList.remove('active','left');
+    if(i<idx) s.classList.add('left');
+  });
+  document.getElementById('scr-'+id).classList.add('active');
+  document.getElementById('scr-'+id).classList.remove('left');
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('ntab-'+id).classList.add('active');
+  document.getElementById('hdrSub').textContent = SCREEN_TITLES[idx];
+  document.getElementById('modeToggle').style.display = id==='coach'?'flex':'none';
+  document.getElementById('speakBtn').style.display = id==='coach'?'flex':'none';
+  currentScreen=idx;
+  if(id==='board') startLeaderboardSim();
+}
+
+// ═══════════════════════════════════════════════
+//  GATE
+// ═══════════════════════════════════════════════
+async function testKey(){
+  const k=document.getElementById('apikey').value.trim();
+  if(!k){ document.getElementById('kerr').textContent='Paste your API key first'; return; }
+  if(!k.startsWith('sk-ant-')){ document.getElementById('kerr').textContent='Key should start with sk-ant-'; return; }
+  document.getElementById('kerr').style.color='var(--tc)';
+  document.getElementById('kerr').textContent='Testing key...';
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:20,messages:[{role:'user',content:'Say OK'}]})
+    });
+    const data=await res.json();
+    if(data.content){
+      document.getElementById('kerr').style.color='var(--tc)';
+      document.getElementById('kerr').textContent='✓ Key is valid and working!';
+    } else {
+      document.getElementById('kerr').style.color='var(--red)';
+      document.getElementById('kerr').textContent='Key error: '+(data.error?.message||'Invalid key');
+    }
+  }catch(e){
+    document.getElementById('kerr').style.color='var(--red)';
+    document.getElementById('kerr').textContent='Could not reach Anthropic API from this browser — use Demo Mode';
+  }
+}
+
+function startWithKey(){
+  const k=document.getElementById('apikey').value.trim();
+  if(k&&!k.startsWith('sk-ant-')){ document.getElementById('kerr').textContent='Key should start with sk-ant-'; return; }
+  KEY=k; LIVE=false; launch();
+}
+function startDemo(){ LIVE=false; launch(); }
+function launch(){
+  document.getElementById('gate').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('modeToggle').style.display='flex';
+  document.getElementById('speakBtn').style.display='flex';
+  document.getElementById('tab-demo').classList.toggle('active',!LIVE);
+  document.getElementById('tab-live').classList.toggle('active',LIVE);
+  resetChips();
+  const welcome="Hey, welcome to TourneyCoach! I'm your AI coaching assistant. Whether this is your first tournament or your tenth, I'm here to help every step of the way. What's on your mind?";
+  addMsg('c',welcome);
+  setTimeout(()=>speak(welcome),400);
+  buildLeaderboard();
+}
+
+// ═══════════════════════════════════════════════
+//  MODE
+// ═══════════════════════════════════════════════
+function setMode(mode){
+  LIVE=(mode==='live');
+  document.getElementById('tab-demo').classList.toggle('active',!LIVE);
+  document.getElementById('tab-live').classList.toggle('active',LIVE);
+  if(LIVE&&!KEY){
+    const k=prompt('Enter your Anthropic API key (sk-ant-...):');
+    if(k&&k.startsWith('sk-ant-')){ KEY=k; }
+    else{ LIVE=false; document.getElementById('tab-demo').classList.add('active'); document.getElementById('tab-live').classList.remove('active'); return; }
+  }
+  const msg=LIVE?"Live AI activated — ask me anything.":"Back in Demo Mode — tap any suggestion chip for a full answer.";
+  addMsg('c',msg); speak(msg);
+}
+
+// ═══════════════════════════════════════════════
+//  COACH
+// ═══════════════════════════════════════════════
+function addMsg(role,text){
+  const m=document.getElementById('msgs');
+  const d=document.createElement('div'); d.className='msg'+(role==='u'?' u':'');
+  const html=text.replace(/</g,'&lt;').replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
+  d.innerHTML=`<div class="av ${role}">${role==='u'?'You':'TC'}</div><div class="bbl ${role}"><p>${html}</p></div>`;
+  m.appendChild(d); m.scrollTop=m.scrollHeight;
+}
+function showTyp(){ const m=document.getElementById('msgs'); const d=document.createElement('div'); d.id='typ';d.className='msg'; d.innerHTML=`<div class="av c">TC</div><div class="bbl c"><div class="typing"><div class="td"></div><div class="td"></div><div class="td"></div></div></div>`; m.appendChild(d); m.scrollTop=m.scrollHeight; }
+function hideTyp(){ const t=document.getElementById('typ'); if(t)t.remove(); }
+function setStat(txt,cls){ const s=document.getElementById('stat'); s.textContent=txt; s.className='stat'+(cls?' '+cls:''); }
+
+async function send(text){
+  const t=text||document.getElementById('txt').value.trim(); if(!t)return;
+  stopSpeaking();
+  document.getElementById('txt').value=''; document.getElementById('txt').style.height='auto';
+  addMsg('u',t); hist.push({role:'user',content:t});
+  const key=t.toLowerCase().trim().replace(/[?!.]+$/,'')+'?';
+  const sk=Object.keys(SCRIPTS).find(k=>k===key||k===t.toLowerCase().trim());
+  const sc=sk?SCRIPTS[sk]:null;
+  if(sc){
+    showTyp(); setStat('Coach is thinking...','');
+    await new Promise(r=>setTimeout(r,700+Math.random()*400));
+    hideTyp(); addMsg('c',sc.answer); hist.push({role:'assistant',content:sc.answer});
+    setChips(sc.followups,'Follow-up questions',true); speak(sc.spoken||sc.answer); return;
+  }
+  if(!LIVE){
+    showTyp(); setStat('Coach is thinking...','');
+    await new Promise(r=>setTimeout(r,600)); hideTyp();
+    const fb="Good question! Tap any green chip for a full coached answer, or switch to Live AI mode in the header to ask me anything.";
+    addMsg('c',fb); speak(fb); resetChips(); return;
+  }
+  if(!KEY){
+    LIVE=false;
+    document.getElementById('tab-demo').classList.add('active');
+    document.getElementById('tab-live').classList.remove('active');
+    showTyp(); setStat('Coach is thinking...','');
+    await new Promise(r=>setTimeout(r,600)); hideTyp();
+    const fb="Good question! I switched to Demo Mode since no API key is loaded. Tap any green chip for a full answer, or reload and enter your Anthropic API key to enable live responses to any question.";
+    addMsg('c',fb); speak(fb); resetChips(); return;
+  }
+  showTyp(); setStat('Coach is thinking...','');
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,system:SYS,messages:hist})});
+    const data=await res.json(); hideTyp();
+    if(data.error){
+      addMsg('c','API issue: '+(data.error.message||'Check your key at console.anthropic.com.'));
+      setStat('API error — check your key','err');
+      LIVE=false;
+      document.getElementById('tab-demo').classList.add('active');
+      document.getElementById('tab-live').classList.remove('active');
+      return;
+    }
+    const reply=(data.content||[]).find(b=>b.type==='text')?.text||"Could you rephrase that?";
+    addMsg('c',reply); hist.push({role:'assistant',content:reply}); speak(reply); resetChips();
+  }catch(e){ hideTyp(); addMsg('c','Connection error — check your internet and try again.'); setStat('Connection error','err'); }
+}
+function useChip(el){send(el.textContent.trim());}
+function resetChips(){setChips(FAQ_CHIPS,'Suggested questions',false);}
+function setChips(arr,label,fu){
+  document.getElementById('chipsLabel').textContent=label;
+  const c=document.getElementById('chips'); c.innerHTML='';
+  arr.forEach(q=>{ const b=document.createElement('button'); b.className='chip'+(fu?' fu':''); b.textContent=q; b.onclick=()=>useChip(b); c.appendChild(b); });
+}
+
+// ═══════════════════════════════════════════════
+//  MIC
+// ═══════════════════════════════════════════════
+function toggleMic(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){setStat('Voice needs Chrome','err');return;}
+  if(listening){recog.stop();return;}
+  stopSpeaking();
+  recog=new SR(); recog.continuous=false; recog.interimResults=true; recog.lang='en-US';
+  recog.onstart=()=>{listening=true;document.getElementById('mic').classList.add('on');setStat('Listening...','on');};
+  recog.onresult=e=>{document.getElementById('txt').value=Array.from(e.results).map(r=>r[0].transcript).join('');};
+  recog.onend=()=>{ listening=false; document.getElementById('mic').classList.remove('on'); setStat('Tap the mic or type your question',''); const v=document.getElementById('txt').value.trim(); if(v)send(v); };
+  recog.onerror=()=>{listening=false;document.getElementById('mic').classList.remove('on');setStat('Could not hear you — try again','err');};
+  recog.start();
+}
+
+// ═══════════════════════════════════════════════
+//  TOURNEYCIRCLE
+// ═══════════════════════════════════════════════
+function tcTab(id,el){ document.querySelectorAll('.tctab').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.tc-pane').forEach(p=>p.classList.remove('active')); el.classList.add('active'); document.getElementById('tcp-'+id).classList.add('active'); }
+function updateRadius(sel){ const c={'15 miles — 184 players':184,'25 miles — 347 players':347,'35 miles — 521 players':521,'50 miles — 789 players':789}; const n=c[sel.value]||347; document.getElementById('matchCount').textContent=n; document.getElementById('nbtn').innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg> Notify ${n} Players — $29`; document.getElementById('perfBox').style.display='none'; }
+function showPerfResults(){ const pb=document.getElementById('perfBox'); pb.style.display='block'; setTimeout(()=>{document.getElementById('convFill').style.width='22%';},100); pb.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+function setPeriod(el){ document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
+
+// ═══════════════════════════════════════════════
+//  LIVE LEADERBOARD
+// ═══════════════════════════════════════════════
+const TEAMS=[
+  {name:"Curry & Friends",    pace:"good",   scores:[-1,-1,-1,-1, 0,-1,-2,-1,-1,-1,-1,-1,-1,-1], thru:14},
+  {name:"Riverside Law",      pace:"good",   scores:[-1,-1, 0,-1,-1,-1,-1,-1, 0,-1,-1,-1,-1, 0], thru:14},
+  {name:"CFR Medical Group",  pace:"warn",   scores:[-1, 0,-1,-1,-1, 0,-1,-1,-1,-1, 0,-1,-1,-1], thru:14},
+  {name:"The Garcia Family",  pace:"good",   scores:[-1,-1,-1, 0,-1,-1,-1,-1,-1, 0,-1,-1,-1,-1], thru:14},
+  {name:"Magnolia Capital",   pace:"good",   scores:[-1,-1, 0,-1, 0,-1,-1,-1,-1,-1,-1, 0,-1,-1], thru:14},
+  {name:"DePaolo & Assoc.",   pace:"warn",   scores:[ 0,-1,-1,-1, 0,-1,-1, 0,-1,-1,-1,-1, 0,-1], thru:13},
+  {name:"Wilson Insurance",   pace:"good",   scores:[-1,-1, 0,-1,-1,-1, 0, 0,-1,-1, 0,-1,-1, 0], thru:14},
+  {name:"Sanford Fire Dept",  pace:"good",   scores:[-1, 0,-1, 0,-1,-1,-1, 0,-1,-1,-1, 0,-1,-1], thru:14},
+  {name:"Lake Mary Builders", pace:"late",   scores:[ 0, 0,-1,-1, 0,-1,-1,-1, 0,-1,-1,-1, 0,-1], thru:13},
+  {name:"First Baptist",      pace:"good",   scores:[-1,-1,-1,-1,-1, 0, 0,-1, 0, 0,-1,-1,-1,-1], thru:14},
+  {name:"Oviedo Dental",      pace:"warn",   scores:[ 0,-1,-1, 0, 0,-1,-1,-1,-1,-1, 0,-1,-1, 0], thru:13},
+  {name:"Seminole Title",     pace:"good",   scores:[-1, 0,-1,-1, 0, 0,-1,-1, 0,-1,-1,-1, 0, 0], thru:14},
+];
+
+let lbInterval=null, kitchenShown=false, kitchenCountdown=2700;
+
+function totalScore(t){ return t.scores.slice(0,t.thru).reduce((a,b)=>a+b,0); }
+function scoreLabel(n){ if(n<0)return{txt:n,cls:'under'}; if(n>0)return{txt:'+'+n,cls:'over'}; return{txt:'E',cls:'even'}; }
+
+function buildLeaderboard(){
+  const sorted=[...TEAMS].sort((a,b)=>totalScore(a)-totalScore(b));
+  const rows=document.getElementById('lbRows'); rows.innerHTML='';
+  sorted.forEach((t,i)=>{
+    const tot=totalScore(t); const sl=scoreLabel(tot);
+    const holeScore=t.scores[t.thru-1]||0; const hs=scoreLabel(holeScore);
+    const pos=i===0?'<span class="lb-pos t1">1</span>':`<span class="lb-pos">${i+1}</span>`;
+    const row=document.createElement('div'); row.className='lb-row'; row.id='row-'+i;
+    row.innerHTML=`${pos}<div class="lb-team"><div class="lb-team-name">${t.name}</div><div class="lb-pace"><div class="pace-dot ${t.pace}"></div><span class="pace-txt">${t.pace==='good'?'On pace':t.pace==='warn'?'Slightly behind':'Needs attention'}</span></div></div><div class="lb-thru">${t.thru}</div><div class="lb-score ${hs.cls}">${hs.txt}</div><div class="lb-total ${sl.cls}">${sl.txt}</div>`;
+    rows.appendChild(row);
+  });
+}
+
+function startLeaderboardSim(){
+  if(lbInterval) return;
+  if(!kitchenShown){ setTimeout(()=>{ document.getElementById('kitchenAlert').classList.remove('hidden'); kitchenShown=true; startKitchenTimer(); },1800); }
+  lbInterval=setInterval(()=>{
+    const t=TEAMS[Math.floor(Math.random()*TEAMS.length)];
+    if(t.thru<18){ t.scores.push(Math.random()<0.55?-1:Math.random()<0.3?0:1); t.thru++; const rowEl=document.getElementById('row-'+TEAMS.indexOf(t)); if(rowEl){rowEl.classList.add('updated');setTimeout(()=>rowEl.classList.remove('updated'),800);} }
+    buildLeaderboard();
+    const done=TEAMS.filter(t=>t.thru===18).length;
+    if(done>0) document.getElementById('holeCount').textContent=Math.min(18,Math.max(...TEAMS.map(t=>t.thru)));
+  },3500);
+}
+
+function startKitchenTimer(){
+  const timer=setInterval(()=>{
+    kitchenCountdown--;
+    if(kitchenCountdown<=0){clearInterval(timer);return;}
+    const m=Math.floor(kitchenCountdown/60); const s=kitchenCountdown%60;
+    document.getElementById('kitchenTimer').textContent=`${m}:${s.toString().padStart(2,'0')}`;
+  },1000);
+}
+</script>
+</body>
+</html>
