@@ -323,7 +323,7 @@ export default function Dashboard() {
         {/* ── Strip ── */}
         <div style={s.strip}>
           <h1 style={s.stripH1}>One surface, every stage.</h1>
-          <p style={s.stripP}>Your organizer dashboard re-weights itself as the event moves. Here are its first two stages, side by side.</p>
+          <p style={s.stripP}>Your organizer dashboard re-weights itself as the event moves.</p>
         </div>
 
         {/* ── Two-phase grid ── */}
@@ -511,27 +511,11 @@ export default function Dashboard() {
             <div style={s.phead}>
               <div style={s.ptag}>Investor demo</div>
             </div>
-            <div style={{ ...s.pbody, alignItems: 'center', textAlign: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 54, height: 54, borderRadius: 15, background: 'var(--primary)', display: 'grid', placeItems: 'center' }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </div>
-              <div>
-                <p style={{ fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 700, color: 'var(--ink)', margin: '12px 0 6px' }}>TourneyCoach Investor Demo</p>
-                <p style={{ fontSize: 13, color: '#5C6B62', lineHeight: 1.6, margin: 0 }}>
-                  A self-contained walkthrough of the AI coach, TourneyCircle, and live leaderboard — runs fully offline, no setup needed.
-                </p>
-              </div>
-              <a
-                href="/investor-demo.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ ...s.btnGold, background: 'var(--primary)', color: '#fff', textDecoration: 'none', display: 'inline-block', marginTop: 4 }}
-              >
-                Launch demo
-              </a>
-            </div>
+            <iframe
+              src="/investor-demo.html"
+              title="TourneyCoach Investor Demo"
+              style={{ border: 'none', width: '100%', flex: 1, minHeight: 640 }}
+            />
           </section>
 
         </div>
