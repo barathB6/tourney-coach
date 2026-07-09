@@ -88,6 +88,10 @@ export default function SetupClient() {
           for (const [param, field] of Object.entries(mapping)) {
             if (story[param]?.trim()) updates[field] = story[param].trim();
           }
+          // Tournament Name defaults to the org/cause name from step 1 of
+          // the story wizard, so organizers don't retype it — still
+          // editable, and never overwrites something they've already typed.
+          if (story.orgName?.trim()) updates.name = story.orgName.trim();
         }
       } catch { /* ignore */ }
 
@@ -99,7 +103,14 @@ export default function SetupClient() {
       }
 
       if (Object.keys(updates).length > 0) {
-        setFormData((prev) => ({ ...prev, ...updates }));
+        setFormData((prev) => ({
+          ...prev,
+          ...updates,
+          // Only apply the name default if the organizer hasn't typed one —
+          // checked here (not above) so a re-run of this effect can't stomp
+          // on something they've already entered.
+          name: prev.name.trim() ? prev.name : (updates.name ?? prev.name),
+        }));
       }
     });
 
