@@ -462,7 +462,7 @@ export default function Dashboard() {
                 <div style={s.coachMsg}>
                   {setupDone
                     ? <>You&rsquo;re ready to build the field. Open registration and start reaching out to sponsors — both happen in parallel.</>
-                    : <>Finish Phase 1 first. Once your event details are locked in, <strong style={{ color: 'var(--gold)' }}>registration and sponsors</strong> open up automatically.</>
+                    : <>Finish Phase 1 first. Once your event details are locked in, <strong style={{ color: 'var(--gold)' }}>registration</strong> opens up automatically.</>
                   }
                 </div>
                 <div style={s.coachActs}>
