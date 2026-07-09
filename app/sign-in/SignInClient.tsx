@@ -48,7 +48,7 @@ export default function SignInClient() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'var(--cream)' }}>
-      <div style={{ width: '100%', maxWidth: 360 }}>
+      <div style={{ width: '100%', maxWidth: 440 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <h1 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 32, color: 'var(--deep-green)', margin: 0 }}>TourneyCoach</h1>
           <p style={{ marginTop: 8, color: 'var(--ink)', opacity: 0.6, fontFamily: "'DM Sans', sans-serif" }}>Sign in to get started</p>
@@ -77,6 +77,10 @@ export default function SignInClient() {
             <p style={{ marginTop: 16, fontSize: 13, textAlign: 'center', color: 'var(--alert)', fontFamily: "'DM Sans', sans-serif" }}>{error}</p>
           )}
         </div>
+
+        <p style={{ marginTop: 28, fontSize: 12.5, lineHeight: 1.6, textAlign: 'center', color: 'var(--ink)', opacity: 0.55, fontFamily: "'DM Sans', sans-serif" }}>
+          TourneyCoach is the AI-powered coaching platform for charity tournament organizers. The platform exists to solve one specific problem better than any incumbent: the volunteer-turnover institutional memory problem that kills most first-year charity tournaments before they reach Year 3. The mechanism is a combination of conversational AI coaching, integrated workflow software that competitors offer only as blog posts or downloadable templates, a privacy-architected player network that compounds in value with every tournament, and a patent-pending GPS data network that creates a structural moat against well-funded incumbents.
+        </p>
       </div>
     </div>
   );

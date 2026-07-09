@@ -37,23 +37,6 @@ async function isReturningMember(email: string): Promise<boolean> {
   return !!data;
 }
 
-async function assignFoursomeAndHole(tournamentId: string, registrationType: string) {
-  const supabase = getSupabase();
-  const { count } = await supabase
-    .from('registrations')
-    .select('*', { count: 'exact', head: true })
-    .eq('tournament_id', tournamentId);
-
-  const foursomeNumber = (count ?? 0) + 1;
-
-  // Shotgun: 18 holes, foursomes rotate. Starting hole 1–18.
-  const startingHole = registrationType === 'single'
-    ? null
-    : ((foursomeNumber - 1) % 18) + 1;
-
-  return { foursomeNumber, startingHole };
-}
-
 export async function POST(req: NextRequest) {
   try {
     const supabase = getSupabase();
@@ -131,67 +114,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
-    // Check capacity — sum actual player slots used per existing registration
-    const { data: existingRegs } = await supabase
-      .from('registrations')
-      .select('registration_type')
-      .eq('tournament_id', tournament_id)
-      .in('payment_status', ['pending', 'paid']);
-
-    const slotsUsed = (existingRegs ?? []).reduce(
-      (sum, r) => sum + (PLAYERS_PER_TYPE[r.registration_type] ?? 4), 0
-    );
-    if (slotsUsed + expectedPlayers > tournament.max_players) {
-      return NextResponse.json({ error: 'Tournament is full' }, { status: 409 });
-    }
-
-    // Joining an existing team: make sure it has room (teams cap at 4 players)
-    if (registration_type === 'single' && team_name) {
-      const { data: teamRegs } = await supabase
-        .from('registrations')
-        .select('players')
-        .eq('tournament_id', tournament_id)
-        .eq('team_name', team_name)
-        .in('payment_status', ['pending', 'paid']);
-
-      const teamPlayers = (teamRegs ?? []).reduce(
-        (sum, r) => sum + (Array.isArray(r.players) ? r.players.length : 0), 0
-      );
-      if (teamPlayers + 1 > 4) {
-        return NextResponse.json({ error: 'That team is already full' }, { status: 409 });
-      }
-    }
-
-    // Assign foursome and hole
-    const { foursomeNumber, startingHole } = await assignFoursomeAndHole(tournament_id, registration_type);
-
-    // Insert registration
+    // Capacity check, team-join check, foursome/hole assignment, and the
+    // insert all happen atomically in one Postgres function (locks the
+    // tournament row for the transaction) — see migration 011 for why:
+    // doing these as separate app-code round trips let concurrent
+    // registrations race past capacity checks and duplicate foursome numbers.
     const { data: registration, error: insertErr } = await supabase
-      .from('registrations')
-      .insert({
-        tournament_id,
-        registration_type,
-        team_name: team_name || null,
-        contact_name,
-        contact_email,
-        contact_phone: contact_phone || null,
-        players,
-        add_ons,
-        total_amount_cents,
-        platform_fee_cents,
-        registration_source: registration_source || (manual ? 'other' : 'direct'),
-        // Paper registrations paid by cash/check are marked paid immediately
-        payment_status: manual && mark_paid ? 'paid' : 'pending',
-        foursome_number: foursomeNumber,
-        starting_hole: startingHole,
+      .rpc('create_registration_atomic', {
+        p_tournament_id: tournament_id,
+        p_registration_type: registration_type,
+        p_team_name: team_name || null,
+        p_contact_name: contact_name,
+        p_contact_email: contact_email,
+        p_contact_phone: contact_phone || null,
+        p_players: players,
+        p_add_ons: add_ons,
+        p_total_amount_cents: total_amount_cents,
+        p_platform_fee_cents: platform_fee_cents,
+        p_registration_source: registration_source || (manual ? 'other' : 'direct'),
+        p_payment_status: manual && mark_paid ? 'paid' : 'pending',
       })
-      .select()
       .single();
 
     if (insertErr) {
-      console.error('Registration insert error:', insertErr);
-      return NextResponse.json({ error: 'Failed to save registration' }, { status: 500 });
+      const message = insertErr.message || 'Failed to save registration';
+      const status = message.includes('Tournament is full') || message.includes('already full') ? 409
+        : message.includes('not found') ? 404
+        : 500;
+      if (status === 500) console.error('Registration insert error:', insertErr);
+      return NextResponse.json({ error: message }, { status });
     }
+
+    const reg = registration as { id: string; foursome_number: number; starting_hole: number | null };
+    const foursomeNumber = reg.foursome_number;
+    const startingHole = reg.starting_hole;
 
     // Confirmation email only fires once payment is actually confirmed.
     // Online registrations are still 'pending' here — the webhook sends it
@@ -206,7 +162,7 @@ export async function POST(req: NextRequest) {
         eventDate: tournament.event_date,
         foursomeNumber,
         startingHole,
-        registrationId: registration.id,
+        registrationId: reg.id,
         locationName: tournament.location_name,
         subtotalCents: subtotal_cents,
         platformFeeCents: platform_fee_cents,
@@ -215,11 +171,11 @@ export async function POST(req: NextRequest) {
       await supabase
         .from('registrations')
         .update({ confirmation_sent_at: new Date().toISOString() })
-        .eq('id', registration.id);
+        .eq('id', reg.id);
     }
 
     return NextResponse.json({
-      id: registration.id,
+      id: reg.id,
       foursome_number: foursomeNumber,
       starting_hole: startingHole,
       subtotal_cents,
