@@ -89,9 +89,12 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     }
   }
 
-  // Validate field updates (merge with existing for full validation)
+  // Validate against the merged record (so cross-field rules still see the
+  // full picture), but only surface errors on fields this request actually
+  // changes — otherwise pre-existing stale data (e.g. an event date that's
+  // since passed) would block unrelated edits like a cause story save.
   const merged = { ...existing, ...body };
-  const errors = validateTournament(merged);
+  const errors = validateTournament(merged).filter((e) => e.field in body);
   if (errors.length > 0) {
     return NextResponse.json({ errors }, { status: 422 });
   }
