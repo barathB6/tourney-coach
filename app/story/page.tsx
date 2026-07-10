@@ -4,43 +4,30 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
 import FormattableTextarea from '@/components/FormattableTextarea';
-import { renderRichText, renderInline } from '@/lib/richtext/render';
+import { renderRichText } from '@/lib/richtext/render';
 
 const STEPS = [
   {
     title: 'The origin',
-    subtitle: 'Why does this tournament exist?',
+    subtitle: "Who's behind this, and what's the connection?",
     fields: [
-      { key: 'orgName', label: 'What is the name of your organization or cause?', placeholder: "e.g., St. Michael's Catholic School", hint: 'The official name donors will see.' },
-      { key: 'originStory', label: 'Why did you start this tournament?', placeholder: "e.g., Our school opened with 36 students and our son was one of them. Six years later, the school is full — and there's a waiting list of families who want in but can't cover tuition.", hint: 'Tell the founding moment. Personal beats polished.' },
+      { key: 'founder_connection', label: "Who is the founder/organizer, and what's the connection?", placeholder: "e.g., Our school opened with 36 students and our son was one of them. Six years later, the school is full — and there's a waiting list of families who want in but can't cover tuition.", hint: 'Your personal tie to this cause — why you started or run this event.' },
     ],
   },
   {
-    title: 'The mission',
-    subtitle: 'What does the money actually do?',
+    title: 'The impact',
+    subtitle: 'Who is helped, and what is the need?',
     fields: [
-      { key: 'missionWhat', label: 'Where does every dollar go?', placeholder: "e.g., Funds tuition assistance for families who couldn't otherwise afford a Catholic education.", hint: 'One sentence. Be specific about the use of funds.' },
-      { key: 'theNeed', label: 'What is the need, exactly?', placeholder: "e.g., Without this funding, roughly 40% of enrolled families would need to leave within two years.", hint: 'The gap this tournament actually closes.' },
-      { key: 'missionHow', label: 'How does golf make this possible?', placeholder: 'e.g., A single foursome registration covers the average tuition gap for one student for a full semester.', hint: 'Connect the game to the giving.' },
-    ],
-  },
-  {
-    title: 'The specific impact',
-    subtitle: 'Who, exactly, does this help — and how?',
-    fields: [
-      { key: 'impactWho', label: 'Whose life does this change?', placeholder: "e.g., Students at St. Michael's Catholic School", hint: 'Be concrete. Not "kids in our community" — name the specific group.' },
-      { key: 'impactWhat', label: 'What specifically does the money do?', placeholder: "e.g., Funds tuition assistance for families who couldn't otherwise afford a Catholic education. Last year's tournament covered partial tuition for 14 students.", hint: "Show, don't tell." },
-      { key: 'impactNumber', label: 'A number that brings it home', placeholder: 'e.g., 14 students received tuition help last year', hint: 'A specific count beats "many" or "dozens" every time.' },
+      { key: 'who_helped', label: 'Who is helped?', placeholder: "e.g., Students at St. Michael's Catholic School", hint: 'The students, families, or community this tournament supports.' },
+      { key: 'need', label: 'What is the need?', placeholder: "e.g., Without this funding, roughly 40% of enrolled families would need to leave within two years.", hint: 'What gap or problem does this funding actually close?' },
     ],
   },
   {
     title: 'The ask',
-    subtitle: 'What happens when someone signs up?',
+    subtitle: 'What does success look like, and why now?',
     fields: [
-      { key: 'askHook', label: 'The one-line hook for donors', placeholder: 'e.g., When you sign up to play, fourteen kids stay in school next year.', hint: 'This appears at the top of your tournament page. Make it land.' },
-      { key: 'askGoal', label: "This year's goal — what does success look like?", placeholder: 'e.g., This year we want to make it 20.', hint: 'A concrete target donors can rally behind.' },
-      { key: 'askWhyNow', label: 'Why now?', placeholder: 'e.g., The waiting list doubled this year, and tuition costs rose 8% — the gap is wider than it has ever been.', hint: "What makes this year's ask urgent." },
-      { key: 'askStat', label: 'A dollar stat that connects golf to giving', placeholder: 'e.g., $340 — average tuition gap covered per foursome registration', hint: 'Show what a registration actually buys.' },
+      { key: 'success_looks_like', label: 'What does success look like?', placeholder: 'e.g., This year we want to fund tuition for 20 students, up from 14 last year.', hint: 'A concrete outcome donors can rally behind.' },
+      { key: 'why_now', label: 'Why now?', placeholder: 'e.g., The waiting list doubled this year, and tuition costs rose 8% — the gap is wider than it has ever been.', hint: "What makes this year's ask urgent." },
     ],
   },
 ];
@@ -50,15 +37,13 @@ type PhotoRec = { type: string; reason: string };
 export default function CauseStoryBuilder() {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [stage, setStage] = useState<'fields' | 'finalize'>('fields');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [userId, setUserId] = useState<string | null>(null);
   const [tournamentId, setTournamentId] = useState<string | null>(null);
 
   const [fullStory, setFullStory] = useState('');
-  const [aiSuggestion, setAiSuggestion] = useState('');
+  const [prevFullStory, setPrevFullStory] = useState<string | null>(null);
   const [refining, setRefining] = useState(false);
-  const [refineNote, setRefineNote] = useState('');
   const [medium, setMedium] = useState('');
   const [short, setShort] = useState('');
   const [oneLiner, setOneLiner] = useState('');
@@ -109,48 +94,27 @@ export default function CauseStoryBuilder() {
     setFields((prev) => ({ ...prev, [key]: value }));
   };
 
+  const isPromptStep = step < STEPS.length;
   const currentStep = STEPS[step];
+  const totalSteps = STEPS.length + 1;
 
   const buildPreview = () => {
-    const hook = fields.askHook;
-    const org = fields.orgName;
-    const origin = fields.originStory;
-    const mission = fields.missionWhat;
-    const need = fields.theNeed;
-    const impact = fields.impactWhat;
-    const number = fields.impactNumber;
-    const goal = fields.askGoal;
-    const whyNow = fields.askWhyNow;
-    const stat = fields.askStat;
-    const missionHow = fields.missionHow;
-
     const paragraphs: string[] = [];
-    if (origin) paragraphs.push(origin);
-    if (mission && impact) {
-      paragraphs.push(`${mission} ${impact}`);
-    } else if (mission) {
-      paragraphs.push(mission);
-    } else if (impact) {
-      paragraphs.push(impact);
-    }
-    if (need) paragraphs.push(need);
-    if (missionHow) paragraphs.push(missionHow);
-    if (goal) paragraphs.push(goal);
-    if (whyNow) paragraphs.push(whyNow);
-
-    return { hook, org, paragraphs, number, stat };
+    if (fields.founder_connection) paragraphs.push(fields.founder_connection);
+    if (fields.who_helped) paragraphs.push(`This tournament exists for ${fields.who_helped}.`);
+    if (fields.need) paragraphs.push(fields.need);
+    if (fields.success_looks_like) paragraphs.push(fields.success_looks_like);
+    if (fields.why_now) paragraphs.push(fields.why_now);
+    return { paragraphs };
   };
 
   const preview = buildPreview();
   const hasContent = Object.values(fields).some((v) => v.trim());
 
-  const enterFinalize = () => {
+  const advanceToOutputs = () => {
     if (userId) localStorage.setItem(`tourney_story_${userId}`, JSON.stringify(fields));
-    if (!fullStory) {
-      const composed = [preview.hook, ...preview.paragraphs].filter(Boolean).join('\n\n');
-      setFullStory(composed);
-    }
-    setStage('finalize');
+    if (!fullStory) setFullStory(preview.paragraphs.join('\n\n'));
+    setStep(STEPS.length);
   };
 
   const handleRefine = async () => {
@@ -161,11 +125,12 @@ export default function CauseStoryBuilder() {
       const res = await fetch('/api/cause-story/refine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draft: fullStory, instruction: refineNote }),
+        body: JSON.stringify({ draft: fullStory }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'AI refinement failed');
-      setAiSuggestion(data.suggestion);
+      setPrevFullStory(fullStory);
+      setFullStory(data.suggestion);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'AI refinement failed');
     } finally {
@@ -173,9 +138,10 @@ export default function CauseStoryBuilder() {
     }
   };
 
-  const acceptSuggestion = () => {
-    setFullStory(aiSuggestion);
-    setAiSuggestion('');
+  const undoRefine = () => {
+    if (prevFullStory === null) return;
+    setFullStory(prevFullStory);
+    setPrevFullStory(null);
   };
 
   const handleGenerateLengths = async () => {
@@ -249,68 +215,48 @@ export default function CauseStoryBuilder() {
     router.push('/dashboard');
   };
 
-  // Extract dollar amount from stat for display
-  const statAmount = preview.stat?.match(/\$[\d,]+/)?.[0];
-  const statDesc = preview.stat?.replace(/\$[\d,]+\s*[-—]?\s*/, '');
-
-  if (stage === 'finalize') {
+  if (!isPromptStep) {
     return (
       <div className="min-h-screen" style={{ background: 'var(--cream)' }}>
         <div className="max-w-2xl mx-auto p-6 sm:p-10 md:p-16">
-          <button onClick={() => setStage('fields')}
-            className="text-sm font-medium mb-6" style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-            ← Back to prompts
-          </button>
+          <div className="flex gap-2 mb-6">
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <div key={i} className="flex-1 h-1 rounded-full" style={{ background: 'var(--primary)' }} />
+            ))}
+          </div>
 
           <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--primary)' }}>
-            Refine &amp; publish
+            Step {step + 1} of {totalSteps} · Length variants &amp; photos
           </p>
           <h1 className="text-2xl mb-2" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>
             Your full cause story
           </h1>
           <p className="text-sm mb-5" style={{ color: '#596057' }}>
-            This is what appears on your microsite. Edit it directly, or ask AI to sharpen it — your voice stays, we just tighten the prose.
+            This is what appears on your microsite. Edit it directly, or hover for AI refinement.
           </p>
 
-          <FormattableTextarea
-            value={fullStory}
-            onChange={setFullStory}
-            rows={10}
-            placeholder="Your composed story appears here — edit freely."
-            className="w-full px-4 py-3 rounded-lg outline-none resize-none text-sm leading-relaxed"
-            style={{ border: '1px solid var(--line)', minHeight: 220 }}
-          />
-
-          <div className="mt-3 flex gap-2 flex-wrap items-center">
-            <input
-              type="text"
-              value={refineNote}
-              onChange={(e) => setRefineNote(e.target.value)}
-              placeholder="Optional: tell the AI what to focus on (e.g. 'make it warmer')"
-              className="flex-1 min-w-[220px] px-3 py-2 rounded-lg outline-none text-sm"
-              style={{ border: '1px solid var(--line)' }}
+          <div className="group relative">
+            <FormattableTextarea
+              value={fullStory}
+              onChange={setFullStory}
+              rows={10}
+              placeholder="Your composed story appears here — edit freely."
+              className="w-full px-4 py-3 rounded-lg outline-none resize-none text-sm leading-relaxed"
+              style={{ border: '1px solid var(--line)', minHeight: 220 }}
             />
-            <button onClick={handleRefine} disabled={refining}
-              className="px-4 py-2 text-sm font-medium rounded-lg" style={{ color: 'var(--primary)', background: 'white', border: '1px solid var(--primary)', cursor: 'pointer' }}>
-              {refining ? 'Thinking…' : 'Ask AI to refine'}
+            <button
+              onClick={handleRefine}
+              disabled={refining}
+              className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm"
+              style={{ background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer' }}
+            >
+              {refining ? 'Refining…' : '✨ Refine with AI'}
             </button>
           </div>
-
-          {aiSuggestion && (
-            <div className="mt-4 rounded-lg p-4" style={{ background: '#F0F4F2', border: '1px solid #C9DED0' }}>
-              <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--primary)' }}>AI suggestion</p>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap mb-3">{aiSuggestion}</p>
-              <div className="flex gap-2">
-                <button onClick={acceptSuggestion}
-                  className="px-4 py-2 text-sm font-medium text-white rounded-lg" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
-                  Use this version
-                </button>
-                <button onClick={() => setAiSuggestion('')}
-                  className="px-4 py-2 text-sm font-medium rounded-lg" style={{ color: 'var(--ink)', background: 'white', border: '1px solid var(--line)' }}>
-                  Discard
-                </button>
-              </div>
-            </div>
+          {prevFullStory !== null && (
+            <button onClick={undoRefine} className="text-xs font-medium mt-1.5" style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              Undo AI refinement
+            </button>
           )}
 
           <div className="mt-10">
@@ -361,7 +307,11 @@ export default function CauseStoryBuilder() {
 
           {error && <p className="text-sm mt-6" style={{ color: '#B8442C' }}>{error}</p>}
 
-          <div className="mt-8 flex justify-end">
+          <div className="mt-8 flex justify-between">
+            <button onClick={() => setStep(STEPS.length - 1)}
+              className="px-5 py-2.5 text-sm font-medium rounded-lg transition-colors" style={{ color: 'var(--ink)', background: 'white', border: '1px solid var(--line)' }}>
+              ← Back
+            </button>
             <button onClick={handleFinish} disabled={saving}
               className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
               {saving ? 'Saving…' : 'Save & Continue to Setup →'}
@@ -381,13 +331,13 @@ export default function CauseStoryBuilder() {
           <div className="max-w-xl mx-auto">
             {/* Step progress bars */}
             <div className="flex gap-2 mb-6">
-              {STEPS.map((_, i) => (
-                <div key={i} className={`flex-1 h-1 rounded-full`} style={{ background: i <= step ? 'var(--primary)' : 'var(--line)' }} />
+              {Array.from({ length: totalSteps }).map((_, i) => (
+                <div key={i} className="flex-1 h-1 rounded-full" style={{ background: i <= step ? 'var(--primary)' : 'var(--line)' }} />
               ))}
             </div>
 
             <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--primary)' }}>
-              Step {step + 1} of {STEPS.length} · {currentStep.title}
+              Step {step + 1} of {totalSteps} · {currentStep.title}
             </p>
             <h1 className="text-2xl mb-6" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>{currentStep.subtitle}</h1>
 
@@ -395,23 +345,13 @@ export default function CauseStoryBuilder() {
               {currentStep.fields.map((f) => (
                 <div key={f.key}>
                   <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>{f.label}</label>
-                  {f.key === 'impactNumber' || f.key === 'askHook' || f.key === 'askGoal' ? (
-                    <input
-                      type="text"
-                      value={fields[f.key] || ''}
-                      onChange={(e) => update(f.key, e.target.value)}
-                      placeholder={f.placeholder}
-                      className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none text-sm" style={{ border: '1px solid var(--line)' }}
-                    />
-                  ) : (
-                    <FormattableTextarea
-                      value={fields[f.key] || ''}
-                      onChange={(v) => update(f.key, v)}
-                      placeholder={f.placeholder}
-                      rows={3}
-                      className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }}
-                    />
-                  )}
+                  <FormattableTextarea
+                    value={fields[f.key] || ''}
+                    onChange={(v) => update(f.key, v)}
+                    placeholder={f.placeholder}
+                    rows={4}
+                    className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }}
+                  />
                   <p className="text-xs mt-1" style={{ color: '#596057' }}>{f.hint}</p>
                 </div>
               ))}
@@ -430,9 +370,9 @@ export default function CauseStoryBuilder() {
                   Continue →
                 </button>
               ) : (
-                <button onClick={enterFinalize}
+                <button onClick={advanceToOutputs}
                   className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
-                  Continue to Refine & Publish →
+                  Continue →
                 </button>
               )}
             </div>
@@ -452,25 +392,9 @@ export default function CauseStoryBuilder() {
               <p className="text-sm mt-8" style={{ color: 'rgba(27,107,58,0.7)' }}>Start writing on the left — your donor story will appear here in real time.</p>
             ) : (
               <div className="space-y-5">
-                {preview.org && (
-                  <h2 className="text-2xl sm:text-3xl text-white leading-tight" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>{renderInline(preview.org, 'org')}</h2>
-                )}
-                {preview.hook && (
-                  <p className="text-base" style={{ color: 'rgba(250,248,243,0.85)' }}>{renderInline(preview.hook, 'hook')}</p>
-                )}
                 {preview.paragraphs.map((p, i) => (
-                  <div key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.8)' }}>{renderRichText(p)}</div>
+                  <div key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.85)' }}>{renderRichText(p)}</div>
                 ))}
-                {preview.stat && (
-                  <div className="rounded-lg p-5 mt-6" style={{ background: 'rgba(27,107,58,0.4)', border: '1px solid rgba(27,107,58,0.3)' }}>
-                    {statAmount && (
-                      <p className="text-2xl font-bold" style={{ color: 'var(--gold)', fontFamily: "'Fraunces', serif" }}>{statAmount}</p>
-                    )}
-                    {statDesc && (
-                      <p className="text-sm mt-1" style={{ color: 'rgba(250,248,243,0.6)' }}>{renderInline(statDesc, 'stat')}</p>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </div>
