@@ -28,6 +28,8 @@ const STEPS = [
     fields: [
       { key: 'success_looks_like', label: 'What does success look like?', placeholder: 'e.g., This year we want to fund tuition for 20 students, up from 14 last year.', hint: 'A concrete outcome donors can rally behind.' },
       { key: 'why_now', label: 'Why now?', placeholder: 'e.g., The waiting list doubled this year, and tuition costs rose 8% — the gap is wider than it has ever been.', hint: "What makes this year's ask urgent." },
+      { key: 'stat_amount', label: 'A number that brings it home', placeholder: 'e.g., 340', hint: 'A specific stat beats "many" or "a lot" every time.', input: 'number' as const },
+      { key: 'stat_description', label: 'What does that number mean?', placeholder: 'e.g., Average tuition gap covered per foursome registration', hint: 'One short line — appears under the number.', input: 'line' as const },
     ],
   },
 ];
@@ -105,7 +107,9 @@ export default function CauseStoryBuilder() {
     if (fields.need) paragraphs.push(fields.need);
     if (fields.success_looks_like) paragraphs.push(fields.success_looks_like);
     if (fields.why_now) paragraphs.push(fields.why_now);
-    return { paragraphs, headline: paragraphs[0], body: paragraphs.slice(1) };
+    const statAmount = fields.stat_amount?.trim();
+    const statDescription = fields.stat_description?.trim();
+    return { paragraphs, headline: paragraphs[0], body: paragraphs.slice(1), statAmount, statDescription };
   };
 
   const preview = buildPreview();
@@ -371,13 +375,37 @@ export default function CauseStoryBuilder() {
               {currentStep.fields.map((f) => (
                 <div key={f.key}>
                   <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>{f.label}</label>
-                  <FormattableTextarea
-                    value={fields[f.key] || ''}
-                    onChange={(v) => update(f.key, v)}
-                    placeholder={f.placeholder}
-                    rows={2}
-                    className="w-full px-3 py-2 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }}
-                  />
+                  {'input' in f && f.input === 'number' ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>$</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={fields[f.key] || ''}
+                        onChange={(e) => update(f.key, e.target.value.replace(/[^0-9,]/g, ''))}
+                        placeholder={f.placeholder}
+                        className="w-full px-3 py-2 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none text-sm"
+                        style={{ border: '1px solid var(--line)' }}
+                      />
+                    </div>
+                  ) : 'input' in f && f.input === 'line' ? (
+                    <input
+                      type="text"
+                      value={fields[f.key] || ''}
+                      onChange={(e) => update(f.key, e.target.value)}
+                      placeholder={f.placeholder}
+                      className="w-full px-3 py-2 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none text-sm"
+                      style={{ border: '1px solid var(--line)' }}
+                    />
+                  ) : (
+                    <FormattableTextarea
+                      value={fields[f.key] || ''}
+                      onChange={(v) => update(f.key, v)}
+                      placeholder={f.placeholder}
+                      rows={2}
+                      className="w-full px-3 py-2 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }}
+                    />
+                  )}
                   <p className="text-xs mt-1" style={{ color: '#596057' }}>{f.hint}</p>
                 </div>
               ))}
@@ -426,6 +454,16 @@ export default function CauseStoryBuilder() {
                 {preview.body.map((p, i) => (
                   <div key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.85)' }}>{renderRichText(p)}</div>
                 ))}
+                {(preview.statAmount || preview.statDescription) && (
+                  <div className="rounded-2xl p-6 mt-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                    {preview.statAmount && (
+                      <p className="text-4xl sm:text-5xl font-bold" style={{ color: 'var(--gold)', fontFamily: "'Fraunces', serif" }}>${preview.statAmount}</p>
+                    )}
+                    {preview.statDescription && (
+                      <p className="text-base mt-2" style={{ color: 'rgba(250,248,243,0.85)' }}>{preview.statDescription}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
