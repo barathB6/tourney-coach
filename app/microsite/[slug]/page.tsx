@@ -15,7 +15,7 @@ function getSupabase() {
 async function getTournament(slug: string) {
   const { data } = await getSupabase()
     .from('tournaments')
-    .select('id, name, slug, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_full, status, microsite_color, social_links, sponsor_logos, cause_photos, contact_email, location_name, volunteer_info, cause_tagline, edition_label, shotgun_time, historical_raised_cents, cause_org, sponsor_hole_url')
+    .select('id, name, slug, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_full, cause_story_answers, status, microsite_color, social_links, sponsor_logos, cause_photos, contact_email, location_name, volunteer_info, cause_tagline, edition_label, shotgun_time, historical_raised_cents, cause_org, sponsor_hole_url')
     .eq('slug', slug)
     .in('status', ['published', 'live', 'completed'])
     .single();
@@ -127,6 +127,15 @@ export default async function MicrositePage({
   const socials = (t.social_links as Record<string, string>) ?? {};
   const raisedCents = (t.historical_raised_cents as number) ?? 0;
   const daysLeft = daysUntil(t.event_date);
+  const causeStoryAnswers = (t.cause_story_answers as Record<string, string>) ?? {};
+  const causeParagraphs = (t.cause_story_full || t.cause_story || '')
+    .split(/\n\n+/)
+    .map((p: string) => p.trim())
+    .filter(Boolean);
+  const causeHeadline = causeParagraphs[0];
+  const causeBody = causeParagraphs.slice(1);
+  const causeStatAmount = causeStoryAnswers.stat_amount?.trim();
+  const causeStatDescription = causeStoryAnswers.stat_description?.trim();
   const isCompleted = t.status === 'completed';
 
   // Subdomains (slug.tourneycoach.com) don't resolve yet — wildcard SSL/DNS
@@ -391,9 +400,30 @@ export default async function MicrositePage({
               <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 32, fontWeight: 700, color: primaryColor, marginBottom: 20 }}>
                 Why We Play
               </h2>
-              <div style={{ fontSize: 17, lineHeight: 1.8, color: '#3A3F3C' }}>
-                {renderRichText(t.cause_story_full || t.cause_story)}
-              </div>
+              {causeHeadline && (
+                <p style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, lineHeight: 1.4, color: '#1A1F1C', marginBottom: causeBody.length ? 20 : 0 }}>
+                  {renderRichText(causeHeadline)}
+                </p>
+              )}
+              {causeBody.length > 0 && (
+                <div style={{ fontSize: 17, lineHeight: 1.8, color: '#3A3F3C', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {causeBody.map((p: string, i: number) => (
+                    <div key={i}>{renderRichText(p)}</div>
+                  ))}
+                </div>
+              )}
+              {(causeStatAmount || causeStatDescription) && (
+                <div style={{ marginTop: 28, padding: '20px 24px', borderRadius: 12, background: '#F7F5EF', borderLeft: `4px solid ${primaryColor}` }}>
+                  {causeStatAmount && (
+                    <p style={{ fontFamily: "'Fraunces', serif", fontSize: 34, fontWeight: 700, color: primaryColor, margin: '0 0 4px' }}>
+                      ${causeStatAmount}
+                    </p>
+                  )}
+                  {causeStatDescription && (
+                    <p style={{ fontSize: 15, color: '#5C6B62', margin: 0 }}>{causeStatDescription}</p>
+                  )}
+                </div>
+              )}
             </section>
           )}
 
