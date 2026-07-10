@@ -105,7 +105,7 @@ export default function CauseStoryBuilder() {
     if (fields.need) paragraphs.push(fields.need);
     if (fields.success_looks_like) paragraphs.push(fields.success_looks_like);
     if (fields.why_now) paragraphs.push(fields.why_now);
-    return { paragraphs };
+    return { paragraphs, headline: paragraphs[0], body: paragraphs.slice(1) };
   };
 
   const preview = buildPreview();
@@ -239,10 +239,10 @@ export default function CauseStoryBuilder() {
             <FormattableTextarea
               value={fullStory}
               onChange={setFullStory}
-              rows={10}
+              rows={6}
               placeholder="Your composed story appears here — edit freely."
-              className="w-full px-4 py-3 rounded-lg outline-none resize-none text-sm leading-relaxed"
-              style={{ border: '1px solid var(--line)', minHeight: 220 }}
+              className="w-full px-3 py-2 rounded-lg outline-none resize-none text-sm leading-relaxed"
+              style={{ border: '1px solid var(--line)' }}
             />
             <button
               onClick={handleRefine}
@@ -267,21 +267,47 @@ export default function CauseStoryBuilder() {
               {generatingLengths ? 'Generating…' : 'Generate from full story'}
             </button>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Medium — sponsor packages */}
               <div>
                 <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>Medium — sponsor packages</label>
-                <FormattableTextarea value={medium} onChange={setMedium} rows={3}
-                  className="w-full px-4 py-3 rounded-lg outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }} />
+                <FormattableTextarea value={medium} onChange={setMedium} rows={2}
+                  className="w-full px-3 py-2 rounded-lg outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }} />
+                {medium.trim() && (
+                  <div className="mt-2 rounded-lg p-4" style={{ background: '#fff', border: '1px solid var(--line)' }}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#9BA8A4' }}>Sponsor package preview</p>
+                    <p className="text-sm leading-relaxed" style={{ color: 'var(--ink)', fontStyle: 'italic' }}>&ldquo;{medium}&rdquo;</p>
+                  </div>
+                )}
               </div>
+
+              {/* Short — social captions */}
               <div>
                 <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>Short — social captions</label>
                 <FormattableTextarea value={short} onChange={setShort} rows={2}
-                  className="w-full px-4 py-3 rounded-lg outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }} />
+                  className="w-full px-3 py-2 rounded-lg outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }} />
+                {short.trim() && (
+                  <div className="mt-2 rounded-lg p-3 flex gap-2.5 items-start" style={{ background: '#fff', border: '1px solid var(--line)' }}>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0" style={{ background: 'var(--primary)' }}>TC</div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#9BA8A4' }}>Social caption preview</p>
+                      <p className="text-sm leading-snug" style={{ color: 'var(--ink)' }}>{short}</p>
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* One-liner — registration form */}
               <div>
                 <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>One-liner — registration form</label>
                 <input type="text" value={oneLiner} onChange={(e) => setOneLiner(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg outline-none text-sm" style={{ border: '1px solid var(--line)' }} />
+                  className="w-full px-3 py-2 rounded-lg outline-none text-sm" style={{ border: '1px solid var(--line)' }} />
+                {oneLiner.trim() && (
+                  <div className="mt-2 rounded-lg p-4" style={{ background: 'var(--deep-green)' }}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>Registration hero preview</p>
+                    <p className="text-sm" style={{ color: 'rgba(255,255,255,0.9)', fontStyle: 'italic' }}>{oneLiner}</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -349,8 +375,8 @@ export default function CauseStoryBuilder() {
                     value={fields[f.key] || ''}
                     onChange={(v) => update(f.key, v)}
                     placeholder={f.placeholder}
-                    rows={4}
-                    className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }}
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }}
                   />
                   <p className="text-xs mt-1" style={{ color: '#596057' }}>{f.hint}</p>
                 </div>
@@ -385,14 +411,19 @@ export default function CauseStoryBuilder() {
           <div className="absolute top-0 right-0 w-[300px] h-[300px] rounded-full translate-x-1/4 -translate-y-1/4" style={{ border: '1px solid rgba(27,107,58,0.15)' }} />
           <div className="max-w-md w-full md:sticky md:top-10 relative z-10">
             <span className="inline-block text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded mb-6" style={{ color: 'var(--deep-green)', background: 'var(--gold)', border: '1px solid var(--gold)' }}>
-              Live Donor View
+              Live Donor View — full version
             </span>
 
             {!hasContent ? (
               <p className="text-sm mt-8" style={{ color: 'rgba(27,107,58,0.7)' }}>Start writing on the left — your donor story will appear here in real time.</p>
             ) : (
               <div className="space-y-5">
-                {preview.paragraphs.map((p, i) => (
+                {preview.headline && (
+                  <h2 className="text-2xl sm:text-3xl text-white leading-tight" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>
+                    {renderRichText(preview.headline)}
+                  </h2>
+                )}
+                {preview.body.map((p, i) => (
                   <div key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.85)' }}>{renderRichText(p)}</div>
                 ))}
               </div>
