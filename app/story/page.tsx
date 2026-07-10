@@ -8,16 +8,10 @@ import { renderRichText } from '@/lib/richtext/render';
 
 const STEPS = [
   {
-    title: 'The origin',
-    subtitle: "Who's behind this, and what's the connection?",
+    title: 'The origin & impact',
+    subtitle: "Who's behind this, who is helped, and what is the need?",
     fields: [
       { key: 'founder_connection', label: "Who is the founder/organizer, and what's the connection?", placeholder: "e.g., Our school opened with 36 students and our son was one of them. Six years later, the school is full — and there's a waiting list of families who want in but can't cover tuition.", hint: 'Your personal tie to this cause — why you started or run this event.' },
-    ],
-  },
-  {
-    title: 'The impact',
-    subtitle: 'Who is helped, and what is the need?',
-    fields: [
       { key: 'who_helped', label: 'Who is helped?', placeholder: "e.g., Students at St. Michael's Catholic School", hint: 'The students, families, or community this tournament supports.' },
       { key: 'need', label: 'What is the need?', placeholder: "e.g., Without this funding, roughly 40% of enrolled families would need to leave within two years.", hint: 'What gap or problem does this funding actually close?' },
     ],
@@ -35,6 +29,11 @@ const STEPS = [
 ];
 
 type PhotoRec = { type: string; reason: string };
+
+// Step order: 0..STEPS.length-1 = prompts, STEPS.length = full story, STEPS.length+1 = length variants
+const STORY_STEP = STEPS.length;
+const LENGTHS_STEP = STEPS.length + 1;
+const TOTAL_STEPS = STEPS.length + 2;
 
 export default function CauseStoryBuilder() {
   const router = useRouter();
@@ -98,27 +97,24 @@ export default function CauseStoryBuilder() {
 
   const isPromptStep = step < STEPS.length;
   const currentStep = STEPS[step];
-  const totalSteps = STEPS.length + 1;
 
   const buildPreview = () => {
-    const paragraphs: string[] = [];
-    if (fields.founder_connection) paragraphs.push(fields.founder_connection);
-    if (fields.who_helped) paragraphs.push(`This tournament exists for ${fields.who_helped}.`);
-    if (fields.need) paragraphs.push(fields.need);
-    if (fields.success_looks_like) paragraphs.push(fields.success_looks_like);
-    if (fields.why_now) paragraphs.push(fields.why_now);
+    // Two flowing paragraphs: context (who's helped + the need), then the ask (success + why now).
+    const paragraph1 = [fields.who_helped && `This tournament exists for ${fields.who_helped}.`, fields.need].filter(Boolean).join(' ');
+    const paragraph2 = [fields.success_looks_like, fields.why_now].filter(Boolean).join(' ');
+    const body = [paragraph1, paragraph2].filter(Boolean);
     const statAmount = fields.stat_amount?.trim();
     const statDescription = fields.stat_description?.trim();
-    return { paragraphs, headline: paragraphs[0], body: paragraphs.slice(1), statAmount, statDescription };
+    return { headline: fields.founder_connection, body, statAmount, statDescription };
   };
 
   const preview = buildPreview();
   const hasContent = Object.values(fields).some((v) => v.trim());
 
-  const advanceToOutputs = () => {
+  const advanceToStory = () => {
     if (userId) localStorage.setItem(`tourney_story_${userId}`, JSON.stringify(fields));
-    if (!fullStory) setFullStory(preview.paragraphs.join('\n\n'));
-    setStep(STEPS.length);
+    if (!fullStory) setFullStory([preview.headline, ...preview.body].filter(Boolean).join('\n\n'));
+    setStep(STORY_STEP);
   };
 
   const handleRefine = async () => {
@@ -219,18 +215,23 @@ export default function CauseStoryBuilder() {
     router.push('/dashboard');
   };
 
-  if (!isPromptStep) {
+  const progressBar = (
+    <div className="flex gap-2 mb-6">
+      {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+        <div key={i} className="flex-1 h-1 rounded-full" style={{ background: i <= step ? 'var(--primary)' : 'var(--line)' }} />
+      ))}
+    </div>
+  );
+
+  // ── STEP 3: Your full cause story ──
+  if (step === STORY_STEP) {
     return (
       <div className="min-h-screen" style={{ background: 'var(--cream)' }}>
         <div className="max-w-2xl mx-auto p-6 sm:p-10 md:p-16">
-          <div className="flex gap-2 mb-6">
-            {Array.from({ length: totalSteps }).map((_, i) => (
-              <div key={i} className="flex-1 h-1 rounded-full" style={{ background: 'var(--primary)' }} />
-            ))}
-          </div>
+          {progressBar}
 
           <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--primary)' }}>
-            Step {step + 1} of {totalSteps} · Length variants &amp; photos
+            Step {step + 1} of {TOTAL_STEPS}
           </p>
           <h1 className="text-2xl mb-2" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>
             Your full cause story
@@ -264,59 +265,6 @@ export default function CauseStoryBuilder() {
           )}
 
           <div className="mt-10">
-            <h2 className="text-lg mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>Length variants</h2>
-            <p className="text-sm mb-3" style={{ color: '#596057' }}>Used across sponsor packages, social captions, and the registration form.</p>
-            <button onClick={handleGenerateLengths} disabled={generatingLengths}
-              className="px-4 py-2 text-sm font-medium rounded-lg mb-4" style={{ color: 'var(--primary)', background: 'white', border: '1px solid var(--primary)', cursor: 'pointer' }}>
-              {generatingLengths ? 'Generating…' : 'Generate from full story'}
-            </button>
-
-            <div className="space-y-6">
-              {/* Medium — sponsor packages */}
-              <div>
-                <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>Medium — sponsor packages</label>
-                <FormattableTextarea value={medium} onChange={setMedium} rows={2}
-                  className="w-full px-3 py-2 rounded-lg outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }} />
-                {medium.trim() && (
-                  <div className="mt-2 rounded-lg p-4" style={{ background: '#fff', border: '1px solid var(--line)' }}>
-                    <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#9BA8A4' }}>Sponsor package preview</p>
-                    <p className="text-sm leading-relaxed" style={{ color: 'var(--ink)', fontStyle: 'italic' }}>&ldquo;{medium}&rdquo;</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Short — social captions */}
-              <div>
-                <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>Short — social captions</label>
-                <FormattableTextarea value={short} onChange={setShort} rows={2}
-                  className="w-full px-3 py-2 rounded-lg outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }} />
-                {short.trim() && (
-                  <div className="mt-2 rounded-lg p-3 flex gap-2.5 items-start" style={{ background: '#fff', border: '1px solid var(--line)' }}>
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0" style={{ background: 'var(--primary)' }}>TC</div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#9BA8A4' }}>Social caption preview</p>
-                      <p className="text-sm leading-snug" style={{ color: 'var(--ink)' }}>{short}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* One-liner — registration form */}
-              <div>
-                <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>One-liner — registration form</label>
-                <input type="text" value={oneLiner} onChange={(e) => setOneLiner(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg outline-none text-sm" style={{ border: '1px solid var(--line)' }} />
-                {oneLiner.trim() && (
-                  <div className="mt-2 rounded-lg p-4" style={{ background: 'var(--deep-green)' }}>
-                    <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>Registration hero preview</p>
-                    <p className="text-sm" style={{ color: 'rgba(255,255,255,0.9)', fontStyle: 'italic' }}>{oneLiner}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-10">
             <h2 className="text-lg mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>Photo recommendations</h2>
             <p className="text-sm mb-3" style={{ color: '#596057' }}>What kinds of photos would make your microsite land, based on your story.</p>
             <button onClick={handleGeneratePhotos} disabled={generatingPhotos}
@@ -342,9 +290,9 @@ export default function CauseStoryBuilder() {
               className="px-5 py-2.5 text-sm font-medium rounded-lg transition-colors" style={{ color: 'var(--ink)', background: 'white', border: '1px solid var(--line)' }}>
               ← Back
             </button>
-            <button onClick={handleFinish} disabled={saving}
+            <button onClick={() => setStep(LENGTHS_STEP)}
               className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
-              {saving ? 'Saving…' : 'Save & Continue to Setup →'}
+              Continue →
             </button>
           </div>
         </div>
@@ -352,6 +300,105 @@ export default function CauseStoryBuilder() {
     );
   }
 
+  // ── STEP 4: Length variants ──
+  if (step === LENGTHS_STEP) {
+    return (
+      <div className="min-h-screen" style={{ background: 'var(--cream)' }}>
+        <div className="flex flex-col md:flex-row min-h-screen">
+
+          {/* LEFT — Variant inputs */}
+          <div className="flex-1 p-6 sm:p-10 md:p-12 lg:p-16 lg:pr-12">
+            <div className="max-w-xl mx-auto">
+              {progressBar}
+
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--primary)' }}>
+                Step {step + 1} of {TOTAL_STEPS} · Length variants
+              </p>
+              <h1 className="text-2xl mb-2" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>
+                One story, three lengths
+              </h1>
+              <p className="text-sm mb-5" style={{ color: '#596057' }}>
+                Used across sponsor packages, social captions, and the registration form.
+              </p>
+
+              <button onClick={handleGenerateLengths} disabled={generatingLengths}
+                className="px-4 py-2 text-sm font-medium rounded-lg mb-5" style={{ color: 'var(--primary)', background: 'white', border: '1px solid var(--primary)', cursor: 'pointer' }}>
+                {generatingLengths ? 'Generating…' : 'Generate from full cause story'}
+              </button>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>Medium — sponsor packages</label>
+                  <FormattableTextarea value={medium} onChange={setMedium} rows={2}
+                    className="w-full px-3 py-2 rounded-lg outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>Short — social captions</label>
+                  <FormattableTextarea value={short} onChange={setShort} rows={2}
+                    className="w-full px-3 py-2 rounded-lg outline-none resize-none text-sm leading-relaxed" style={{ border: '1px solid var(--line)' }} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>One-liner — registration form</label>
+                  <input type="text" value={oneLiner} onChange={(e) => setOneLiner(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg outline-none text-sm" style={{ border: '1px solid var(--line)' }} />
+                </div>
+              </div>
+
+              {error && <p className="text-sm mt-4" style={{ color: '#B8442C' }}>{error}</p>}
+
+              <div className="mt-8 flex justify-between">
+                <button onClick={() => setStep(STORY_STEP)}
+                  className="px-5 py-2.5 text-sm font-medium rounded-lg transition-colors" style={{ color: 'var(--ink)', background: 'white', border: '1px solid var(--line)' }}>
+                  ← Back
+                </button>
+                <button onClick={handleFinish} disabled={saving}
+                  className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
+                  {saving ? 'Saving…' : 'Save & Continue to Setup →'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT — smaller green preview, one card per variant */}
+          <div className="flex-1 p-6 sm:p-10 md:p-12 flex items-start justify-center relative overflow-hidden" style={{ background: 'var(--deep-green)' }}>
+            <div className="max-w-md w-full md:sticky md:top-10 relative z-10">
+              <span className="inline-block text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded mb-6" style={{ color: 'var(--deep-green)', background: 'var(--gold)', border: '1px solid var(--gold)' }}>
+                Live preview
+              </span>
+
+              <div className="space-y-4">
+                <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>Sponsor package preview</p>
+                  <p className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.9)', fontStyle: medium.trim() ? 'italic' : 'normal' }}>
+                    {medium.trim() ? `“${medium}”` : 'Generate or write a medium version to preview it here.'}
+                  </p>
+                </div>
+
+                <div className="rounded-xl p-4 flex gap-2.5 items-start" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: 'var(--gold)', color: 'var(--deep-green)' }}>TC</div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.55)' }}>Social caption preview</p>
+                    <p className="text-sm leading-snug" style={{ color: 'rgba(250,248,243,0.9)' }}>
+                      {short.trim() || 'Generate or write a short version to preview it here.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>Registration hero preview</p>
+                  <p className="text-sm" style={{ color: 'rgba(250,248,243,0.9)', fontStyle: oneLiner.trim() ? 'italic' : 'normal' }}>
+                    {oneLiner.trim() || 'Write a one-liner to preview it here.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STEPS 1–2: Prompts ──
   return (
     <div className="min-h-screen" style={{ background: 'var(--cream)' }}>
       <div className="flex flex-col md:flex-row min-h-screen">
@@ -359,15 +406,10 @@ export default function CauseStoryBuilder() {
         {/* LEFT — Prompts */}
         <div className="flex-1 p-6 sm:p-10 md:p-12 lg:p-16 lg:pr-12">
           <div className="max-w-xl mx-auto">
-            {/* Step progress bars */}
-            <div className="flex gap-2 mb-6">
-              {Array.from({ length: totalSteps }).map((_, i) => (
-                <div key={i} className="flex-1 h-1 rounded-full" style={{ background: i <= step ? 'var(--primary)' : 'var(--line)' }} />
-              ))}
-            </div>
+            {progressBar}
 
             <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--primary)' }}>
-              Step {step + 1} of {totalSteps} · {currentStep.title}
+              Step {step + 1} of {TOTAL_STEPS} · {currentStep.title}
             </p>
             <h1 className="text-2xl mb-6" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>{currentStep.subtitle}</h1>
 
@@ -424,7 +466,7 @@ export default function CauseStoryBuilder() {
                   Continue →
                 </button>
               ) : (
-                <button onClick={advanceToOutputs}
+                <button onClick={advanceToStory}
                   className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
                   Continue →
                 </button>
@@ -439,7 +481,7 @@ export default function CauseStoryBuilder() {
           <div className="absolute top-0 right-0 w-[300px] h-[300px] rounded-full translate-x-1/4 -translate-y-1/4" style={{ border: '1px solid rgba(27,107,58,0.15)' }} />
           <div className="max-w-md w-full md:sticky md:top-10 relative z-10">
             <span className="inline-block text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded mb-6" style={{ color: 'var(--deep-green)', background: 'var(--gold)', border: '1px solid var(--gold)' }}>
-              Live Donor View — full version
+              Live Donor View
             </span>
 
             {!hasContent ? (
