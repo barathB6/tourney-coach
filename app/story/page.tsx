@@ -225,75 +225,121 @@ export default function CauseStoryBuilder() {
 
   // ── STEP 3: Your full cause story ──
   if (step === STORY_STEP) {
+    const storyParagraphs = fullStory.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+    const storyHeadline = storyParagraphs[0];
+    const storyBody = storyParagraphs.slice(1);
+
     return (
       <div className="min-h-screen" style={{ background: 'var(--cream)' }}>
-        <div className="max-w-2xl mx-auto p-6 sm:p-10 md:p-16">
-          {progressBar}
+        <div className="flex flex-col md:flex-row min-h-screen">
 
-          <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--primary)' }}>
-            Step {step + 1} of {TOTAL_STEPS}
-          </p>
-          <h1 className="text-2xl mb-2" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>
-            Your full cause story
-          </h1>
-          <p className="text-sm mb-5" style={{ color: '#596057' }}>
-            This is what appears on your microsite. Edit it directly, or hover for AI refinement.
-          </p>
+          {/* LEFT — Full story editor */}
+          <div className="flex-1 p-6 sm:p-10 md:p-12 lg:p-16 lg:pr-12">
+            <div className="max-w-xl mx-auto">
+              {progressBar}
 
-          <div className="group relative">
-            <FormattableTextarea
-              value={fullStory}
-              onChange={setFullStory}
-              rows={6}
-              placeholder="Your composed story appears here — edit freely."
-              className="w-full px-3 py-2 rounded-lg outline-none resize-none text-sm leading-relaxed"
-              style={{ border: '1px solid var(--line)' }}
-            />
-            <button
-              onClick={handleRefine}
-              disabled={refining}
-              className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm"
-              style={{ background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer' }}
-            >
-              {refining ? 'Refining…' : '✨ Refine with AI'}
-            </button>
-          </div>
-          {prevFullStory !== null && (
-            <button onClick={undoRefine} className="text-xs font-medium mt-1.5" style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-              Undo AI refinement
-            </button>
-          )}
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--primary)' }}>
+                Step {step + 1} of {TOTAL_STEPS}
+              </p>
+              <h1 className="text-2xl mb-2" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>
+                Your full cause story
+              </h1>
+              <p className="text-sm mb-5" style={{ color: '#596057' }}>
+                This is what appears on your microsite. Edit it directly, or hover for AI refinement.
+              </p>
 
-          <div className="mt-10">
-            <h2 className="text-lg mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>Photo recommendations</h2>
-            <p className="text-sm mb-3" style={{ color: '#596057' }}>What kinds of photos would make your microsite land, based on your story.</p>
-            <button onClick={handleGeneratePhotos} disabled={generatingPhotos}
-              className="px-4 py-2 text-sm font-medium rounded-lg mb-4" style={{ color: 'var(--primary)', background: 'white', border: '1px solid var(--primary)', cursor: 'pointer' }}>
-              {generatingPhotos ? 'Thinking…' : 'Get photo suggestions'}
-            </button>
-            {photoRecs.length > 0 && (
-              <div className="space-y-2">
-                {photoRecs.map((rec, i) => (
-                  <div key={i} className="rounded-lg p-3" style={{ background: '#F0F4F2' }}>
-                    <p className="text-sm font-bold" style={{ color: 'var(--primary)' }}>{rec.type}</p>
-                    <p className="text-sm" style={{ color: '#596057' }}>{rec.reason}</p>
-                  </div>
-                ))}
+              <div className="group relative">
+                <FormattableTextarea
+                  value={fullStory}
+                  onChange={setFullStory}
+                  rows={8}
+                  placeholder="Your composed story appears here — edit freely."
+                  className="w-full px-3 py-2 rounded-lg outline-none resize-none text-sm leading-relaxed"
+                  style={{ border: '1px solid var(--line)' }}
+                />
+                <button
+                  onClick={handleRefine}
+                  disabled={refining}
+                  className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm"
+                  style={{ background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer' }}
+                >
+                  {refining ? 'Refining…' : '✨ Refine with AI'}
+                </button>
               </div>
-            )}
+              {prevFullStory !== null && (
+                <button onClick={undoRefine} className="text-xs font-medium mt-1.5" style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  Undo AI refinement
+                </button>
+              )}
+
+              <div className="mt-10">
+                <h2 className="text-lg mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>Photo recommendations</h2>
+                <p className="text-sm mb-3" style={{ color: '#596057' }}>What kinds of photos would make your microsite land, based on your story.</p>
+                <button onClick={handleGeneratePhotos} disabled={generatingPhotos}
+                  className="px-4 py-2 text-sm font-medium rounded-lg mb-4" style={{ color: 'var(--primary)', background: 'white', border: '1px solid var(--primary)', cursor: 'pointer' }}>
+                  {generatingPhotos ? 'Thinking…' : 'Get photo suggestions'}
+                </button>
+                {photoRecs.length > 0 && (
+                  <div className="space-y-2">
+                    {photoRecs.map((rec, i) => (
+                      <div key={i} className="rounded-lg p-3" style={{ background: '#F0F4F2' }}>
+                        <p className="text-sm font-bold" style={{ color: 'var(--primary)' }}>{rec.type}</p>
+                        <p className="text-sm" style={{ color: '#596057' }}>{rec.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {error && <p className="text-sm mt-6" style={{ color: '#B8442C' }}>{error}</p>}
+
+              <div className="mt-8 flex justify-between">
+                <button onClick={() => setStep(STEPS.length - 1)}
+                  className="px-5 py-2.5 text-sm font-medium rounded-lg transition-colors" style={{ color: 'var(--ink)', background: 'white', border: '1px solid var(--line)' }}>
+                  ← Back
+                </button>
+                <button onClick={() => setStep(LENGTHS_STEP)}
+                  className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
+                  Continue →
+                </button>
+              </div>
+            </div>
           </div>
 
-          {error && <p className="text-sm mt-6" style={{ color: '#B8442C' }}>{error}</p>}
+          {/* RIGHT — Live Donor Preview (dark green) */}
+          <div className="flex-1 p-6 sm:p-10 md:p-12 flex items-start justify-center relative overflow-hidden" style={{ background: 'var(--deep-green)' }}>
+            <div className="absolute top-0 right-0 w-[400px] h-[400px] rounded-full translate-x-1/3 -translate-y-1/3" style={{ border: '1px solid rgba(27,107,58,0.2)' }} />
+            <div className="absolute top-0 right-0 w-[300px] h-[300px] rounded-full translate-x-1/4 -translate-y-1/4" style={{ border: '1px solid rgba(27,107,58,0.15)' }} />
+            <div className="max-w-md w-full md:sticky md:top-10 relative z-10">
+              <span className="inline-block text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded mb-6" style={{ color: 'var(--deep-green)', background: 'var(--gold)', border: '1px solid var(--gold)' }}>
+                Live Donor View
+              </span>
 
-          <div className="mt-8 flex justify-between">
-            <button onClick={() => setStep(STEPS.length - 1)}
-              className="px-5 py-2.5 text-sm font-medium rounded-lg transition-colors" style={{ color: 'var(--ink)', background: 'white', border: '1px solid var(--line)' }}>
-              ← Back
-            </button>
-            <button onClick={() => setStep(LENGTHS_STEP)}
-              className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors" style={{ background: 'linear-gradient(180deg, var(--primary), var(--deep-green))' }}>
-              Continue →
-            </button>
+              {!storyHeadline && storyBody.length === 0 ? (
+                <p className="text-sm mt-8" style={{ color: 'rgba(27,107,58,0.7)' }}>Edit your story on the left — your donor story will appear here in real time.</p>
+              ) : (
+                <div className="space-y-5">
+                  {storyHeadline && (
+                    <h2 className="text-2xl sm:text-3xl text-white leading-tight" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>
+                      {renderRichText(storyHeadline)}
+                    </h2>
+                  )}
+                  {storyBody.map((p, i) => (
+                    <div key={i} className="text-sm leading-relaxed" style={{ color: 'rgba(250,248,243,0.85)' }}>{renderRichText(p)}</div>
+                  ))}
+                  {(preview.statAmount || preview.statDescription) && (
+                    <div className="rounded-2xl p-6 mt-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      {preview.statAmount && (
+                        <p className="text-4xl sm:text-5xl font-bold" style={{ color: 'var(--gold)', fontFamily: "'Fraunces', serif" }}>${preview.statAmount}</p>
+                      )}
+                      {preview.statDescription && (
+                        <p className="text-base mt-2" style={{ color: 'rgba(250,248,243,0.85)' }}>{preview.statDescription}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
