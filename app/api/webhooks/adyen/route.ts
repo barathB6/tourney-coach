@@ -28,6 +28,27 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabase();
     const { eventCode, success, merchantReference, pspReference, originalReference } = event;
 
+    // Sponsorship payments use a "sponsor:<id>" merchant reference
+    if (merchantReference?.startsWith('sponsor:')) {
+      const sponsorId = merchantReference.slice('sponsor:'.length);
+      if (eventCode === 'AUTHORISATION') {
+        if (success) {
+          await supabase
+            .from('sponsors')
+            .update({ status: 'paid', adyen_psp_reference: pspReference, last_touch: new Date().toISOString() })
+            .eq('id', sponsorId)
+            .eq('status', 'pending');
+        } else {
+          await supabase
+            .from('sponsors')
+            .update({ status: 'invoiced' })
+            .eq('id', sponsorId)
+            .eq('status', 'pending');
+        }
+      }
+      return ACK;
+    }
+
     if (eventCode === 'AUTHORISATION') {
       if (success) {
         // .eq('payment_status', 'pending') both guards against double-processing

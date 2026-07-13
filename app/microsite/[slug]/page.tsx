@@ -30,6 +30,31 @@ async function getRegistrationCount(tournamentId: string) {
   return count ?? 0;
 }
 
+// Paid sponsors with logos auto-flow onto the microsite (service role: the
+// sponsors table has no public read policy since rows carry contact emails).
+async function getPaidSponsorLogos(tournamentId: string) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
+  const client = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+  const { data } = await client
+    .from('sponsors')
+    .select('company, logo_url, website')
+    .eq('tournament_id', tournamentId)
+    .eq('status', 'paid')
+    .not('logo_url', 'is', null);
+  return (data ?? []).map(s => ({ name: s.company, logo_url: s.logo_url as string, url: s.website ?? undefined }));
+}
+
+async function hasSponsorTiers(tournamentId: string) {
+  const { count } = await getSupabase()
+    .from('sponsorship_tiers')
+    .select('id', { count: 'exact', head: true })
+    .eq('tournament_id', tournamentId);
+  return (count ?? 0) > 0;
+}
+
 const EVENT_STATUS: Record<string, string> = {
   published: 'https://schema.org/EventScheduled',
   live: 'https://schema.org/EventScheduled',
@@ -112,7 +137,11 @@ export default async function MicrositePage({
   const t = await getTournament(slug);
   if (!t) notFound();
 
-  const [regCount] = await Promise.all([getRegistrationCount(t.id)]);
+  const [regCount, paidSponsorLogos, sponsorTiersAvailable] = await Promise.all([
+    getRegistrationCount(t.id),
+    getPaidSponsorLogos(t.id),
+    hasSponsorTiers(t.id),
+  ]);
   // Preserve the attribution tag (from a shared link) through to registration
   const registerUrl = `/register?id=${t.id}${src ? `&src=${encodeURIComponent(src)}` : ''}`;
 
@@ -123,7 +152,12 @@ export default async function MicrositePage({
   const spotsClaimed = Math.floor(regCount);
   const primaryColor = t.microsite_color ?? '#1B6B3A';
   const photos = (t.cause_photos as string[]) ?? [];
-  const sponsors = (t.sponsor_logos as { name: string; logo_url: string; url?: string }[]) ?? [];
+  const legacySponsors = (t.sponsor_logos as { name: string; logo_url: string; url?: string }[]) ?? [];
+  // De-dupe: a paid sponsor row wins over a manually-entered legacy logo of the same name
+  const sponsors = [
+    ...paidSponsorLogos,
+    ...legacySponsors.filter(l => !paidSponsorLogos.some(p => p.name.toLowerCase() === l.name.toLowerCase())),
+  ];
   const socials = (t.social_links as Record<string, string>) ?? {};
   const raisedCents = (t.historical_raised_cents as number) ?? 0;
   const daysLeft = daysUntil(t.event_date);
@@ -149,6 +183,7 @@ export default async function MicrositePage({
     { href: '#cause', label: 'Our Cause' },
     { href: '#format', label: 'Format' },
     ...(sponsors.length > 0 ? [{ href: '#sponsors', label: 'Sponsors' }] : []),
+    ...(sponsorTiersAvailable && !isCompleted ? [{ href: `/microsite/${slug}/sponsor`, label: 'Become a Sponsor' }] : []),
     ...(t.location_name ? [{ href: '#course', label: 'Course' }] : []),
   ];
 
@@ -320,7 +355,22 @@ export default async function MicrositePage({
                 }}>
                   Register a foursome
                 </Link>
-                {t.sponsor_hole_url ? (
+                {sponsorTiersAvailable ? (
+                  <Link href={`/microsite/${slug}/sponsor`} style={{
+                    display: 'inline-block',
+                    background: 'transparent',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: 15,
+                    padding: '13px 32px',
+                    borderRadius: 4,
+                    textDecoration: 'none',
+                    letterSpacing: '0.03em',
+                    border: '1.5px solid rgba(255,255,255,0.5)',
+                  }}>
+                    Become a Sponsor
+                  </Link>
+                ) : t.sponsor_hole_url ? (
                   <a href={t.sponsor_hole_url} target="_blank" rel="noopener noreferrer" style={{
                     display: 'inline-block',
                     background: 'transparent',
@@ -481,6 +531,13 @@ export default async function MicrositePage({
                   )
                 ))}
               </div>
+              {sponsorTiersAvailable && !isCompleted && (
+                <p style={{ marginTop: 20 }}>
+                  <Link href={`/microsite/${slug}/sponsor`} style={{ color: primaryColor, fontWeight: 700, fontSize: 15 }}>
+                    Join them — become a sponsor →
+                  </Link>
+                </p>
+              )}
             </section>
           )}
 

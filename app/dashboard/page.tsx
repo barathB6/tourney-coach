@@ -166,7 +166,7 @@ export default function Dashboard() {
     { label: 'Tell your cause story', done: causeStoryDone, href: '/story' },
     { label: 'Set up the event details', done: setupDone, href: '/setup/format' },
     { label: 'Open registration', done: false, href: null },
-    { label: 'Line up your sponsors', done: false, href: null },
+    { label: 'Line up your sponsors', done: false, href: '/dashboard/sponsors' },
     { label: 'Rally your volunteers', done: false, href: null },
     { label: 'Build your day-of game plan', done: false, href: null },
   ];
