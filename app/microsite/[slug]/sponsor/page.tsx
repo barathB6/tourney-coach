@@ -1,5 +1,6 @@
 'use client';
 
+import '@adyen/adyen-web/styles/adyen.css';
 import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
