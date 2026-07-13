@@ -45,12 +45,14 @@ function fmtFormat(f: string) {
 // ── Dashboard ─────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const router = useRouter();
-  const [user, setUser] = useState<{ name: string; fullName: string; initials: string; avatar: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; fullName: string; initials: string; avatar: string; id: string } | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [allTournaments, setAllTournaments] = useState<Tournament[]>([]);
   const [registrationCount, setRegistrationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [storyDone, setStoryDone] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [phase2CoachDismissed, setPhase2CoachDismissed] = useState(false);
 
@@ -58,6 +60,20 @@ export default function Dashboard() {
     await supabase.auth.signOut();
     router.replace('/sign-in');
   };
+
+  async function switchTournament(t: Tournament) {
+    setTournament(t);
+    setSwitchOpen(false);
+    if (user) {
+      try { localStorage.setItem(`tourney_selected_tournament_${user.id}`, t.id); } catch { /* */ }
+    }
+    const { count } = await supabase
+      .from('registrations')
+      .select('*', { count: 'exact', head: true })
+      .eq('tournament_id', t.id)
+      .in('payment_status', ['pending', 'paid']);
+    setRegistrationCount(count ?? 0);
+  }
 
   useEffect(() => {
     async function load() {
@@ -70,7 +86,7 @@ export default function Dashboard() {
       const initials = fullName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
       const avatar = u.user_metadata?.avatar_url || u.user_metadata?.picture || '';
       console.log('[Dashboard] user_metadata:', u.user_metadata, '| avatar:', avatar);
-      setUser({ name: firstName, fullName, initials, avatar });
+      setUser({ name: firstName, fullName, initials, avatar, id: u.id });
 
       try {
         const saved = localStorage.getItem(`tourney_story_${u.id}`);
@@ -110,6 +126,14 @@ export default function Dashboard() {
           .maybeSingle();
         picked = data;
       }
+
+      // Load all tournaments for the switcher
+      const { data: allT } = await supabase
+        .from('tournaments')
+        .select(fields)
+        .eq('organizer_id', u.id)
+        .order('created_at', { ascending: false });
+      if (allT) setAllTournaments(allT);
 
       if (picked) {
         const data = picked;
@@ -246,13 +270,57 @@ export default function Dashboard() {
           </div>
 
           {tournament && (
-            <div style={s.tourney}>
-              <div style={s.tName}>{tournament.name}</div>
-              <div style={s.tMeta}>
-                {fmtDate(tournament.event_date)}
-                {' · '}{fmtFormat(tournament.format)}
-                {' · '}{tournament.max_players} players
-              </div>
+            <div style={{ ...s.tourney, position: 'relative' }}>
+              <button
+                onClick={() => setSwitchOpen(o => !o)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                <div>
+                  <div style={s.tName}>{tournament.name}</div>
+                  <div style={s.tMeta}>
+                    {fmtDate(tournament.event_date)}
+                    {' · '}{fmtFormat(tournament.format)}
+                    {' · '}{tournament.max_players} players
+                  </div>
+                </div>
+                {allTournaments.length > 1 && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: '#5C6B62', flexShrink: 0 }}>
+                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+
+              {switchOpen && allTournaments.length > 1 && (
+                <>
+                  <div onClick={() => setSwitchOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
+                  <div style={{ position: 'absolute', left: 0, top: 'calc(100% + 8px)', background: '#fff', border: '1px solid var(--line)', borderRadius: 12, boxShadow: '0 4px 20px rgba(15,74,38,.12)', minWidth: 260, zIndex: 20, overflow: 'hidden' }}>
+                    <div style={{ padding: '8px 12px 6px', fontSize: 10.5, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#5C6B62' }}>
+                      Switch event
+                    </div>
+                    {allTournaments.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => switchTournament(t)}
+                        style={{
+                          width: '100%', padding: '10px 14px', background: t.id === tournament.id ? '#EAF2ED' : 'transparent',
+                          border: 'none', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                          fontFamily: "'DM Sans', sans-serif", transition: 'background .1s',
+                        }}
+                        onMouseEnter={e => { if (t.id !== tournament.id) e.currentTarget.style.background = '#f5f5f0'; }}
+                        onMouseLeave={e => { if (t.id !== tournament.id) e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.id === tournament.id ? 'var(--primary)' : 'var(--line)', flexShrink: 0 }} />
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{t.name}</div>
+                          <div style={{ fontSize: 11.5, color: '#5C6B62', marginTop: 1 }}>
+                            {fmtDate(t.event_date)} · {fmtFormat(t.format)}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
