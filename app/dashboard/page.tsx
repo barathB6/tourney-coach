@@ -472,8 +472,8 @@ export default function Dashboard() {
                           {done ? <CheckIcon /> : isNow ? <CoachIcon color="var(--alert)" /> : i + 1}
                         </span>
                         <span style={{ paddingTop: 4, fontSize: 14, fontWeight: isNow ? 600 : 400, color: done ? '#5C6B62' : isNow ? 'var(--ink)' : '#5C6B62' }}>
-                          {isNow && href ? (
-                            <a href={href} onClick={e => { e.preventDefault(); router.push(href); }} style={{ color: 'var(--ink)', textDecoration: 'none' }}>
+                          {href ? (
+                            <a href={href} onClick={e => { e.preventDefault(); router.push(href); }} style={{ color: isNow ? 'var(--ink)' : '#5C6B62', textDecoration: 'none' }}>
                               {label}
                             </a>
                           ) : label}
