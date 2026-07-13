@@ -91,6 +91,8 @@ export default function SponsorsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [emailModal, setEmailModal] = useState<{ sponsor: Sponsor; subject: string; body: string; loading: boolean; error: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -125,13 +127,27 @@ export default function SponsorsPage() {
     setTiers((data ?? []).map(t => ({ ...t, benefits: (t.benefits as string[]) ?? [] })));
   }
 
+  // Prospects marked "contacted" with no reply after this many days are
+  // auto-flagged "no reply" so follow-up surfaces without manual bookkeeping.
+  const NO_REPLY_THRESHOLD_DAYS = 5;
+
   async function loadSponsors(tid: string) {
     const { data } = await supabase
       .from('sponsors')
       .select('*')
       .eq('tournament_id', tid)
       .order('created_at', { ascending: false });
-    setSponsors(data ?? []);
+    let rows = data ?? [];
+
+    const staleIds = rows
+      .filter(s => s.status === 'contacted' && s.last_touch && daysSince(s.last_touch) >= NO_REPLY_THRESHOLD_DAYS)
+      .map(s => s.id);
+    if (staleIds.length > 0) {
+      await supabase.from('sponsors').update({ status: 'no_reply' }).in('id', staleIds);
+      rows = rows.map(s => staleIds.includes(s.id) ? { ...s, status: 'no_reply' } : s);
+    }
+
+    setSponsors(rows);
   }
 
   // ── Tier operations ──────────────────────────────────────────────────────
@@ -199,6 +215,28 @@ export default function SponsorsPage() {
     if (!confirm('Remove this sponsor/prospect?')) return;
     await supabase.from('sponsors').delete().eq('id', id);
     loadSponsors(tournamentId);
+  }
+
+  // ── Logo upload ──────────────────────────────────────────────────────────
+  async function uploadLogo(sponsorId: string, file: File) {
+    if (!tournamentId) return;
+    if (!file.type.startsWith('image/')) { setUploadError('Please choose an image file.'); return; }
+    if (file.size > 5 * 1024 * 1024) { setUploadError('Logo must be under 5MB.'); return; }
+
+    setUploadingId(sponsorId);
+    setUploadError(null);
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      const path = `${tournamentId}/${sponsorId}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('sponsor-logos').upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('sponsor-logos').getPublicUrl(path);
+      await updateSponsor(sponsorId, { logo_url: pub.publicUrl, logo_received: true });
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingId(null);
+    }
   }
 
   // ── AI outreach ──────────────────────────────────────────────────────────
@@ -438,17 +476,22 @@ export default function SponsorsPage() {
                                     {label}
                                   </label>
                                 ))}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 280 }}>
-                                  <span style={{ fontSize: 13, color: '#6B7775', whiteSpace: 'nowrap' }}>Logo URL</span>
-                                  <input
-                                    style={{ ...s.input, flex: 1 }}
-                                    defaultValue={sp.logo_url ?? ''}
-                                    placeholder="https://… (shows on microsite)"
-                                    onBlur={e => {
-                                      const v = e.target.value.trim();
-                                      if (v !== (sp.logo_url ?? '')) updateSponsor(sp.id, { logo_url: v || null, logo_received: Boolean(v) || sp.logo_received });
-                                    }}
-                                  />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 320 }}>
+                                  <span style={{ fontSize: 13, color: '#6B7775', whiteSpace: 'nowrap' }}>Logo</span>
+                                  {sp.logo_url && (
+                                    <img src={sp.logo_url} alt={`${sp.company} logo`} style={{ height: 32, maxWidth: 90, objectFit: 'contain', background: '#fff', border: '1px solid #E5E0D5', borderRadius: 6, padding: 3 }} />
+                                  )}
+                                  <label style={{ ...s.btnGhost, display: 'inline-flex', alignItems: 'center', cursor: uploadingId === sp.id ? 'default' : 'pointer', opacity: uploadingId === sp.id ? 0.6 : 1 }}>
+                                    {uploadingId === sp.id ? 'Uploading…' : sp.logo_url ? 'Replace logo' : 'Upload logo'}
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      disabled={uploadingId === sp.id}
+                                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(sp.id, f); e.target.value = ''; }}
+                                      style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+                                    />
+                                  </label>
+                                  {uploadError && uploadingId === null && <span style={{ fontSize: 12, color: '#C0392B' }}>{uploadError}</span>}
                                 </div>
                               </div>
                             </td>

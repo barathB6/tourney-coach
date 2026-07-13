@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getPaymentProcessor } from '@/lib/payments';
 import { sendConfirmationEmail } from '@/lib/email/confirmation';
+import { sendSponsorConfirmationEmail } from '@/lib/email/sponsorConfirmation';
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,11 +34,30 @@ export async function POST(req: NextRequest) {
       const sponsorId = merchantReference.slice('sponsor:'.length);
       if (eventCode === 'AUTHORISATION') {
         if (success) {
-          await supabase
+          const { data: paidSponsor } = await supabase
             .from('sponsors')
             .update({ status: 'paid', adyen_psp_reference: pspReference, last_touch: new Date().toISOString() })
             .eq('id', sponsorId)
-            .eq('status', 'pending');
+            .eq('status', 'pending')
+            .select('company, contact_name, email, amount_cents, tournament_id, sponsorship_tiers(name), tournaments(name, event_date, location_name)')
+            .single();
+
+          if (paidSponsor?.email) {
+            const tier = paidSponsor.sponsorship_tiers as unknown as { name: string } | null;
+            const tournament = paidSponsor.tournaments as unknown as { name: string; event_date: string; location_name: string | null } | null;
+            if (tournament) {
+              sendSponsorConfirmationEmail({
+                contactEmail: paidSponsor.email,
+                contactName: paidSponsor.contact_name,
+                company: paidSponsor.company,
+                tierName: tier?.name ?? 'Sponsorship',
+                amountCents: paidSponsor.amount_cents ?? 0,
+                tournamentName: tournament.name,
+                eventDate: tournament.event_date,
+                locationName: tournament.location_name,
+              }).catch(err => console.error('Sponsor confirmation email error:', err));
+            }
+          }
         } else {
           await supabase
             .from('sponsors')
