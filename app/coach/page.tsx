@@ -105,6 +105,47 @@ function daysOut(dateStr: string) {
   return Math.max(0, Math.round((new Date(dateStr).getTime() - Date.now()) / 86400000));
 }
 
+// ── Leaderboard demo data ────────────────────────────────────────────────
+interface LbTeam { name: string; pace: 'good' | 'warn' | 'late'; scores: number[]; thru: number; }
+
+const INITIAL_TEAMS: LbTeam[] = [
+  { name: "Curry & Friends",    pace: "good", scores: [-1,-1,-1,-1, 0,-1,-2,-1,-1,-1,-1,-1,-1,-1], thru: 14 },
+  { name: "Riverside Law",      pace: "good", scores: [-1,-1, 0,-1,-1,-1,-1,-1, 0,-1,-1,-1,-1, 0], thru: 14 },
+  { name: "CFR Medical Group",  pace: "warn", scores: [-1, 0,-1,-1,-1, 0,-1,-1,-1,-1, 0,-1,-1,-1], thru: 14 },
+  { name: "The Garcia Family",  pace: "good", scores: [-1,-1,-1, 0,-1,-1,-1,-1,-1, 0,-1,-1,-1,-1], thru: 14 },
+  { name: "Magnolia Capital",   pace: "good", scores: [-1,-1, 0,-1, 0,-1,-1,-1,-1,-1,-1, 0,-1,-1], thru: 14 },
+  { name: "DePaolo & Assoc.",   pace: "warn", scores: [ 0,-1,-1,-1, 0,-1,-1, 0,-1,-1,-1,-1, 0,-1], thru: 13 },
+  { name: "Wilson Insurance",   pace: "good", scores: [-1,-1, 0,-1,-1,-1, 0, 0,-1,-1, 0,-1,-1, 0], thru: 14 },
+  { name: "Sanford Fire Dept",  pace: "good", scores: [-1, 0,-1, 0,-1,-1,-1, 0,-1,-1,-1, 0,-1,-1], thru: 14 },
+  { name: "Lake Mary Builders", pace: "late", scores: [ 0, 0,-1,-1, 0,-1,-1,-1, 0,-1,-1,-1, 0,-1], thru: 13 },
+  { name: "First Baptist",      pace: "good", scores: [-1,-1,-1,-1,-1, 0, 0,-1, 0, 0,-1,-1,-1,-1], thru: 14 },
+  { name: "Oviedo Dental",      pace: "warn", scores: [ 0,-1,-1, 0, 0,-1,-1,-1,-1,-1, 0,-1,-1, 0], thru: 13 },
+  { name: "Seminole Title",     pace: "good", scores: [-1, 0,-1,-1, 0, 0,-1,-1, 0,-1,-1,-1, 0, 0], thru: 14 },
+];
+
+const COE_GROUPS = [
+  { rank: 1, initials: 'MW', bg: '#f5e6b3', fg: '#7a5c00', rankColor: '#b8860b', name: 'Mike & Wilson Group',    loc: 'Orlando · 14 tournaments',     given: '$18,400', prize: true },
+  { rank: 2, initials: 'RL', bg: '#e8e8e8', fg: '#555',    rankColor: '#b8860b', name: 'Riverside Law Group',    loc: 'Winter Park · 11 tournaments', given: '$14,200', prize: true },
+  { rank: 3, initials: 'SH', bg: '#f5dece', fg: '#7a3a10', rankColor: '#888',    name: 'Sarah & The Hendersons', loc: 'Sanford · 9 tournaments',      given: '$11,650', prize: true },
+  { rank: 4, initials: 'CF', bg: '#dceeff', fg: '#1a5fa8', rankColor: '#888',    name: 'CFR Medical Partners',   loc: 'Lake Mary · 8 tournaments',    given: '$9,800',  prize: true },
+  { rank: 5, initials: 'TG', bg: '#e8f5e9', fg: '#2e7d32', rankColor: '#a0522d', name: 'The Garcia Family',      loc: 'Deltona · 7 tournaments',      given: '$8,250',  prize: true },
+  { rank: 6, initials: 'DP', bg: '#f5f5f3', fg: '#6b6b67', rankColor: '#9b9b96', name: 'DePaolo & Associates',   loc: 'Oviedo · 6 tournaments',       given: '$6,900',  prize: false },
+];
+
+const RADIUS_OPTIONS = [
+  { label: '15 miles — 184 players', count: 184 },
+  { label: '25 miles — 347 players', count: 347 },
+  { label: '35 miles — 521 players', count: 521 },
+  { label: '50 miles — 789 players', count: 789 },
+];
+
+function totalScore(t: LbTeam) { return t.scores.slice(0, t.thru).reduce((a, b) => a + b, 0); }
+function scoreLabel(n: number) {
+  if (n < 0) return { txt: String(n), color: '#16a34a' };
+  if (n > 0) return { txt: '+' + n, color: '#c0392b' };
+  return { txt: 'E', color: '#6b6b67' };
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 export default function CoachPage() {
   const router = useRouter();
@@ -123,6 +164,19 @@ export default function CoachPage() {
   const [switchOpen, setSwitchOpen] = useState(false);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [regCount, setRegCount] = useState(0);
+  const [screen, setScreen] = useState<'coach' | 'circle' | 'board'>('coach');
+  // TourneyCircle state
+  const [tcTab, setTcTab] = useState<'organizer' | 'excellence'>('organizer');
+  const [radiusIdx, setRadiusIdx] = useState(1);
+  const [showPerf, setShowPerf] = useState(false);
+  const [convFillW, setConvFillW] = useState(0);
+  const [coePeriod, setCoePeriod] = useState('2026 Season');
+  // Leaderboard state
+  const [teams, setTeams] = useState<LbTeam[]>(INITIAL_TEAMS);
+  const [kitchenShown, setKitchenShown] = useState(false);
+  const [kitchenSecs, setKitchenSecs] = useState(2700);
+  const [updatedTeam, setUpdatedTeam] = useState<string | null>(null);
+  const lbStartedRef = useRef(false);
   const msgsRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -242,6 +296,35 @@ export default function CoachPage() {
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.getVoices();
   }, []);
+
+  // ── Leaderboard simulation ───────────────────────────────────────────────
+  useEffect(() => {
+    if (screen !== 'board' || lbStartedRef.current) return;
+    lbStartedRef.current = true;
+    const kitchenDelay = setTimeout(() => setKitchenShown(true), 1800);
+    const sim = setInterval(() => {
+      setTeams(prev => {
+        const copy = prev.map(t => ({ ...t, scores: [...t.scores] }));
+        const idx = Math.floor(Math.random() * copy.length);
+        const t = copy[idx];
+        if (t.thru < 18) {
+          t.scores.push(Math.random() < 0.55 ? -1 : Math.random() < 0.3 ? 0 : 1);
+          t.thru++;
+          setUpdatedTeam(t.name);
+          setTimeout(() => setUpdatedTeam(null), 800);
+        }
+        return copy;
+      });
+    }, 3500);
+    return () => { clearTimeout(kitchenDelay); clearInterval(sim); };
+  }, [screen]);
+
+  // Kitchen countdown
+  useEffect(() => {
+    if (!kitchenShown) return;
+    const timer = setInterval(() => setKitchenSecs(s => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(timer);
+  }, [kitchenShown]);
 
   // ── Auth token helper ────────────────────────────────────────────────────
   async function getToken() {
@@ -450,21 +533,18 @@ export default function CoachPage() {
 
         {/* ═══ TOP TABS ═══ */}
         <nav style={{ display: 'flex', gap: 0, padding: '0 24px', borderBottom: '0.5px solid rgba(0,0,0,0.09)', flexShrink: 0 }}>
-          <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', background: 'transparent', fontFamily: 'inherit', padding: '11px 4px', marginRight: 26, borderBottom: '2px solid #1B6B3A' }}>
-            <span style={{ fontSize: 13, color: '#1B6B3A', fontWeight: 600, letterSpacing: '0.01em' }}>AI Coach</span>
-          </button>
-          <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', background: 'transparent', fontFamily: 'inherit', padding: '11px 4px', marginRight: 26, borderBottom: '2px solid transparent' }}>
-            <span style={{ fontSize: 13, color: '#9b9b96', fontWeight: 600, letterSpacing: '0.01em' }}>TourneyCircle</span>
-          </button>
-          <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', background: 'transparent', fontFamily: 'inherit', padding: '11px 4px', marginRight: 26, borderBottom: '2px solid transparent' }}>
-            <span style={{ fontSize: 13, color: '#9b9b96', fontWeight: 600, letterSpacing: '0.01em' }}>Leaderboard</span>
-          </button>
+          {([['coach', 'AI Coach'], ['circle', 'TourneyCircle'], ['board', 'Leaderboard']] as const).map(([id, label]) => (
+            <button key={id} onClick={() => setScreen(id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', background: 'transparent', fontFamily: 'inherit', padding: '11px 4px', marginRight: 26, borderBottom: screen === id ? '2px solid #1B6B3A' : '2px solid transparent' }}>
+              <span style={{ fontSize: 13, color: screen === id ? '#1B6B3A' : '#9b9b96', fontWeight: 600, letterSpacing: '0.01em' }}>{label}</span>
+            </button>
+          ))}
         </nav>
 
         {/* ═══ MAIN ROW ═══ */}
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
           {/* ── Chat area ── */}
+          {screen === 'coach' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
             {/* Messages */}
             <div ref={msgsRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 6px', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 800, margin: '0 auto', width: '100%' }}>
@@ -546,6 +626,211 @@ export default function CoachPage() {
               </div>
             </div>
           </div>
+          )}
+
+          {/* ── TourneyCircle screen ── */}
+          {screen === 'circle' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, maxWidth: 640, margin: '0 auto', width: '100%' }}>
+            {/* TC tabs */}
+            <div style={{ display: 'flex', borderBottom: '0.5px solid rgba(0,0,0,0.09)', flexShrink: 0 }}>
+              <button onClick={() => setTcTab('organizer')} style={{ flex: 1, padding: '10px 8px', fontSize: 12, fontWeight: 500, color: tcTab === 'organizer' ? '#1B6B3A' : '#9b9b96', cursor: 'pointer', textAlign: 'center', borderBottom: tcTab === 'organizer' ? '2px solid #1B6B3A' : '2px solid transparent', background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid', borderBottomColor: tcTab === 'organizer' ? '#1B6B3A' : 'transparent', fontFamily: 'inherit' }}>Organizer View</button>
+              <button onClick={() => setTcTab('excellence')} style={{ flex: 1, padding: '10px 8px', fontSize: 12, fontWeight: 500, color: tcTab === 'excellence' ? '#1B6B3A' : '#9b9b96', cursor: 'pointer', textAlign: 'center', background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid', borderBottomColor: tcTab === 'excellence' ? '#1B6B3A' : 'transparent', fontFamily: 'inherit' }}>Circle of Excellence</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {tcTab === 'organizer' && (
+              <div style={{ padding: '16px 14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7, marginBottom: 14 }}>
+                  <div style={{ background: '#f5f5f3', borderRadius: 8, padding: '9px 7px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 19, fontWeight: 600, color: '#1B6B3A' }}>347</div>
+                    <div style={{ fontSize: 9.5, color: '#6b6b67', marginTop: 2, lineHeight: 1.3 }}>Players within 25 mi</div>
+                  </div>
+                  <div style={{ background: '#f5f5f3', borderRadius: 8, padding: '9px 7px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 19, fontWeight: 600, color: '#1B6B3A' }}>62</div>
+                    <div style={{ fontSize: 9.5, color: '#6b6b67', marginTop: 2, lineHeight: 1.3 }}>Corporate accounts</div>
+                  </div>
+                  <div style={{ background: '#f5f5f3', borderRadius: 8, padding: '9px 7px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 19, fontWeight: 600, color: '#1B6B3A' }}>$29</div>
+                    <div style={{ fontSize: 9.5, color: '#6b6b67', marginTop: 2, lineHeight: 1.3 }}>Per notification</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <label style={{ fontSize: 12, color: '#6b6b67' }}>Notification radius</label>
+                  <select value={radiusIdx} onChange={e => { setRadiusIdx(Number(e.target.value)); setShowPerf(false); setConvFillW(0); }} style={{ fontSize: 12, border: '0.5px solid rgba(0,0,0,0.16)', borderRadius: 6, padding: '4px 8px', background: '#f5f5f3', color: '#1a1a18', fontFamily: 'inherit', outline: 'none' }}>
+                    {RADIUS_OPTIONS.map((r, i) => <option key={i} value={i}>{r.label}</option>)}
+                  </select>
+                </div>
+
+                <div style={{ background: 'rgba(27,107,58,0.1)', border: '0.5px solid rgba(27,107,58,0.2)', borderRadius: 10, padding: 13, marginBottom: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 26, fontWeight: 700, color: '#1B6B3A' }}>{RADIUS_OPTIONS[radiusIdx].count}</div>
+                  <div style={{ fontSize: 11.5, color: '#6b6b67', marginTop: 3 }}>registered TourneyCircle players want to hear about tournaments near you</div>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 8 }}>
+                    <div style={{ fontSize: 10.5, color: '#6b6b67', textAlign: 'center' }}><span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#1a1a18' }}>285</span>Individual</div>
+                    <div style={{ fontSize: 10.5, color: '#6b6b67', textAlign: 'center' }}><span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#1a1a18' }}>62</span>Corporate</div>
+                    <div style={{ fontSize: 10.5, color: '#6b6b67', textAlign: 'center' }}><span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#1a1a18' }}>41</span>CoE members</div>
+                  </div>
+                </div>
+
+                <button onClick={() => { setShowPerf(true); setTimeout(() => setConvFillW(22), 100); }} style={{ width: '100%', background: '#1B6B3A', color: '#fff', border: 'none', borderRadius: 10, padding: 12, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+                  Notify {RADIUS_OPTIONS[radiusIdx].count} Players — $29
+                </button>
+                <div style={{ textAlign: 'center', fontSize: 10.5, color: '#9b9b96', marginTop: 5 }}>TourneyCoach sends on your behalf. You never see names or emails.</div>
+
+                {showPerf && (
+                <div style={{ background: '#f5f5f3', borderRadius: 10, padding: 12, marginTop: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#6b6b67', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Notification performance</div>
+                  {[['Players notified', '347'], ['Clicked your link', '73 (21%)'], ['Registered', '16 players — 4 foursomes']].map(([l, v], i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '0.5px solid rgba(0,0,0,0.09)' }}>
+                      <span style={{ fontSize: 11.5, color: '#6b6b67' }}>{l}</span><strong style={{ fontSize: 12, color: '#1a1a18' }}>{v}</strong>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                    <span style={{ fontSize: 11.5, color: '#6b6b67' }}>Revenue to your cause</span><strong style={{ fontSize: 12, color: '#1B6B3A' }}>$2,400</strong>
+                  </div>
+                  <div style={{ height: 3, background: 'rgba(0,0,0,0.09)', borderRadius: 2, marginTop: 7, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: '#1B6B3A', borderRadius: 2, width: `${convFillW}%`, transition: 'width 1.2s ease' }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: '#9b9b96', marginTop: 4 }}>4.6% conversion · industry avg 3.1%</div>
+                </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 7, background: '#f5f5f3', borderRadius: 9, padding: '9px 11px', marginTop: 10, alignItems: 'flex-start' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9b9b96" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  <p style={{ fontSize: 11, color: '#6b6b67', lineHeight: 1.5, margin: 0 }}>Player data never leaves TourneyCoach. You see counts and performance only — never names, emails, or contact details.</p>
+                </div>
+              </div>
+              )}
+
+              {tcTab === 'excellence' && (
+              <div style={{ padding: '16px 14px' }}>
+                <div style={{ background: 'linear-gradient(135deg,#163322 0%,#1B6B3A 100%)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                  <h3 style={{ color: '#fff', fontSize: 13.5, fontWeight: 600, margin: 0 }}>TourneyCircle of Excellence</h3>
+                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, marginTop: 3, lineHeight: 1.5, marginBottom: 0 }}>Recognizing golfers who show up, give back, and make a difference year after year.</p>
+                  <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 6, padding: '7px 9px', marginTop: 9, display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffd700" strokeWidth="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+                    <span style={{ color: '#ffd700', fontSize: 10.5, fontWeight: 600 }}>Top 5 groups earn a complimentary foursome — any TourneyCoach event</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 5, marginBottom: 12 }}>
+                  {['2026 Season', 'All-Time', 'Central FL'].map(p => (
+                    <button key={p} onClick={() => setCoePeriod(p)} style={{ fontSize: 11, padding: '4px 11px', borderRadius: 20, border: coePeriod === p ? '0.5px solid #1B6B3A' : '0.5px solid rgba(0,0,0,0.16)', background: coePeriod === p ? '#1B6B3A' : '#f5f5f3', color: coePeriod === p ? '#fff' : '#6b6b67', cursor: 'pointer', fontFamily: 'inherit' }}>{p}</button>
+                  ))}
+                </div>
+                {COE_GROUPS.map(g => (
+                  <div key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 0', borderBottom: g.rank < 6 ? '0.5px solid rgba(0,0,0,0.09)' : 'none' }}>
+                    <div style={{ width: 20, textAlign: 'center', fontSize: 12.5, fontWeight: 600, flexShrink: 0, color: g.rankColor }}>{g.rank}</div>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, flexShrink: 0, background: g.bg, color: g.fg }}>{g.initials}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: '#1a1a18', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
+                      <div style={{ fontSize: 10.5, color: '#6b6b67', marginTop: 1 }}>{g.loc}</div>
+                      {g.prize && <div style={{ fontSize: 9.5, background: 'rgba(184,134,11,0.1)', color: '#b8860b', borderRadius: 4, padding: '2px 5px', fontWeight: 600, marginTop: 2, display: 'inline-block' }}>Free foursome awarded</div>}
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: '#1B6B3A' }}>{g.given}</div>
+                      <div style={{ fontSize: 10, color: '#9b9b96' }}>total given</div>
+                    </div>
+                  </div>
+                ))}
+                <button style={{ width: '100%', background: '#f5f5f3', border: '0.5px solid rgba(0,0,0,0.16)', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 600, color: '#1B6B3A', cursor: 'pointer', fontFamily: 'inherit', marginTop: 12 }}>Join TourneyCircle — Free for Players</button>
+              </div>
+              )}
+            </div>
+          </div>
+          )}
+
+          {/* ── Live Leaderboard screen ── */}
+          {screen === 'board' && (() => {
+            const sorted = [...teams].sort((a, b) => totalScore(a) - totalScore(b));
+            const maxThru = Math.max(...teams.map(t => t.thru));
+            return (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, maxWidth: 640, margin: '0 auto', width: '100%' }}>
+            {/* Header */}
+            <div style={{ background: '#fff', borderBottom: '0.5px solid rgba(0,0,0,0.09)', padding: '10px 14px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a18' }}>{tournament?.name || "St. Michael's Charity Classic"}</div>
+                  <div style={{ fontSize: 11, color: '#6b6b67', marginTop: 1 }}>Magnolia Club, Sanford FL &nbsp;•&nbsp; Scramble &nbsp;•&nbsp; {maxThru} of 18 holes</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(27,107,58,0.1)', borderRadius: 20, padding: '4px 10px' }}>
+                  <div style={{ width: 6, height: 6, background: '#1B6B3A', borderRadius: '50%', animation: 'pulse 1.5s infinite' }} />
+                  <span style={{ fontSize: 11, color: '#1B6B3A', fontWeight: 600 }}>LIVE</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[['72', 'Players'], ['18', 'Foursomes'], ['$18,400', 'Raised'], ['2:45', 'Est. finish']].map(([n, l], i) => (
+                  <div key={i} style={{ flex: 1, background: '#f5f5f3', borderRadius: 7, padding: '7px 10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a18' }}>{n}</div>
+                    <div style={{ fontSize: 10, color: '#6b6b67', marginTop: 1 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Kitchen alert */}
+            {kitchenShown && (
+            <div style={{ background: 'linear-gradient(135deg,#1B6B3A,#2d8a50)', borderRadius: 10, padding: '11px 13px', margin: '10px 14px 0', display: 'flex', alignItems: 'center', gap: 10, animation: 'slideIn .4s ease', flexShrink: 0 }}>
+              <div style={{ width: 32, height: 32, background: 'rgba(255,255,255,0.15)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+              </div>
+              <div>
+                <h4 style={{ color: '#fff', fontSize: 12, fontWeight: 600, margin: 0 }}>Kitchen Notification Sent</h4>
+                <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10.5, marginTop: 1, marginBottom: 0 }}>Estimated finish in 45 minutes — auto-triggered by TourneyCoach</p>
+              </div>
+              <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', borderRadius: 7, padding: '4px 8px', color: '#fff', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {Math.floor(kitchenSecs / 60)}:{String(kitchenSecs % 60).padStart(2, '0')}
+              </div>
+            </div>
+            )}
+
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 36px 36px 48px', gap: 4, padding: '7px 14px', background: '#f5f5f3', borderBottom: '0.5px solid rgba(0,0,0,0.09)', flexShrink: 0, marginTop: kitchenShown ? 10 : 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#9b9b96', textTransform: 'uppercase', letterSpacing: '0.05em' }}>#</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#9b9b96', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#9b9b96', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Thru</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#9b9b96', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Score</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#9b9b96', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Total</span>
+            </div>
+
+            {/* Rows */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px' }}>
+              {sorted.map((t, i) => {
+                const tot = totalScore(t);
+                const sl = scoreLabel(tot);
+                const holeScore = t.scores[t.thru - 1] || 0;
+                const hs = scoreLabel(holeScore);
+                const paceTxt = t.pace === 'good' ? 'On pace' : t.pace === 'warn' ? 'Slightly behind' : 'Needs attention';
+                const paceColor = t.pace === 'good' ? '#22c55e' : t.pace === 'warn' ? '#f59e0b' : '#ef4444';
+                return (
+                  <div key={t.name} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 36px 36px 48px', gap: 4, alignItems: 'center', padding: '9px 0', borderBottom: i < sorted.length - 1 ? '0.5px solid rgba(0,0,0,0.09)' : 'none', background: updatedTeam === t.name ? 'rgba(27,107,58,0.06)' : 'transparent', transition: 'background .3s' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: i === 0 ? '#b8860b' : '#6b6b67' }}>{i + 1}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: '#1a1a18', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                        <div style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, background: paceColor }} />
+                        <span style={{ fontSize: 10, color: '#9b9b96' }}>{paceTxt}</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 12, color: '#6b6b67', textAlign: 'right' }}>{t.thru}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', color: hs.color }}>{hs.txt}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'right', color: sl.color }}>{sl.txt}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pace legend */}
+            <div style={{ display: 'flex', gap: 12, padding: '8px 14px', borderTop: '0.5px solid rgba(0,0,0,0.09)', flexShrink: 0 }}>
+              {[['#22c55e', 'On pace'], ['#f59e0b', 'Slightly behind'], ['#ef4444', 'Needs attention']].map(([c, l], i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#9b9b96' }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: c }} />{l}
+                </div>
+              ))}
+            </div>
+          </div>
+            );
+          })()}
 
           {/* ═══ RIGHT SIDEBAR ═══ */}
           <aside style={{ width: 300, flexShrink: 0, borderLeft: '0.5px solid rgba(0,0,0,0.09)', padding: 20, overflowY: 'auto', background: '#fff' }}>
@@ -602,6 +887,8 @@ export default function CoachPage() {
       <style>{`
         @keyframes pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes bop { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.85); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
         @media (max-width: 760px) { aside { display: none !important; } }
         @media (max-width: 900px) { .app-shell { border-radius: 0 !important; height: 100vh !important; max-height: 100vh !important; } }
         ::-webkit-scrollbar { width: 3px; }
