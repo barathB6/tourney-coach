@@ -192,7 +192,7 @@ export default function Dashboard() {
     wrap: { maxWidth: 1180, margin: '0 auto', padding: '28px 22px 56px' },
 
     // Top bar
-    topbar: { display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', padding: '16px 20px', background: '#fff', border: '1px solid var(--line)', borderRadius: 16, boxShadow: '0 1px 3px rgba(15,74,38,.06), 0 8px 28px rgba(15,74,38,.08)' },
+    topbar: { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'nowrap', padding: '10px 20px', background: '#fff', border: '1px solid var(--line)', borderRadius: 16, boxShadow: '0 1px 3px rgba(15,74,38,.06), 0 8px 28px rgba(15,74,38,.08)', overflow: 'visible', minWidth: 0 },
     mark: { width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: 'var(--primary)', display: 'grid', placeItems: 'center' },
     brandName: { fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 19, letterSpacing: '-.02em', color: 'var(--ink)' },
     tourney: { paddingLeft: 18, borderLeft: '1px solid var(--line)' },

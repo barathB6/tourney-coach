@@ -260,25 +260,17 @@ export default function CoachPage() {
       let selectedId: string | null = null;
       try { selectedId = localStorage.getItem(`tourney_selected_tournament_${u.id}`); } catch { /* */ }
 
-      const fields = 'id, name, event_date, format, max_players, team_size, entry_fee, status, cause_story_full, organization';
-      let picked: Tournament | null = null;
+      const { data: allT, error: tErr } = await supabase.from('tournaments').select('*').eq('organizer_id', u.id).order('created_at', { ascending: false });
+      if (tErr) console.error('[Coach] tournaments query failed:', tErr.message);
+      const all: Tournament[] = allT ?? [];
+      setAllTournaments(all);
 
-      if (selectedId) {
-        const { data } = await supabase.from('tournaments').select(fields).eq('organizer_id', u.id).eq('id', selectedId).maybeSingle();
-        picked = data;
-      }
-      if (!picked) {
-        const { data } = await supabase.from('tournaments').select(fields).eq('organizer_id', u.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        picked = data;
-      }
+      const picked = all.find(t => t.id === selectedId) ?? all[0] ?? null;
       if (picked) {
         setTournament(picked);
         const { count } = await supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('tournament_id', picked.id).in('payment_status', ['pending', 'paid']);
         setRegCount(count ?? 0);
       }
-
-      const { data: allT } = await supabase.from('tournaments').select(fields).eq('organizer_id', u.id).order('created_at', { ascending: false });
-      if (allT) setAllTournaments(allT);
 
       setLoading(false);
 
@@ -295,6 +287,10 @@ export default function CoachPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.getVoices();
+    // Stop speaking when leaving the page
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    };
   }, []);
 
   // ── Leaderboard simulation ───────────────────────────────────────────────
@@ -480,9 +476,56 @@ export default function CoachPage() {
           </div>
           <div><h1 style={{ color: '#1a1a18', fontSize: 17, fontWeight: 700, fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: '-0.01em', margin: 0 }}>TourneyCoach</h1></div>
           <div style={{ width: 0.5, height: 26, background: 'rgba(0,0,0,0.16)', flexShrink: 0 }} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a18', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tournament?.name || 'No Tournament'}</div>
-            <div style={{ fontSize: 11.5, color: '#6b6b67', marginTop: 1 }}>{days !== null ? `${days} days out` : ''}</div>
+          <div style={{ minWidth: 0, position: 'relative' }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setSwitchOpen(o => !o); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a18', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tournament?.name || 'No Tournament'}</div>
+                <div style={{ fontSize: 11.5, color: '#6b6b67', marginTop: 1 }}>
+                  {tournament ? [
+                    new Date(tournament.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                    tournament.format ? tournament.format.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null,
+                    tournament.max_players ? `${tournament.max_players} players` : null,
+                    days !== null ? `${days} days out` : null,
+                  ].filter(Boolean).join(' · ') : ''}
+                </div>
+              </div>
+              {allTournaments.length > 1 && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: '#6b6b67', flexShrink: 0 }}>
+                  <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+
+            {switchOpen && allTournaments.length > 0 && (
+              <div style={{ position: 'absolute', left: 0, top: 'calc(100% + 8px)', background: '#fff', border: '0.5px solid rgba(0,0,0,0.16)', borderRadius: 12, boxShadow: '0 4px 20px rgba(15,74,38,.12)', minWidth: 260, zIndex: 100, overflow: 'hidden' }}>
+                <div style={{ padding: '8px 12px 6px', fontSize: 10.5, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#6b6b67' }}>
+                  Switch event
+                </div>
+                {allTournaments.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={(e) => { e.stopPropagation(); switchTournament(t); }}
+                    style={{
+                      width: '100%', padding: '10px 14px', background: t.id === tournament?.id ? 'rgba(27,107,58,0.08)' : 'transparent',
+                      border: 'none', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.id === tournament?.id ? '#1B6B3A' : 'rgba(0,0,0,0.16)', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: '#1a1a18' }}>{t.name}</div>
+                      <div style={{ fontSize: 11.5, color: '#6b6b67', marginTop: 1 }}>
+                        {new Date(t.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {t.format ? ` · ${t.format.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : ''}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: '#1B6B3A', background: 'rgba(27,107,58,0.1)', borderRadius: 20, padding: '5px 12px', whiteSpace: 'nowrap' }}>
@@ -490,21 +533,9 @@ export default function CoachPage() {
             </span>
 
             {/* Switch event */}
-            <div style={{ position: 'relative' }}>
-              <button onClick={(e) => { e.stopPropagation(); setSwitchOpen(o => !o); }} style={{ fontSize: 12.5, fontWeight: 600, color: '#1a1a18', background: '#fff', border: '0.5px solid rgba(0,0,0,0.16)', borderRadius: 8, padding: '6px 13px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                Switch event
-              </button>
-              {switchOpen && allTournaments.length > 0 && (
-                <div style={{ position: 'absolute', top: '110%', right: 0, background: '#fff', border: '0.5px solid rgba(0,0,0,0.16)', borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,0.12)', padding: 6, zIndex: 100, minWidth: 220 }}>
-                  {allTournaments.map(t => (
-                    <button key={t.id} onClick={(e) => { e.stopPropagation(); switchTournament(t); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: t.id === tournament?.id ? 'rgba(27,107,58,0.08)' : 'transparent', border: 'none', borderRadius: 7, padding: '8px 10px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, color: '#1a1a18', fontWeight: t.id === tournament?.id ? 600 : 400, textAlign: 'left' }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.id === tournament?.id ? '#1B6B3A' : 'transparent', border: t.id === tournament?.id ? 'none' : '1.5px solid rgba(0,0,0,0.16)', flexShrink: 0 }} />
-                      {t.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <button onClick={(e) => { e.stopPropagation(); setSwitchOpen(o => !o); }} style={{ fontSize: 12.5, fontWeight: 600, color: '#1a1a18', background: '#fff', border: '0.5px solid rgba(0,0,0,0.16)', borderRadius: 8, padding: '6px 13px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              Switch event
+            </button>
 
             {/* Demo / Live AI toggle */}
             <div style={{ display: 'flex', background: '#f5f5f3', borderRadius: 20, padding: 2, gap: 2 }}>
@@ -873,7 +904,7 @@ export default function CoachPage() {
             </div>
 
             {/* Back to Dashboard */}
-            <button onClick={() => router.push('/dashboard')} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginTop: 18, padding: '10px 14px', background: '#fff', border: '0.5px solid rgba(0,0,0,0.16)', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#1B6B3A' }}>
+            <button onClick={() => { stopSpeaking(); router.push('/dashboard'); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginTop: 18, padding: '10px 14px', background: '#fff', border: '0.5px solid rgba(0,0,0,0.16)', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#1B6B3A' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1B6B3A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
               Back to Dashboard
             </button>
