@@ -26,6 +26,20 @@ export default function VolunteersPage() {
   const [signups, setSignups] = useState<Signup[]>([]);
   const [tournamentName, setTournamentName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  async function removeVolunteer(id: string) {
+    setRemovingId(id);
+    const { error } = await supabase.from('volunteer_signups').delete().eq('id', id);
+    if (error) {
+      alert(`Could not remove volunteer: ${error.message}`);
+    } else {
+      setSignups(prev => prev.filter(v => v.id !== id));
+    }
+    setRemovingId(null);
+    setConfirmingId(null);
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -88,8 +102,8 @@ export default function VolunteersPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #E5E0D5', background: '#FAF8F3' }}>
-                  {['Name', 'Email', 'Phone', 'Role', 'Signed Up'].map(h => (
-                    <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7775' }}>{h}</th>
+                  {['Name', 'Email', 'Phone', 'Role', 'Signed Up', ''].map((h, i) => (
+                    <th key={i} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7775' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -110,6 +124,37 @@ export default function VolunteersPage() {
                     </td>
                     <td style={{ padding: '14px 16px', fontSize: 13, color: '#6B7775' }}>
                       {new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {confirmingId === s.id ? (
+                        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                          <button
+                            onClick={() => removeVolunteer(s.id)}
+                            disabled={removingId === s.id}
+                            style={{ background: '#C0392B', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: removingId === s.id ? 0.6 : 1 }}
+                          >
+                            {removingId === s.id ? 'Removing…' : 'Remove'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmingId(null)}
+                            style={{ background: 'none', color: '#6B7775', border: '1px solid #E5E0D5', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmingId(s.id)}
+                          title="Remove volunteer"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#9BA8A4', display: 'inline-flex' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#C0392B')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#9BA8A4')}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
