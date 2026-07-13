@@ -85,8 +85,6 @@ export default function SponsorsPage() {
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingTier, setEditingTier] = useState<string | null>(null);
-  const [tierDraft, setTierDraft] = useState<{ name: string; label: string; price: string; quantity: string; benefits: string; highlight: boolean }>({ name: '', label: '', price: '', quantity: '', benefits: '', highlight: false });
   const [presetOpen, setPresetOpen] = useState(false);
   const [addingProspect, setAddingProspect] = useState(false);
   const [prospectDraft, setProspectDraft] = useState({ company: '', contact_name: '', contact_title: '', email: '', tier_id: '' });
@@ -162,49 +160,10 @@ export default function SponsorsPage() {
     loadTiers(tournamentId);
   }
 
-  function startEditTier(t: Tier) {
-    setEditingTier(t.id);
-    setTierDraft({
-      name: t.name,
-      label: t.label ?? '',
-      price: String(t.price_cents / 100),
-      quantity: t.quantity == null ? '' : String(t.quantity),
-      benefits: t.benefits.join('\n'),
-      highlight: t.highlight,
-    });
-  }
-
-  async function saveTier(id: string) {
-    if (!tournamentId) return;
-    const { error } = await supabase.from('sponsorship_tiers').update({
-      name: tierDraft.name.trim() || 'Untitled',
-      label: tierDraft.label.trim() || null,
-      price_cents: Math.max(0, Math.round(parseFloat(tierDraft.price || '0') * 100)),
-      quantity: tierDraft.quantity.trim() === '' ? null : Math.max(1, parseInt(tierDraft.quantity, 10) || 1),
-      benefits: tierDraft.benefits.split('\n').map(b => b.trim()).filter(Boolean),
-      highlight: tierDraft.highlight,
-    }).eq('id', id);
-    if (error) { alert(error.message); return; }
-    setEditingTier(null);
-    loadTiers(tournamentId);
-  }
-
   async function deleteTier(id: string) {
     if (!tournamentId) return;
     if (!confirm('Delete this package? Sponsors on it keep their records.')) return;
     await supabase.from('sponsorship_tiers').delete().eq('id', id);
-    loadTiers(tournamentId);
-  }
-
-  async function moveTier(idx: number, dir: -1 | 1) {
-    if (!tournamentId) return;
-    const target = idx + dir;
-    if (target < 0 || target >= tiers.length) return;
-    const a = tiers[idx], b = tiers[target];
-    await Promise.all([
-      supabase.from('sponsorship_tiers').update({ sort_order: target }).eq('id', a.id),
-      supabase.from('sponsorship_tiers').update({ sort_order: idx }).eq('id', b.id),
-    ]);
     loadTiers(tournamentId);
   }
 
@@ -338,60 +297,34 @@ export default function SponsorsPage() {
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 16, marginBottom: 36 }}>
-                {tiers.map((t, idx) => {
+                {tiers.map((t) => {
                   const sold = soldCount(t);
-                  const isEditing = editingTier === t.id;
                   return (
                     <div key={t.id} style={{
                       background: '#fff', borderRadius: 12, padding: '20px 20px 16px', position: 'relative',
                       border: t.highlight ? '2px solid #C8A04A' : '1px solid #E5E0D5',
                     }}>
-                      {isEditing ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <input style={s.input} value={tierDraft.label} onChange={e => setTierDraft(d => ({ ...d, label: e.target.value }))} placeholder="Badge label (e.g. Title)" />
-                          <input style={s.input} value={tierDraft.name} onChange={e => setTierDraft(d => ({ ...d, name: e.target.value }))} placeholder="Package name" />
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <input style={s.input} value={tierDraft.price} onChange={e => setTierDraft(d => ({ ...d, price: e.target.value }))} placeholder="Price ($)" />
-                            <input style={s.input} value={tierDraft.quantity} onChange={e => setTierDraft(d => ({ ...d, quantity: e.target.value }))} placeholder="Qty (blank = ∞)" />
-                          </div>
-                          <textarea style={{ ...s.input, minHeight: 90, resize: 'vertical' }} value={tierDraft.benefits} onChange={e => setTierDraft(d => ({ ...d, benefits: e.target.value }))} placeholder="One benefit per line" />
-                          <label style={{ fontSize: 12.5, color: '#6B7775', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                            <input type="checkbox" checked={tierDraft.highlight} onChange={e => setTierDraft(d => ({ ...d, highlight: e.target.checked }))} />
-                            Highlight in gold (title sponsor)
-                          </label>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button style={{ ...s.btn, flex: 1, padding: '7px 0' }} onClick={() => saveTier(t.id)}>Save</button>
-                            <button style={{ ...s.btnGhost, flex: 1, padding: '7px 0' }} onClick={() => setEditingTier(null)}>Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.highlight ? '#C8A04A' : '#6B7775', marginBottom: 8 }}>
-                            {t.highlight ? '★ ' : ''}{t.label ?? t.name}
-                          </div>
-                          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 700, marginBottom: 2 }}>{t.name}</div>
-                          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, color: '#1B6B3A', marginBottom: 14 }}>{money(t.price_cents)}</div>
-                          <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 14px' }}>
-                            {t.benefits.map((b, i) => (
-                              <li key={i} style={{ fontSize: 13, color: '#3A3F3C', padding: '3px 0', display: 'flex', gap: 7 }}>
-                                <span style={{ color: '#1B6B3A', fontWeight: 700 }}>✓</span>{b}
-                              </li>
-                            ))}
-                          </ul>
-                          <div style={{ borderTop: '1px solid #E5E0D5', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 13, color: '#6B7775' }}>Sold</span>
-                            <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15 }}>
-                              {sold}{t.quantity != null ? ` / ${t.quantity}` : ''}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                            <button onClick={() => startEditTier(t)} style={{ ...s.btnGhost, padding: '4px 10px', fontSize: 12 }}>Edit</button>
-                            <button onClick={() => moveTier(idx, -1)} disabled={idx === 0} style={{ ...s.btnGhost, padding: '4px 8px', fontSize: 12, opacity: idx === 0 ? 0.4 : 1 }}>←</button>
-                            <button onClick={() => moveTier(idx, 1)} disabled={idx === tiers.length - 1} style={{ ...s.btnGhost, padding: '4px 8px', fontSize: 12, opacity: idx === tiers.length - 1 ? 0.4 : 1 }}>→</button>
-                            <button onClick={() => deleteTier(t.id)} style={{ ...s.btnGhost, padding: '4px 10px', fontSize: 12, color: '#C0392B', marginLeft: 'auto' }}>Delete</button>
-                          </div>
-                        </>
-                      )}
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.highlight ? '#C8A04A' : '#6B7775', marginBottom: 8 }}>
+                        {t.highlight ? '★ ' : ''}{t.label ?? t.name}
+                      </div>
+                      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 700, marginBottom: 2 }}>{t.name}</div>
+                      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, color: '#1B6B3A', marginBottom: 14 }}>{money(t.price_cents)}</div>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 14px' }}>
+                        {t.benefits.map((b, i) => (
+                          <li key={i} style={{ fontSize: 13, color: '#3A3F3C', padding: '3px 0', display: 'flex', gap: 7 }}>
+                            <span style={{ color: '#1B6B3A', fontWeight: 700 }}>✓</span>{b}
+                          </li>
+                        ))}
+                      </ul>
+                      <div style={{ borderTop: '1px solid #E5E0D5', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 13, color: '#6B7775' }}>Sold</span>
+                        <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 15 }}>
+                          {sold}{t.quantity != null ? ` / ${t.quantity}` : ''}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                        <button onClick={() => deleteTier(t.id)} style={{ ...s.btnGhost, padding: '4px 10px', fontSize: 12, color: '#C0392B', marginLeft: 'auto' }}>Delete</button>
+                      </div>
                     </div>
                   );
                 })}

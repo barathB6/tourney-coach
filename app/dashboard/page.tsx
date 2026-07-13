@@ -11,6 +11,7 @@ interface Tournament {
   format: string;
   max_players: number;
   cause_story: string | null;
+  status: string;
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -102,8 +103,8 @@ export default function Dashboard() {
       let selectedId: string | null = null;
       try { selectedId = localStorage.getItem(`tourney_selected_tournament_${u.id}`); } catch { /* ignore */ }
 
-      const fields = 'id, name, event_date, format, max_players, cause_story';
-      let picked = null as { id: string; name: string; event_date: string; format: string; max_players: number; cause_story: string | null } | null;
+      const fields = 'id, name, event_date, format, max_players, cause_story, status';
+      let picked = null as { id: string; name: string; event_date: string; format: string; max_players: number; cause_story: string | null; status: string } | null;
 
       if (selectedId) {
         const { data } = await supabase
@@ -165,7 +166,7 @@ export default function Dashboard() {
   const steps = [
     { label: 'Tell your cause story', done: causeStoryDone, href: '/story' },
     { label: 'Set up the event details', done: setupDone, href: '/setup/format' },
-    { label: 'Open registration', done: false, href: null },
+    { label: 'Open registration', done: setupDone, href: null },
     { label: 'Line up your sponsors', done: false, href: '/sponsors' },
     { label: 'Rally your volunteers', done: false, href: null },
     { label: 'Build your day-of game plan', done: false, href: null },
