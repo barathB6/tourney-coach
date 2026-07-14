@@ -637,10 +637,13 @@ export default function SponsorsPage() {
 
             {emailModal.loading ? (
               <p style={{ color: '#6B7775', padding: '30px 0', textAlign: 'center' }}>Drafting a personalized email…</p>
-            ) : emailModal.error ? (
-              <p style={{ color: '#C0392B', padding: '20px 0' }}>{emailModal.error}</p>
             ) : (
               <>
+                {emailModal.error && (
+                  <p style={{ color: '#8A5A00', background: '#FBF0DC', border: '1px solid #EBD9A8', borderRadius: 8, padding: '10px 12px', fontSize: 13, marginBottom: 16 }}>
+                    {emailModal.error} — you can still write and send this email yourself below.
+                  </p>
+                )}
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#6B7775', marginBottom: 5 }}>Subject</label>
                 <input
                   style={{ ...s.input, marginBottom: 14, fontSize: 14 }}

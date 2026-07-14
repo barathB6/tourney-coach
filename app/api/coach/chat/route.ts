@@ -18,7 +18,7 @@ function getSupabase(req: NextRequest) {
 function buildSystemPrompt(
   tournament: Record<string, unknown> | null,
   regCount: number,
-  sponsorStats: { committed: number; paid: number; raisedCents: number; prospecting: number; needsFollowUp: number } | null,
+  sponsorStats: { committed: number; paid: number; raisedCents: number; prospecting: number; needsFollowUp: number; awaitingReply: number } | null,
 ) {
   const base = `You are TourneyCoach, the AI coaching assistant for charity golf tournament organizers. You are warm, encouraging, knowledgeable, and specific. You speak in plain language — never corporate, never condescending. You're like a seasoned friend who has run dozens of charity tournaments and genuinely wants this organizer to succeed.
 
@@ -76,7 +76,7 @@ CURRENT TOURNAMENT CONTEXT (use this to give specific, personalized advice):
 - Registrations: ${regCount} players registered${tournament.max_players ? ` of ${tournament.max_players} max (${Math.round((regCount / (tournament.max_players as number)) * 100)}% full)` : ''}
 - Cause story: ${tournament.cause_story_full ? 'Written' : 'Not started'}
 - Status: ${tournament.status || 'draft'}
-${sponsorStats ? `- Sponsors: ${sponsorStats.committed} committed ($${(sponsorStats.raisedCents / 100).toLocaleString()} paid so far from ${sponsorStats.paid} paid sponsors), ${sponsorStats.prospecting} still being prospected${sponsorStats.needsFollowUp > 0 ? `, ${sponsorStats.needsFollowUp} overdue for follow-up` : ''}` : '- Sponsors: No sponsorship packages built yet'}
+${sponsorStats ? `- Sponsors: ${sponsorStats.committed} committed ($${(sponsorStats.raisedCents / 100).toLocaleString()} paid so far from ${sponsorStats.paid} paid sponsors), ${sponsorStats.prospecting} still being prospected${sponsorStats.awaitingReply > 0 ? `, ${sponsorStats.awaitingReply} replied and awaiting the organizer's response` : ''}${sponsorStats.needsFollowUp > 0 ? `, ${sponsorStats.needsFollowUp} overdue for follow-up` : ''}` : '- Sponsors: No sponsorship packages built yet'}
 
 Use this context to make your advice specific. Reference their tournament name, dates, and numbers when relevant. If they're 3 weeks out with low registration, be proactive about that. If they haven't set a date yet, nudge them. If they ask about sponsors, use the live sponsor pipeline numbers above — don't give generic advice when you have their actual committed/prospecting counts.`;
 
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
   // Fetch tournament context
   let tournament: Record<string, unknown> | null = null;
   let regCount = 0;
-  let sponsorStats: { committed: number; paid: number; raisedCents: number; prospecting: number; needsFollowUp: number } | null = null;
+  let sponsorStats: { committed: number; paid: number; raisedCents: number; prospecting: number; needsFollowUp: number; awaitingReply: number } | null = null;
   if (tournamentId) {
     const { data } = await supabase
       .from('tournaments')
@@ -142,8 +142,9 @@ export async function POST(req: NextRequest) {
           committed: sponsorRows.filter(s => ['paid', 'invoiced', 'verbal'].includes(s.status)).length,
           paid: sponsorRows.filter(s => s.status === 'paid').length,
           raisedCents: sponsorRows.filter(s => s.status === 'paid').reduce((sum, s) => sum + (s.amount_cents ?? 0), 0),
-          prospecting: sponsorRows.filter(s => ['not_contacted', 'contacted', 'no_reply'].includes(s.status)).length,
+          prospecting: sponsorRows.filter(s => ['not_contacted', 'contacted', 'no_reply', 'replied'].includes(s.status)).length,
           needsFollowUp: sponsorRows.filter(s => s.status === 'no_reply').length,
+          awaitingReply: sponsorRows.filter(s => s.status === 'replied').length,
         };
       }
     }

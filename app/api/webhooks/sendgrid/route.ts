@@ -16,9 +16,9 @@ interface SendGridEvent {
 // SendGrid posts a batch of events (delivered, open, click, bounce, ...)
 // for every tracked email. Each event carries back the custom_args we set
 // at send time, so sponsor_id round-trips without needing to look up by
-// message id. This closes the "response tracking: open, click" deliverable
-// — reply/commit/decline stay organizer-driven since there's no inbound
-// email parsing wired up.
+// message id. This closes the "response tracking: open, click" deliverable;
+// reply is handled by the inbound-parse webhook, and commit/decline flow
+// from the Adyen payment webhook and the organizer's status changes.
 export async function POST(req: NextRequest) {
   let events: SendGridEvent[];
   try {
