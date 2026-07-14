@@ -84,11 +84,48 @@ Use this context to make every answer specific to THIS event, not generic. Name 
   return base + context;
 }
 
+// Cost/abuse guard on the paid Anthropic call: a burst cap (catches a buggy
+// client or script looping the send button) and a daily cap (bounds total
+// exposure from one compromised or leaked session). Checked against
+// coach_messages directly rather than in-memory, since Vercel's serverless
+// functions don't share memory across invocations/instances.
+const BURST_LIMIT = 10;      // user messages
+const BURST_WINDOW_MS = 60_000;
+const DAILY_LIMIT = 150;     // user messages
+const DAILY_WINDOW_MS = 24 * 60 * 60_000;
+
+async function checkRateLimit(supabase: ReturnType<typeof getSupabase>, organizerId: string) {
+  const now = Date.now();
+  const [{ count: burstCount }, { count: dailyCount }] = await Promise.all([
+    supabase.from('coach_messages')
+      .select('id, coach_conversations!inner(organizer_id)', { count: 'exact', head: true })
+      .eq('role', 'user')
+      .eq('coach_conversations.organizer_id', organizerId)
+      .gte('created_at', new Date(now - BURST_WINDOW_MS).toISOString()),
+    supabase.from('coach_messages')
+      .select('id, coach_conversations!inner(organizer_id)', { count: 'exact', head: true })
+      .eq('role', 'user')
+      .eq('coach_conversations.organizer_id', organizerId)
+      .gte('created_at', new Date(now - DAILY_WINDOW_MS).toISOString()),
+  ]);
+  if ((burstCount ?? 0) >= BURST_LIMIT) return { limited: true, retryAfterSeconds: 60, reason: 'too many messages — please slow down' };
+  if ((dailyCount ?? 0) >= DAILY_LIMIT) return { limited: true, retryAfterSeconds: 3600, reason: 'daily coaching limit reached — please try again later' };
+  return { limited: false as const };
+}
+
 export async function POST(req: NextRequest) {
   const supabase = getSupabase(req);
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const rl = await checkRateLimit(supabase, user.id);
+  if (rl.limited) {
+    return Response.json(
+      { error: `You've sent a lot of messages — ${rl.reason}.` },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } },
+    );
   }
 
   const anthropic = getAnthropicClient();
