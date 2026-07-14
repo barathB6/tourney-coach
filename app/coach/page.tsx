@@ -231,7 +231,7 @@ function computeNudges(state: {
       question: 'How do I write a sponsor email?',
     });
   }
-  if (soon && fieldPct < 0.5) {
+  if (soon && maxPlayers > 0 && fieldPct < 0.5) {
     nudges.push({
       id: 'fill-field',
       text: `You're ${dLabel} out with ${regCount} of ${maxPlayers} spots filled. Want to talk through how to fill the rest?`,
