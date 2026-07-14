@@ -47,7 +47,37 @@ const SCRIPTS: Record<string, { answer: string; spoken?: string; followups: stri
   "how do i get sponsors": {
     answer: "Sponsorships are where the real money is — entry fees pay your costs, sponsors fund your cause.\n\nStart with hole sponsorships at $250 to $500 each. 18 holes is $4,500 to $9,000 from signs alone. Add a Presenting Sponsor at $3,000 to $5,000, Gold at $1,500 to $2,500, Silver at $750 to $1,000. A solid menu adds $10,000 to $15,000 to your gross.\n\nBest first targets: medical practices, law firms, financial advisors, local restaurants — businesses that already support your cause. TourneyCoach includes outreach scripts and a sponsorship package builder.",
     spoken: "Sponsorships fund your cause — entry fees just cover costs. Start with hole sponsorships at 250 to 500 dollars each, that's up to 9,000 dollars right there. Add a presenting sponsor and you're looking at 10 to 15 thousand in total sponsorship revenue.",
-    followups: ["How much will we raise?", "What should I charge?", "How do I fill my field?"],
+    followups: ["What packages should I offer?", "Who should I ask to sponsor?", "How do sponsors pay?"],
+  },
+  "what packages should i offer": {
+    answer: "A tight menu of 4 to 5 tiers converts better than a long list. Here's a proven ladder:\n\nTitle Sponsor at $5,000 — event named for them, logo on everything, a foursome included. One available, and it's your anchor. Then Eagle at $2,500, Birdie at $1,000, and Hole at $250 with 18 available.\n\nAdd one or two specialty tiers that let a smaller business own a moment: Beverage Cart, Putting Contest, or Dinner sponsor at $500 to $1,500. In TourneyCoach you build these in the package builder — set the price, benefits, and how many are available, and each one gets a Sold count as they fill.",
+    spoken: "Keep it to four or five tiers. A Title sponsor at 5,000 dollars anchors the menu, then Eagle at 2,500, Birdie at 1,000, and Hole sponsors at 250 with 18 available. Add a specialty tier like beverage cart or putting contest to give smaller businesses a moment to own.",
+    followups: ["Who should I ask to sponsor?", "How do sponsors pay?", "How do I write a sponsor email?"],
+  },
+  "who should i ask to sponsor": {
+    answer: "Start with businesses that already have a reason to say yes — then work outward.\n\nFirst ring: anyone connected to your cause. Board members' companies, vendors your charity already pays, families the cause has helped. These convert fastest.\n\nSecond ring: local businesses that live on community goodwill — medical and dental practices, law firms, financial advisors, car dealerships, restaurants, real estate brokers. Add each one to your prospect pipeline in TourneyCoach, and it tracks who you've contacted, who replied, and who's gone quiet so nothing slips.",
+    spoken: "Start with businesses already connected to your cause — board members' companies, vendors you pay, families you've helped. Then local businesses that run on community goodwill: dentists, law firms, financial advisors, restaurants. Add each to your prospect pipeline and TourneyCoach tracks who you've contacted and who's gone quiet.",
+    followups: ["How do I write a sponsor email?", "A sponsor hasn't replied", "What packages should I offer?"],
+  },
+  "how do i write a sponsor email": {
+    answer: "The best outreach email is short, specific, and personal — it asks for a reply, not a signature.\n\nOpen with a genuine local hook that ties the business to your cause. Name one specific package, its price, and its two best benefits. Close with a low-friction ask: a 10-minute call or a simple yes.\n\nTourneyCoach drafts this for you. Add the prospect, pick a package, and the AI writes a personalized email that pulls a real detail from your cause story — so it reads like you wrote it, not a template. You review, tweak, and send. Then it tracks opens and clicks so you know who's actually interested.",
+    spoken: "Keep it short, specific, and personal. Open with a local hook tied to your cause, name one package with its price and two best benefits, and close by asking for a 10-minute call. TourneyCoach's AI drafts the whole thing for you using a real detail from your cause story — you just review and send.",
+    followups: ["A sponsor hasn't replied", "Who should I ask to sponsor?", "How do sponsors pay?"],
+  },
+  "a sponsor hasn't replied": {
+    answer: "Silence usually means busy, not no. Most sponsorships close on the second or third touch.\n\nWait about a week, then send one short, warm follow-up — reference your first note, add one new reason to say yes, and keep the ask small. Don't apologize for following up; you're offering them something good.\n\nTourneyCoach handles this automatically. A prospect who hasn't responded gets a follow-up on a 7-day cadence, capped at two attempts so you're never a pest. Anyone who's gone quiet is flagged in your pipeline so you can decide whether to make one personal call to close it.",
+    spoken: "Silence usually means busy, not no — most sponsorships close on the second or third touch. Wait about a week and send one short follow-up with a new reason to say yes. TourneyCoach does this automatically on a 7-day cadence, capped at two attempts so you're never a pest.",
+    followups: ["How do I write a sponsor email?", "How do I recognize sponsors?", "Who should I ask to sponsor?"],
+  },
+  "how do sponsors pay": {
+    answer: "Sponsors can buy their package themselves, online, without you chasing a check.\n\nYour microsite has a public sponsorship page listing every tier with its benefits and how many are left. A business picks a level, enters their details, and pays by card right there — the money flows to your cause the same way entry fees do. The tier's availability updates automatically so you never oversell.\n\nYou can also mark a sponsor paid manually if they hand you a check or pay by transfer — either way, they get a confirmation email and a prompt to upload their logo.",
+    spoken: "Sponsors buy online themselves. Your microsite has a public sponsorship page with every tier — a business picks a level, enters their details, and pays by card right there. Availability updates automatically so you never oversell. And if someone pays by check, you mark them paid manually and they still get a confirmation and logo prompt.",
+    followups: ["How do I recognize sponsors?", "What packages should I offer?", "How do I write a sponsor email?"],
+  },
+  "how do i recognize sponsors": {
+    answer: "Recognition is what turns a one-time sponsor into a returning one — and TourneyCoach automates most of it.\n\nThe moment a sponsor pays, they're prompted to upload their logo, and it flows straight onto your event microsite under Our Sponsors. No back-and-forth over email attachments.\n\nFor event day, TourneyCoach builds a recognition list grouped by tier — Title at the top, then Eagle, Birdie, and so on — ready to print for the program or hand to your emcee for the awards ceremony script. Every paid sponsor shows up automatically, so the list is always current right up to tee-off.",
+    spoken: "Recognition is what turns a one-time sponsor into a returning one. The moment a sponsor pays, they upload their logo and it flows straight onto your microsite. For event day, TourneyCoach builds a recognition list grouped by tier, ready to print for the program or hand to your emcee.",
+    followups: ["How do sponsors pay?", "What packages should I offer?", "How much will we raise?"],
   },
   "what expenses should i plan for": {
     answer: "A well-managed first-year event runs $8,600 to $12,800 all in.\n\nGolf course: $5,400 to $7,200 for 72 players at charity rate — always ask for it. Food and beverage: $1,200 to $2,500. Trophies: $400 to $800. Event shirts: $864 to $1,080.\n\nSmaller items: hole signs $350 to $600, hole-in-one insurance $350 to $600 — always worth it and get a sponsor to cover it — and the TourneyCircle notification at just $29.\n\nGoal: get sponsors covering as many line items as possible.",
@@ -91,7 +121,7 @@ const SCRIPTS: Record<string, { answer: string; spoken?: string; followups: stri
   },
 };
 
-const FAQ_CHIPS = ["How do I fill my field?", "What should I charge?", "How does TourneyCircle work?", "How much will we raise?"];
+const FAQ_CHIPS = ["How do I fill my field?", "What should I charge?", "How do I get sponsors?", "How does TourneyCircle work?", "How much will we raise?"];
 
 function lookupScript(text: string) {
   const key = text.toLowerCase().trim().replace(/[?!.]+$/, '');
