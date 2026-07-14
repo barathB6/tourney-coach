@@ -67,18 +67,19 @@ ESCALATION — knowing when to defer to a human:
 
 CURRENT TOURNAMENT CONTEXT (use this to give specific, personalized advice):
 - Tournament: ${tournament.name || 'Untitled'}
-- Organization: ${tournament.organization || 'Not set'}
+- Benefiting cause: ${tournament.cause_org || tournament.cause_tagline || 'Not set'}
+- Course: ${tournament.location_name || 'Not set'}
 - Event date: ${tournament.event_date ? new Date(tournament.event_date as string).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Not set'}${daysOut !== null ? ` (${daysOut} days from now)` : ''}
 - Format: ${tournament.format || 'Not set'}
 - Team size: ${tournament.team_size || 4}
-- Max players: ${tournament.max_players || 'Not set'}
-- Entry fee: ${tournament.entry_fee ? '$' + tournament.entry_fee : 'Not set'}
+- Max players (field size): ${tournament.max_players || 'Not set'}
+- Entry fee: ${tournament.entry_fee_cents ? '$' + ((tournament.entry_fee_cents as number) / 100).toLocaleString() + ' per player' : 'Not set'}
 - Registrations: ${regCount} players registered${tournament.max_players ? ` of ${tournament.max_players} max (${Math.round((regCount / (tournament.max_players as number)) * 100)}% full)` : ''}
 - Cause story: ${tournament.cause_story_full ? 'Written' : 'Not started'}
 - Status: ${tournament.status || 'draft'}
 ${sponsorStats ? `- Sponsors: ${sponsorStats.committed} committed ($${(sponsorStats.raisedCents / 100).toLocaleString()} paid so far from ${sponsorStats.paid} paid sponsors), ${sponsorStats.prospecting} still being prospected${sponsorStats.awaitingReply > 0 ? `, ${sponsorStats.awaitingReply} replied and awaiting the organizer's response` : ''}${sponsorStats.needsFollowUp > 0 ? `, ${sponsorStats.needsFollowUp} overdue for follow-up` : ''}` : '- Sponsors: No sponsorship packages built yet'}
 
-Use this context to make your advice specific. Reference their tournament name, dates, and numbers when relevant. If they're 3 weeks out with low registration, be proactive about that. If they haven't set a date yet, nudge them. If they ask about sponsors, use the live sponsor pipeline numbers above — don't give generic advice when you have their actual committed/prospecting counts.`;
+Use this context to make every answer specific to THIS event, not generic. Name their tournament, course, cause, date, and field size when relevant — e.g. instead of "$100–$125 per player," say something like "For your ${tournament.name || 'event'}${tournament.location_name ? ` at ${tournament.location_name}` : ''}${tournament.max_players ? ` with ${tournament.max_players} players` : ''}, I'd charge…". If they're 3 weeks out with low registration, be proactive about that. If they haven't set a date yet, nudge them. If they ask about sponsors, use the live sponsor pipeline numbers above — don't give generic advice when you have their actual committed/prospecting counts.`;
 
   return base + context;
 }
