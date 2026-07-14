@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { askClaude } from '@/lib/ai/anthropic';
+import { draftOutreachEmail } from '@/lib/ai/sponsorOutreachDraft';
 
 function getSupabase(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -10,22 +10,6 @@ function getSupabase(req: NextRequest) {
     token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : undefined,
   );
 }
-
-const SYSTEM = `You are TourneyCoach's sponsorship outreach writer. You draft short, warm, effective sponsorship outreach emails for charity golf tournament organizers. Plain language, no corporate jargon, no exclamation-mark overload. The goal is a reply, not a hard close.
-
-Rules:
-- Subject line under 60 characters, specific to the business.
-- Body under 180 words. Three short paragraphs max.
-- Open with a genuine local hook connecting the business to the community or cause.
-- Name the specific package, its price, and its two most valuable benefits.
-- Close with a low-friction ask (a 10-minute call or a reply), never "let me know your thoughts".
-- Write from the organizer's voice, first person.
-- Never invent facts about the business.
-
-Return ONLY the email in this exact format:
-Subject: <subject line>
-
-<body>`;
 
 export async function POST(req: NextRequest) {
   const supabase = getSupabase(req);
@@ -56,40 +40,36 @@ export async function POST(req: NextRequest) {
 
   const { data: tournament } = await supabase
     .from('tournaments')
-    .select('name, event_date, location_name, cause_org, cause_tagline, max_players')
+    .select('name, event_date, location_name, cause_org, cause_tagline, max_players, cause_story_full, cause_story')
     .eq('id', sponsor.tournament_id)
     .single();
 
   const tier = sponsor.sponsorship_tiers as unknown as { name: string; price_cents: number; benefits: string[] } | null;
   const organizerName = user.user_metadata?.full_name || user.user_metadata?.name || 'the organizer';
   const isFollowUp = body.mode === 'follow_up' || sponsor.status === 'no_reply';
-
-  const prompt = `Draft a ${isFollowUp ? 'polite follow-up email (they have not replied to a previous outreach)' : 'first-touch outreach email'} to this sponsorship prospect.
-
-Prospect:
-- Company: ${sponsor.company}
-- Contact: ${sponsor.contact_name || 'Unknown'}${sponsor.contact_title ? `, ${sponsor.contact_title}` : ''}
-
-Package being offered:
-- ${tier ? `${tier.name} — $${(tier.price_cents / 100).toLocaleString()}` : 'A sponsorship package (pick a sensible mid-tier framing)'}
-- Benefits: ${tier?.benefits?.length ? (tier.benefits as string[]).join('; ') : 'standard signage and program recognition'}
-
-Tournament:
-- Name: ${tournament?.name ?? 'our charity golf tournament'}
-- Date: ${tournament?.event_date ? new Date(tournament.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'TBD'}
-- Course: ${tournament?.location_name ?? 'a local course'}
-- Benefiting: ${tournament?.cause_org ?? tournament?.cause_tagline ?? 'a local cause'}
-- Field: ${tournament?.max_players ?? 72} players (local golfers, business owners, and community leaders)
-
-Organizer signing the email: ${organizerName}`;
+  // Trim to the first paragraph or so — enough to give the AI a real, specific
+  // detail to weave into the opening hook without dumping the whole story in.
+  const causeStoryExcerpt = (tournament?.cause_story_full ?? tournament?.cause_story ?? '').split(/\n\n+/)[0]?.slice(0, 500) || null;
 
   try {
-    const draft = await askClaude(SYSTEM, prompt, 600);
-    const match = draft.match(/^Subject:\s*(.+)\n+([\s\S]+)$/);
-    return NextResponse.json({
-      subject: match ? match[1].trim() : `Sponsorship opportunity — ${tournament?.name ?? 'charity golf tournament'}`,
-      body: match ? match[2].trim() : draft,
+    const { subject, body: emailBody } = await draftOutreachEmail({
+      company: sponsor.company,
+      contactName: sponsor.contact_name,
+      contactTitle: sponsor.contact_title,
+      tierName: tier?.name ?? null,
+      tierPriceCents: tier?.price_cents ?? null,
+      tierBenefits: tier?.benefits ?? null,
+      tournamentName: tournament?.name ?? null,
+      eventDate: tournament?.event_date ?? null,
+      locationName: tournament?.location_name ?? null,
+      causeOrg: tournament?.cause_org ?? null,
+      causeTagline: tournament?.cause_tagline ?? null,
+      maxPlayers: tournament?.max_players ?? null,
+      causeStoryExcerpt,
+      organizerName,
+      isFollowUp,
     });
+    return NextResponse.json({ subject, body: emailBody });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'AI drafting failed' },

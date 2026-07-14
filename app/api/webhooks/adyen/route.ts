@@ -39,13 +39,14 @@ export async function POST(req: NextRequest) {
             .update({ status: 'paid', adyen_psp_reference: pspReference, last_touch: new Date().toISOString() })
             .eq('id', sponsorId)
             .eq('status', 'pending')
-            .select('company, contact_name, email, amount_cents, tournament_id, sponsorship_tiers(name), tournaments(name, event_date, location_name)')
+            .select('id, company, contact_name, email, amount_cents, logo_url, tournament_id, sponsorship_tiers(name), tournaments(name, slug, event_date, location_name)')
             .single();
 
           if (paidSponsor?.email) {
             const tier = paidSponsor.sponsorship_tiers as unknown as { name: string } | null;
-            const tournament = paidSponsor.tournaments as unknown as { name: string; event_date: string; location_name: string | null } | null;
+            const tournament = paidSponsor.tournaments as unknown as { name: string; slug: string; event_date: string; location_name: string | null } | null;
             if (tournament) {
+              const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tourneycoach.com';
               sendSponsorConfirmationEmail({
                 contactEmail: paidSponsor.email,
                 contactName: paidSponsor.contact_name,
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
                 tournamentName: tournament.name,
                 eventDate: tournament.event_date,
                 locationName: tournament.location_name,
+                logoUploadUrl: paidSponsor.logo_url ? null : `${appUrl}/microsite/${tournament.slug}/sponsor/${paidSponsor.id}/logo`,
               }).catch(err => console.error('Sponsor confirmation email error:', err));
             }
           }

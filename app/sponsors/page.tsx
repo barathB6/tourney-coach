@@ -90,6 +90,10 @@ export default function SponsorsPage() {
   const [prospectDraft, setProspectDraft] = useState({ company: '', contact_name: '', contact_title: '', email: '', tier_id: '' });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [emailModal, setEmailModal] = useState<{ sponsor: Sponsor; subject: string; body: string; loading: boolean; error: string } | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<'sent' | 'error' | null>(null);
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
+  const [showRecognition, setShowRecognition] = useState(false);
   const [copied, setCopied] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -256,8 +260,59 @@ export default function SponsorsPage() {
     setEmailModal(m => m ? { ...m, loading: false, subject: data.subject, body: data.body } : m);
   }
 
+  async function sendEmailNow() {
+    if (!emailModal || !activeEmailSponsor) return;
+    setSending(true);
+    setSendResult(null);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('/api/sponsors/outreach/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+      body: JSON.stringify({ sponsor_id: activeEmailSponsor.id, subject: emailModal.subject, body: emailModal.body }),
+    });
+    setSending(false);
+    if (!res.ok) {
+      setSendResult('error');
+      return;
+    }
+    setSendResult('sent');
+    if (tournamentId) loadSponsors(tournamentId);
+    setTimeout(() => { setEmailModal(null); setSendResult(null); }, 1200);
+  }
+
+  async function markSponsorPaid(sponsorId: string) {
+    if (!tournamentId) return;
+    setMarkingPaidId(sponsorId);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`/api/sponsors/${sponsorId}/mark-paid`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+    });
+    setMarkingPaidId(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Could not mark as paid');
+      return;
+    }
+    loadSponsors(tournamentId);
+  }
+
   function tierOf(sp: Sponsor) {
     return tiers.find(t => t.id === sp.tier_id) ?? null;
+  }
+
+  // Awards-ceremony recognition list: every committed (paid) sponsor,
+  // grouped by tier in the same order as the tier cards (highest first),
+  // ready to read aloud or hand to an emcee.
+  function recognitionGroups() {
+    const paid = sponsors.filter(sp => sp.status === 'paid');
+    const sorted = [...tiers].sort((a, b) => a.sort_order - b.sort_order);
+    const groups: { tier: Tier | null; sponsors: Sponsor[] }[] = sorted
+      .map(t => ({ tier: t, sponsors: paid.filter(sp => sp.tier_id === t.id) }))
+      .filter(g => g.sponsors.length > 0);
+    const untiered = paid.filter(sp => !sp.tier_id);
+    if (untiered.length > 0) groups.push({ tier: null, sponsors: untiered });
+    return groups;
   }
 
   function soldCount(tier: Tier) {
@@ -301,7 +356,8 @@ export default function SponsorsPage() {
               </p>
             </div>
             {tournamentId && (
-              <div style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+                <button style={s.btnGhost} onClick={() => setShowRecognition(true)}>🏆 Recognition list</button>
                 <button style={s.btn} onClick={() => setPresetOpen(o => !o)}>+ Add package</button>
                 {presetOpen && (
                   <>
@@ -446,7 +502,9 @@ export default function SponsorsPage() {
                               <button style={{ ...s.btn, padding: '6px 14px', fontSize: 12.5 }} onClick={() => updateSponsor(sp.id, { status: 'invoiced', last_touch: new Date().toISOString() })}>Send invoice</button>
                             )}
                             {(sp.status === 'invoiced' || sp.status === 'pending') && (
-                              <button style={{ ...s.btn, padding: '6px 14px', fontSize: 12.5 }} onClick={() => updateSponsor(sp.id, { status: 'paid', last_touch: new Date().toISOString() })}>Mark paid</button>
+                              <button style={{ ...s.btn, padding: '6px 14px', fontSize: 12.5 }} disabled={markingPaidId === sp.id} onClick={() => markSponsorPaid(sp.id)}>
+                                {markingPaidId === sp.id ? 'Marking…' : 'Mark paid'}
+                              </button>
                             )}
                             {sp.status === 'paid' && (
                               <button style={{ ...s.btnGhost, padding: '6px 14px', fontSize: 12.5 }} onClick={() => setExpandedId(isExpanded ? null : sp.id)}>{isExpanded ? 'Close' : 'View'}</button>
@@ -511,6 +569,50 @@ export default function SponsorsPage() {
       </div>
 
       {/* ── AI email modal ── */}
+      {showRecognition && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setShowRecognition(false)}>
+          <div className="recognition-print" style={{ background: '#fff', borderRadius: 14, padding: 32, width: '100%', maxWidth: 560, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 700, margin: 0 }}>🏆 Sponsor Recognition</h3>
+              <div className="no-print" style={{ display: 'flex', gap: 8 }}>
+                <button style={s.btnGhost} onClick={() => window.print()}>Print</button>
+                <button style={s.btnGhost} onClick={() => setShowRecognition(false)}>Close</button>
+              </div>
+            </div>
+            <p style={{ color: '#6B7775', fontSize: 13, margin: '0 0 20px' }}>{tournamentName} — for the awards ceremony script or program</p>
+
+            {recognitionGroups().length === 0 ? (
+              <p style={{ color: '#9BA8A4', padding: '24px 0', textAlign: 'center' }}>No confirmed sponsors yet — this fills in as sponsors pay.</p>
+            ) : (
+              recognitionGroups().map((group, gi) => (
+                <div key={gi} style={{ marginBottom: 22 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: group.tier?.highlight ? '#C8A04A' : '#1B6B3A', margin: '0 0 8px' }}>
+                    {group.tier ? (group.tier.label ?? group.tier.name) : 'Other sponsors'}
+                  </p>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {group.sponsors.map(sp => (
+                      <li key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #F0EDE6' }}>
+                        {sp.logo_url && <img src={sp.logo_url} alt="" style={{ height: 24, maxWidth: 70, objectFit: 'contain' }} />}
+                        <span style={{ fontWeight: 700, fontSize: 15 }}>{sp.company}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .recognition-print, .recognition-print * { visibility: visible; }
+          .recognition-print { position: fixed; inset: 0; max-height: none !important; box-shadow: none; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+
       {emailModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setEmailModal(null)}>
           <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -537,15 +639,21 @@ export default function SponsorsPage() {
                   value={emailModal.body}
                   onChange={e => setEmailModal(m => m ? { ...m, body: e.target.value } : m)}
                 />
+                {sendResult === 'error' && (
+                  <p style={{ color: '#C0392B', fontSize: 13, marginBottom: 10 }}>Couldn&rsquo;t send — check that SendGrid is configured, or use the fallback options below.</p>
+                )}
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button style={{ ...s.btn }} disabled={sending || sendResult === 'sent'} onClick={sendEmailNow}>
+                    {sendResult === 'sent' ? 'Sent ✓' : sending ? 'Sending…' : 'Send email'}
+                  </button>
                   <a
                     href={`mailto:${activeEmailSponsor?.email ?? ''}?subject=${encodeURIComponent(emailModal.subject)}&body=${encodeURIComponent(emailModal.body)}`}
-                    style={{ ...s.btn, textDecoration: 'none', display: 'inline-block' }}
+                    style={{ ...s.btnGhost, textDecoration: 'none', display: 'inline-block' }}
                     onClick={() => {
                       if (activeEmailSponsor) updateSponsor(activeEmailSponsor.id, { status: activeEmailSponsor.status === 'not_contacted' ? 'contacted' : activeEmailSponsor.status, last_touch: new Date().toISOString() });
                     }}
                   >
-                    Open in email app
+                    Open in email app instead
                   </a>
                   <button
                     style={s.btnGhost}
@@ -556,7 +664,7 @@ export default function SponsorsPage() {
                       if (activeEmailSponsor) updateSponsor(activeEmailSponsor.id, { status: activeEmailSponsor.status === 'not_contacted' ? 'contacted' : activeEmailSponsor.status, last_touch: new Date().toISOString() });
                     }}
                   >
-                    {copied ? 'Copied ✓' : 'Copy to clipboard'}
+                    {copied ? 'Copied ✓' : 'Copy'}
                   </button>
                   <button style={{ ...s.btnGhost, marginLeft: 'auto' }} onClick={() => setEmailModal(null)}>Close</button>
                 </div>

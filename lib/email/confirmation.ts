@@ -88,7 +88,7 @@ export async function sendConfirmationEmail(params: {
 </body>
 </html>`;
 
-  await fetch('https://api.sendgrid.com/v3/mail/send', {
+  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -103,4 +103,8 @@ export async function sendConfirmationEmail(params: {
       content: [{ type: 'text/html', value: html }],
     }),
   });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`SendGrid send failed (${res.status}): ${errBody.slice(0, 300)}`);
+  }
 }

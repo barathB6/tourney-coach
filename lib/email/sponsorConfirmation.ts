@@ -10,6 +10,7 @@ export async function sendSponsorConfirmationEmail(params: {
   tournamentName: string;
   eventDate: string;
   locationName?: string | null;
+  logoUploadUrl?: string | null;
 }) {
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) return; // SendGrid not configured yet — skip silently
@@ -50,7 +51,12 @@ export async function sendSponsorConfirmationEmail(params: {
               ${params.locationName ? detailRow('Location', params.locationName) : ''}
             </table>
             <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#1A1F1C;text-transform:uppercase;letter-spacing:.06em;">What happens next</p>
-            <p style="margin:0;font-size:14px;color:#3A3F3C;line-height:1.7;">The organizer will reach out shortly to collect your logo (if you haven't already) and confirm signage and placement details. Reply to this email any time with questions.</p>
+            <p style="margin:0 0 ${params.logoUploadUrl ? 20 : 0}px;font-size:14px;color:#3A3F3C;line-height:1.7;">The organizer will confirm signage and placement details. Reply to this email any time with questions.</p>
+            ${params.logoUploadUrl ? `
+            <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+              <a href="${params.logoUploadUrl}" style="display:inline-block;background:#1B6B3A;color:#ffffff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:4px;text-decoration:none;">Upload your logo</a>
+            </td></tr></table>
+            <p style="margin:12px 0 0;font-size:12px;color:#9BA8A4;text-align:center;">Takes under a minute — it'll show up on the event microsite and signage.</p>` : ''}
           </td>
         </tr>
         <tr>
@@ -64,7 +70,7 @@ export async function sendSponsorConfirmationEmail(params: {
 </body>
 </html>`;
 
-  await fetch('https://api.sendgrid.com/v3/mail/send', {
+  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -79,4 +85,8 @@ export async function sendSponsorConfirmationEmail(params: {
       content: [{ type: 'text/html', value: html }],
     }),
   });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`SendGrid send failed (${res.status}): ${errBody.slice(0, 300)}`);
+  }
 }
