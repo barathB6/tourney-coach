@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { forwardReplyToOrganizer } from '@/lib/email/forwardReply';
+import { getPublicAppUrl } from '@/lib/publicUrl';
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
       const organizerEmail = organizerUser?.user?.email;
       if (organizerEmail) {
         const from = parseFrom(fromField);
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tourneycoach.com';
+        const appUrl = getPublicAppUrl();
         await forwardReplyToOrganizer({
           organizerEmail,
           organizerName: organizerUser?.user?.user_metadata?.full_name || organizerUser?.user?.user_metadata?.name || 'Organizer',

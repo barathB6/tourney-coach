@@ -1,3 +1,5 @@
+import { getPublicAppUrl } from '@/lib/publicUrl';
+
 // Sends the "you're registered" email. Only call this once payment is
 // actually confirmed (webhook AUTHORISATION success, or a manual paper
 // registration marked paid at creation) — never at initial signup.
@@ -22,7 +24,7 @@ export async function sendConfirmationEmail(params: {
   });
   const fmt = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const totalAmountCents = params.subtotalCents + params.platformFeeCents;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tourneycoach.com';
+  const appUrl = getPublicAppUrl();
   const qrParams = new URLSearchParams({ size: '180x180', data: `${appUrl}/checkin/${params.registrationId}` });
   // & must be escaped as &amp; inside an HTML attribute, or some email clients mis-parse the URL
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?${qrParams.toString().replace(/&/g, '&amp;')}`;

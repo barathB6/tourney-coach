@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getPaymentProcessor } from '@/lib/payments';
 import { sendConfirmationEmail } from '@/lib/email/confirmation';
 import { sendSponsorConfirmationEmail } from '@/lib/email/sponsorConfirmation';
+import { getPublicAppUrl } from '@/lib/publicUrl';
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
             const tier = paidSponsor.sponsorship_tiers as unknown as { name: string } | null;
             const tournament = paidSponsor.tournaments as unknown as { name: string; slug: string; event_date: string; location_name: string | null } | null;
             if (tournament) {
-              const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tourneycoach.com';
+              const appUrl = getPublicAppUrl();
               sendSponsorConfirmationEmail({
                 contactEmail: paidSponsor.email,
                 contactName: paidSponsor.contact_name,

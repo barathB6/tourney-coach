@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendSponsorConfirmationEmail } from '@/lib/email/sponsorConfirmation';
+import { getPublicAppUrl } from '@/lib/publicUrl';
 
 function getSupabase(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const tier = sponsor.sponsorship_tiers as unknown as { name: string } | null;
     const tournament = sponsor.tournaments as unknown as { name: string; slug: string; event_date: string; location_name: string | null } | null;
     if (tournament) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tourneycoach.com';
+      const appUrl = getPublicAppUrl();
       sendSponsorConfirmationEmail({
         contactEmail: sponsor.email,
         contactName: sponsor.contact_name,
