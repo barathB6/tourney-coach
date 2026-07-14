@@ -249,14 +249,34 @@ export default function CoachWidget() {
         </div>
       )}
 
-      {/* Floating bubble */}
-      <button
-        onClick={toggleOpen}
-        title="AI Coach"
-        style={{ width: 52, height: 52, borderRadius: '50%', border: 'none', background: 'var(--primary, #1B6B3A)', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}
-      >
-        {open ? <span style={{ fontSize: 18 }}>✕</span> : <CoachIcon size={22} />}
-      </button>
+      {/* Floating trigger */}
+      {open ? (
+        <button
+          onClick={toggleOpen}
+          title="Close"
+          style={{ width: 52, height: 52, borderRadius: '50%', border: 'none', background: 'var(--primary, #1B6B3A)', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', boxShadow: '0 6px 20px rgba(15,74,38,.32), 0 2px 6px rgba(15,74,38,.24)' }}
+        >
+          <span style={{ fontSize: 18 }}>✕</span>
+        </button>
+      ) : (
+        <button
+          onClick={toggleOpen}
+          style={{
+            height: 52, borderRadius: 26,
+            background: 'var(--primary, #1B6B3A)', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 10, padding: '0 20px 0 16px',
+            boxShadow: '0 6px 20px rgba(15,74,38,.32), 0 2px 6px rgba(15,74,38,.24)',
+          }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
+            <circle cx="12" cy="12" r="4" />
+          </svg>
+          <span style={{ color: '#fff', fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+            Ask your AI coach
+          </span>
+        </button>
+      )}
     </div>
   );
 }
