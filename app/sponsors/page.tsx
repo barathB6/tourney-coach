@@ -33,12 +33,15 @@ type Sponsor = {
   signage_created: boolean;
   placement_confirmed: boolean;
   last_touch: string | null;
+  replied_at: string | null;
+  reply_snippet: string | null;
 };
 
 const STATUS_META: Record<string, { label: string; fg: string; bg: string }> = {
   not_contacted: { label: 'Not yet contacted', fg: '#6B7775', bg: '#F0EDE6' },
   contacted:     { label: 'Contacted',          fg: '#1a5fa8', bg: '#E3EEFA' },
   no_reply:      { label: 'No reply',           fg: '#C0392B', bg: '#FBE9E7' },
+  replied:       { label: 'Replied',            fg: '#8A5A00', bg: '#FBF0DC' },
   verbal:        { label: 'Verbal yes · awaiting check', fg: '#1a5fa8', bg: '#E3EEFA' },
   invoiced:      { label: 'Confirmed · invoiced', fg: '#1B6B3A', bg: '#EAF2ED' },
   pending:       { label: 'Payment pending',    fg: '#B8860B', bg: '#FBF3DC' },
@@ -498,6 +501,9 @@ export default function SponsorsPage() {
                             {(sp.status === 'contacted' || sp.status === 'no_reply') && (
                               <button style={{ ...s.btn, padding: '6px 14px', fontSize: 12.5 }} onClick={() => draftEmail(sp, 'follow_up')}>Follow up</button>
                             )}
+                            {sp.status === 'replied' && (
+                              <button style={{ ...s.btn, padding: '6px 14px', fontSize: 12.5 }} onClick={() => setExpandedId(isExpanded ? null : sp.id)}>{isExpanded ? 'Close' : 'View reply'}</button>
+                            )}
                             {sp.status === 'verbal' && (
                               <button style={{ ...s.btn, padding: '6px 14px', fontSize: 12.5 }} onClick={() => updateSponsor(sp.id, { status: 'invoiced', last_touch: new Date().toISOString() })}>Send invoice</button>
                             )}
@@ -554,6 +560,14 @@ export default function SponsorsPage() {
                                   {uploadError && uploadingId === null && <span style={{ fontSize: 12, color: '#C0392B' }}>{uploadError}</span>}
                                 </div>
                               </div>
+                              {sp.reply_snippet && (
+                                <div style={{ marginTop: 14, padding: '12px 14px', background: '#FBF0DC', border: '1px solid #EBD9A8', borderRadius: 8 }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8A5A00', marginBottom: 6 }}>
+                                    Reply received{sp.replied_at ? ` · ${new Date(sp.replied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                                  </div>
+                                  <div style={{ fontSize: 13.5, color: '#3A3F3C', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{sp.reply_snippet}</div>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         )}

@@ -21,6 +21,15 @@ export async function sendSponsorOutreachEmail(params: {
     .map(p => `<p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#1A1F1C;">${p.replace(/\n/g, '<br>')}</p>`)
     .join('');
 
+  // When a reply domain is configured for SendGrid Inbound Parse, route replies
+  // to a per-sponsor address so the inbound webhook can attribute them and stop
+  // the follow-up cadence. Without it, fall back to replying straight to the
+  // organizer (replies still reach a human, they just aren't tracked).
+  const replyDomain = process.env.SPONSOR_REPLY_DOMAIN;
+  const replyTo = replyDomain
+    ? { email: `reply-${params.sponsorId}@${replyDomain}`, name: params.organizerName }
+    : (params.organizerEmail ? { email: params.organizerEmail, name: params.organizerName } : undefined);
+
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
@@ -36,7 +45,7 @@ export async function sendSponsorOutreachEmail(params: {
         email: 'noreply@tourneycoach.com',
         name: `${params.organizerName} via TourneyCoach`,
       },
-      reply_to: params.organizerEmail ? { email: params.organizerEmail, name: params.organizerName } : undefined,
+      reply_to: replyTo,
       subject: params.subject,
       content: [
         { type: 'text/plain', value: params.bodyText },
