@@ -119,20 +119,133 @@ const SCRIPTS: Record<string, { answer: string; spoken?: string; followups: stri
     spoken: "The kitchen notification fires automatically 45 minutes before the last group finishes — based on real-time pace tracking, no manual action needed. The kitchen is always ready when players walk off 18. Golf pros love this feature more than anything else TourneyCoach does.",
     followups: ["How does the leaderboard work?", "How does scoring work?", "How do I get sponsors?"],
   },
+
+  // ── Day 13 topic-specific coaching modules ──────────────────────────────
+  "how do i price registration": {
+    answer: "Price for a full field first, profit second — an empty course raises nothing.\n\nFor a first-year scramble, $100 to $125 per player ($400 to $500 per foursome) is the sweet spot. At a premium course, $150 to $175 is expected. The instinct to price low to \"be accessible\" usually backfires: it signals a smaller event and leaves money on the table, since the people who sponsor and play charity golf expect to pay real money for a real cause.\n\nDecide it in three steps: (1) start from your course's per-player cost, (2) add your target margin for the cause, (3) sanity-check against nearby charity events. In TourneyCoach you set the fee once during setup and it flows to your registration page and every projection.",
+    spoken: "Price for a full field first. For a first-year scramble, 100 to 125 dollars per player is the sweet spot — 150 to 175 at a premium course. Pricing low to be accessible usually backfires; charity golfers expect to pay real money for a real cause. Start from your course cost, add your margin, and sanity-check against nearby events.",
+    followups: ["How much will we raise?", "What should sponsorship packages look like?", "What does a successful Year 1 look like?"],
+  },
+  "what should sponsorship packages look like": {
+    answer: "A tight ladder of 4 to 5 tiers converts far better than a long menu.\n\nAnchor with a Title Sponsor at $5,000 — event named for them, logo on everything, a foursome included, just one available. Then Eagle at $2,500, Birdie at $1,000, and Hole at $250 with 18 available. Add one specialty tier that lets a smaller business own a moment: Beverage Cart, Putting Contest, or Dinner sponsor at $500 to $1,500.\n\nEach tier should name concrete, visible benefits — signage, program listing, players included — not vague \"recognition.\" In TourneyCoach you build these in the package builder, set how many of each are available, and every tier shows a live Sold count as they fill.",
+    spoken: "Keep it to four or five tiers. Anchor with a Title sponsor at 5,000 dollars, then Eagle at 2,500, Birdie at 1,000, and Hole sponsors at 250 with 18 available. Add a specialty tier like beverage cart or putting contest for smaller businesses. Name concrete visible benefits, not vague recognition.",
+    followups: ["Who should I ask to sponsor?", "How do I write a sponsor email?", "How much will we raise?"],
+  },
+  "how do i find volunteers": {
+    answer: "You need fewer volunteers than you think — about 10 to 15 for a 72-player event — and most come from three warm sources.\n\nStart with the cause itself: the people your charity serves and their families are usually eager to give back for a day. Then your board, staff, and their spouses. Then local groups that need service hours — high school honor societies, college clubs, scout troops, and church groups.\n\nGive each volunteer one clearly-named role (registration, scoring, hole marshal, setup) so they know exactly what they're signing up for. TourneyCoach's microsite has a volunteer sign-up form that collects name, contact, and role automatically, and you manage the whole list from your dashboard — no spreadsheet.",
+    spoken: "You need about 10 to 15 volunteers for a 72-player event. Start with the people your cause serves and their families, then your board and staff, then local groups needing service hours — honor societies, scouts, church groups. Give each one a clearly named role. TourneyCoach's microsite collects sign-ups automatically.",
+    followups: ["What does a successful Year 1 look like?", "How do I get vendor donations?", "How do I fill my field?"],
+  },
+  "how do i get vendor donations": {
+    answer: "In-kind donations stretch every dollar — a donated case of water or a raffle prize is margin you keep for the cause.\n\nAsk the businesses you already spend money with first: your caddie shop, the beverage distributor, the printer doing your signs. \"We're running a charity tournament for [cause] — would you donate [item] in exchange for recognition in our program?\" is a warm, easy yes. Then local restaurants (gift cards for prizes), breweries (kegs), and sporting-goods stores (raffle items).\n\nThe magic phrase is a specific ask tied to recognition: name the exact item, and offer program listing or a sign. In TourneyCoach you can track these as in-kind sponsors so they show up on your recognition list alongside cash sponsors.",
+    spoken: "In-kind donations are margin you keep for the cause. Ask the businesses you already spend money with first — your beverage distributor, your printer. Then local restaurants for gift cards, breweries for kegs, sporting-goods stores for raffle items. Make a specific ask tied to recognition: name the exact item and offer a program listing or sign.",
+    followups: ["Who should I ask to sponsor?", "How do I find volunteers?", "What does a successful Year 1 look like?"],
+  },
+  "what does a successful year 1 look like": {
+    answer: "A successful first year is not measured only in dollars — it's a full field, a smooth day, and sponsors who want to come back.\n\nThe numbers: a well-run first-year event with 72 players and solid sponsorships nets $10,000 to $18,000 for the cause. But the real win is the foundation — a field that filled, a day that ran on time, and 5 to 10 sponsors who had a great experience. Those are the sponsors who renew (and upgrade) in Year 2, which is where events jump to $20,000 to $35,000.\n\nSo protect three things above the fundraising total: don't overprice yourself into an empty field, don't skimp on the day-of experience, and thank every sponsor and volunteer personally. Year 1 is where you plant; Year 3 is where you harvest.",
+    spoken: "A successful first year isn't just dollars — it's a full field, a smooth day, and sponsors who want to come back. The numbers: 10 to 18 thousand net for a well-run first event. But the real win is the foundation — sponsors who renew and upgrade in Year 2, when events jump to 20 to 35 thousand. Don't overprice into an empty field, don't skimp on the day, and thank everyone personally.",
+    followups: ["What should I charge?", "What should sponsorship packages look like?", "How do I find volunteers?"],
+  },
+
+  // ── Escalate to human ───────────────────────────────────────────────────
+  "i need to talk to a human": {
+    answer: "Absolutely — you should never feel stuck.\n\nFor anything I can't answer, or when you'd just rather talk to a person, email the TourneyCoach team at support@tourneycoach.com and a real human will get back to you, usually within one business day. If it's about your specific event and time-sensitive, put your tournament name and date in the subject line so they can jump straight in.\n\nAnd for questions that need a licensed professional — legal structure, tax treatment of donations, insurance specifics — that's exactly the kind of thing to take to your accountant or attorney rather than any AI, including me.",
+    spoken: "You should never feel stuck. For anything I can't answer, or when you'd rather talk to a person, email the TourneyCoach team at support at tourneycoach dot com and a real human will get back to you, usually within one business day. And for legal, tax, or insurance specifics, take those to your accountant or attorney.",
+    followups: ["What does a successful Year 1 look like?", "How do I fill my field?", "How do I get sponsors?"],
+  },
 };
 
-const FAQ_CHIPS = ["How do I fill my field?", "What should I charge?", "How do I get sponsors?", "How does TourneyCircle work?", "How much will we raise?"];
+const FAQ_CHIPS = ["How do I fill my field?", "How do I price registration?", "What should sponsorship packages look like?", "How do I find volunteers?", "How do I get vendor donations?", "What does a successful Year 1 look like?"];
+
+// Common phrasings that should resolve to a canonical scripted topic —
+// especially the human-escalation intent, which people phrase many ways.
+const SCRIPT_ALIASES: Record<string, string> = {
+  'talk to a human': 'i need to talk to a human',
+  'talk to a person': 'i need to talk to a human',
+  'speak to someone': 'i need to talk to a human',
+  'speak to a human': 'i need to talk to a human',
+  'can i talk to a person': 'i need to talk to a human',
+  'this isn\'t helping': 'i need to talk to a human',
+  'you\'re not helping': 'i need to talk to a human',
+  'i need real help': 'i need to talk to a human',
+  'contact support': 'i need to talk to a human',
+  'how do i price my registration': 'how do i price registration',
+  'how should i price registration': 'how do i price registration',
+  'what should my sponsorship packages look like': 'what should sponsorship packages look like',
+  'how do i get volunteers': 'how do i find volunteers',
+  'where do i find volunteers': 'how do i find volunteers',
+  'how do i get in-kind donations': 'how do i get vendor donations',
+  'what does a good first year look like': 'what does a successful year 1 look like',
+  'what does a successful first year look like': 'what does a successful year 1 look like',
+};
 
 function lookupScript(text: string) {
   const key = text.toLowerCase().trim().replace(/[?!.]+$/, '');
+  const resolved = SCRIPT_ALIASES[key] ?? key;
   for (const [k, v] of Object.entries(SCRIPTS)) {
-    if (key === k) return v;
+    if (resolved === k) return v;
   }
   return null;
 }
 
 function daysOut(dateStr: string) {
   return Math.max(0, Math.round((new Date(dateStr).getTime() - Date.now()) / 86400000));
+}
+
+// ── Proactive coaching triggers ──────────────────────────────────────────
+// Surfaces at most two gentle, dismissible nudges based on where the
+// tournament actually is. Tone: supportive and optional — never pushy.
+interface Nudge { id: string; text: string; question: string; }
+function computeNudges(state: {
+  daysOut: number | null;
+  regCount: number;
+  maxPlayers: number;
+  sponsorSold: number;
+  sponsorTotal: number;
+  causeStoryDone: boolean;
+}): Nudge[] {
+  const nudges: Nudge[] = [];
+  const { daysOut: d, regCount, maxPlayers, sponsorSold, sponsorTotal, causeStoryDone } = state;
+  const fieldPct = maxPlayers > 0 ? regCount / maxPlayers : 0;
+  const sponsorPct = sponsorTotal > 0 ? sponsorSold / sponsorTotal : 0;
+  const soon = d != null && d <= 45;
+  const dLabel = d != null ? `${d} day${d === 1 ? '' : 's'}` : 'some time';
+
+  if (!causeStoryDone) {
+    nudges.push({
+      id: 'cause-story',
+      text: "Your cause story isn't written yet — it's the single thing that makes sponsors say yes and players show up. Want to talk through what makes a great one?",
+      question: 'What does a successful Year 1 look like?',
+    });
+  }
+  if (sponsorTotal === 0) {
+    nudges.push({
+      id: 'no-sponsors',
+      text: "You haven't set up sponsorship packages yet — sponsorships are 50 to 70% of tournament revenue. Want to see what a good package menu looks like?",
+      question: 'What should sponsorship packages look like?',
+    });
+  } else if (soon && sponsorPct < 0.5) {
+    nudges.push({
+      id: 'sponsor-outreach',
+      text: `You're ${dLabel} out and only ${sponsorSold} of ${sponsorTotal} sponsorships are sold. Want to walk through outreach strategy?`,
+      question: 'How do I write a sponsor email?',
+    });
+  }
+  if (soon && fieldPct < 0.5) {
+    nudges.push({
+      id: 'fill-field',
+      text: `You're ${dLabel} out with ${regCount} of ${maxPlayers} spots filled. Want to talk through how to fill the rest?`,
+      question: 'How do I fill my field?',
+    });
+  }
+  if (nudges.length === 0 && fieldPct >= 0.75) {
+    nudges.push({
+      id: 'day-of',
+      text: `Nice work — you're ${Math.round(fieldPct * 100)}% full. Want to start thinking about day-of logistics so the event runs smoothly?`,
+      question: 'How does day-of scoring work?',
+    });
+  }
+  return nudges.slice(0, 2);
 }
 
 // ── Leaderboard demo data ────────────────────────────────────────────────
@@ -194,6 +307,9 @@ export default function CoachPage() {
   const [switchOpen, setSwitchOpen] = useState(false);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [regCount, setRegCount] = useState(0);
+  const [sponsorSold, setSponsorSold] = useState(0);
+  const [sponsorTotal, setSponsorTotal] = useState(0);
+  const [dismissedNudges, setDismissedNudges] = useState<Set<string>>(new Set());
   const [screen, setScreen] = useState<'coach' | 'circle' | 'board'>('coach');
   // TourneyCircle state
   const [tcTab, setTcTab] = useState<'organizer' | 'excellence'>('organizer');
@@ -300,6 +416,12 @@ export default function CoachPage() {
         setTournament(picked);
         const { count } = await supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('tournament_id', picked.id).in('payment_status', ['pending', 'paid']);
         setRegCount(count ?? 0);
+
+        // Sponsorship progress feeds the proactive coaching triggers below.
+        const { data: tiers } = await supabase.from('sponsorship_tiers').select('quantity').eq('tournament_id', picked.id);
+        const { data: soldRows } = await supabase.from('sponsors').select('status').eq('tournament_id', picked.id);
+        if (tiers) setSponsorTotal(tiers.reduce((sum, t) => sum + (t.quantity ?? 0), 0));
+        if (soldRows) setSponsorSold(soldRows.filter(s => ['paid', 'invoiced', 'verbal'].includes(s.status)).length);
       }
 
       setLoading(false);
@@ -495,6 +617,19 @@ export default function CoachPage() {
   const days = tournament?.event_date ? daysOut(tournament.event_date) : null;
   const chipsToShow = followups.length > 0 ? followups : FAQ_CHIPS;
 
+  // Proactive nudges: only while the conversation is fresh (just the welcome),
+  // and only those the organizer hasn't dismissed this session.
+  const activeNudges = (tournament && messages.length <= 1)
+    ? computeNudges({
+        daysOut: days,
+        regCount,
+        maxPlayers: tournament.max_players ?? 0,
+        sponsorSold,
+        sponsorTotal,
+        causeStoryDone: !!tournament.cause_story_full,
+      }).filter(n => !dismissedNudges.has(n.id))
+    : [];
+
   return (
     <div style={{ width: '100%', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f3', fontFamily: "-apple-system, 'Helvetica Neue', sans-serif" }}>
       <div style={{ width: '100%', maxWidth: 1400, height: '92vh', maxHeight: 920, display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 16, overflow: 'hidden', border: '0.5px solid rgba(0,0,0,0.09)', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
@@ -646,13 +781,38 @@ export default function CoachPage() {
                 )}
               </div>
 
+              {/* Proactive coaching nudges */}
+              {activeNudges.length > 0 && (
+                <div style={{ padding: '4px 24px 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {activeNudges.map(n => (
+                    <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(184,134,11,0.08)', border: '0.5px solid rgba(184,134,11,0.25)', borderRadius: 10, padding: '10px 12px' }}>
+                      <span style={{ fontSize: 15, lineHeight: 1.2, marginTop: 1 }}>💡</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, color: '#6b5a2b', lineHeight: 1.5 }}>{n.text}</div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button onClick={() => { setDismissedNudges(prev => new Set(prev).add(n.id)); sendMessage(n.question); }} style={{ fontSize: 11.5, fontWeight: 600, color: '#fff', background: '#1B6B3A', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Yes, let&rsquo;s talk
+                          </button>
+                          <button onClick={() => setDismissedNudges(prev => new Set(prev).add(n.id))} style={{ fontSize: 11.5, color: '#9b9b96', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Not now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Chips */}
               <div style={{ padding: '6px 24px 8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
                   <span style={{ fontSize: 10, color: '#9b9b96', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     {followups.length > 0 ? 'Follow-up questions' : 'Suggested questions'}
                   </span>
-                  <button onClick={() => setFollowups([])} style={{ fontSize: 10, color: '#1B6B3A', background: 'rgba(27,107,58,0.1)', border: 'none', borderRadius: 8, padding: '3px 9px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>FAQ</button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => sendMessage('I need to talk to a human')} title="Get help from a person" style={{ fontSize: 10, color: '#6b6b67', background: 'none', border: '0.5px solid rgba(0,0,0,0.16)', borderRadius: 8, padding: '3px 9px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>Talk to a human</button>
+                    <button onClick={() => setFollowups([])} style={{ fontSize: 10, color: '#1B6B3A', background: 'rgba(27,107,58,0.1)', border: 'none', borderRadius: 8, padding: '3px 9px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>FAQ</button>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                   {chipsToShow.map(q => (
