@@ -264,7 +264,7 @@ export default function Dashboard() {
       <div style={s.wrap}>
 
         {/* ── Top bar ── */}
-        <div style={s.topbar}>
+        <div className="tc-topbar" style={s.topbar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <span style={s.mark}><CoachIcon color="#fff" size={20} /></span>
             <span style={s.brandName}>Tourney<span style={{ color: 'var(--primary)' }}>Coach</span></span>
@@ -328,7 +328,7 @@ export default function Dashboard() {
           <div style={{ flex: 1 }} />
 
           {tournament && (
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="tc-topbar-actions" style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => router.push('/dashboard/registrations')}
                 style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
@@ -421,7 +421,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Two-phase grid ── */}
-        <div style={s.grid}>
+        <div className="tc-two-col" style={s.grid}>
 
           {/* ═══ PHASE 1 — SETUP ═══ */}
           <section style={s.phase}>
@@ -522,7 +522,7 @@ export default function Dashboard() {
             <div style={s.pbody}>
 
               {/* Stat tiles */}
-              <div style={s.tiles}>
+              <div className="tc-tiles" style={s.tiles}>
                 <div style={s.tileLead}>
                   <div style={s.tileLab}>Field filled</div>
                   <div style={s.tileNum}>{foursomesFilled}<span style={{ fontSize: 16, opacity: .8, fontWeight: 400 }}> / {foursomes}</span></div>
@@ -584,7 +584,7 @@ export default function Dashboard() {
               {/* Jump back in */}
               <div>
                 <p style={s.blockH}>Jump back in</p>
-                <div style={s.quick}>
+                <div className="tc-quick" style={s.quick}>
                   {[
                     { label: 'Cause story', sub: causeStoryDone ? 'done' : 'not started', href: '/story' },
                     { label: 'Event setup', sub: setupDone ? 'done' : 'not started', href: '/setup/format' },

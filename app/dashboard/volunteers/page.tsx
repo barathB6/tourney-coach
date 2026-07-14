@@ -98,8 +98,8 @@ export default function VolunteersPage() {
             <p style={{ color: '#6B7775', fontSize: 14 }}>Share your microsite volunteer link to start collecting sign-ups.</p>
           </div>
         ) : (
-          <div style={s.card}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="tc-scroll-x" style={s.card}>
+            <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #E5E0D5', background: '#FAF8F3' }}>
                   {['Name', 'Email', 'Phone', 'Role', 'Signed Up', ''].map((h, i) => (

@@ -115,3 +115,42 @@ body {
   .auth-container { margin: 20px; padding: 18px; }
   .auth-hero h1 { font-size: 24px; }
 }
+
+/* ── Responsive layout helpers ──────────────────────────────────────────
+   These override inline grid/flex styles on small screens. !important is
+   required to beat the element's inline style attribute. Keyed on the CSS
+   layout viewport (correct on real devices and in preview). */
+
+/* Tablet and below */
+@media (max-width: 900px) {
+  .tc-two-col { grid-template-columns: 1fr !important; }
+}
+
+/* Phone */
+@media (max-width: 680px) {
+  .tc-topbar { flex-wrap: wrap !important; row-gap: 10px !important; }
+  .tc-topbar-actions { flex-wrap: wrap !important; }
+  .tc-quick { grid-template-columns: 1fr 1fr !important; }
+  .tc-tier-grid { grid-template-columns: 1fr !important; }
+  .tc-strip-hide { display: none !important; }
+  .tc-prospect-form { grid-template-columns: 1fr 1fr !important; }
+  /* Horizontal-scroll fallback for wide data tables (overrides card's
+     overflow:hidden so clipped columns become reachable by swipe) */
+  .tc-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+}
+
+/* Small phone */
+@media (max-width: 420px) {
+  .tc-quick { grid-template-columns: 1fr !important; }
+  .tc-tiles { grid-template-columns: 1fr !important; }
+}
+
+/* The floating coach widget panel: fill the viewport width on phones */
+@media (max-width: 480px) {
+  .tc-coach-panel {
+    width: calc(100vw - 24px) !important;
+    height: calc(100vh - 96px) !important;
+    max-height: calc(100vh - 96px) !important;
+    right: -8px !important;
+  }
+}

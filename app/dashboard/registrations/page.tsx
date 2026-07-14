@@ -343,7 +343,7 @@ export default function RegistrationsPage() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div className="tc-quick" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Contact name *</label>
                 <input
@@ -376,7 +376,7 @@ export default function RegistrationsPage() {
             {addForm.type !== 'single' && (
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Players 2–4 (contact is player 1)</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div className="tc-quick" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                   {[0, 1, 2].map(i => (
                     <input
                       key={i}
@@ -422,8 +422,8 @@ export default function RegistrationsPage() {
             <p style={{ color: '#6B7775', fontSize: 14 }}>Share your microsite registration link to start filling foursomes.</p>
           </div>
         ) : (
-          <div style={s.card}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="tc-scroll-x" style={s.card}>
+            <table style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #E5E0D5', background: '#FAF8F3' }}>
                   {['Contact', 'Type', 'Team', 'Foursome', 'Amount', 'Status', ''].map(h => (

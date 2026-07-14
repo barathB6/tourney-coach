@@ -191,7 +191,7 @@ export default function CoachWidget() {
   return (
     <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 9999, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       {open && (
-        <div style={{ position: 'absolute', bottom: 64, right: 0, width: 360, maxWidth: 'calc(100vw - 40px)', height: 520, maxHeight: 'calc(100vh - 110px)', background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.22)', border: '1px solid var(--line, #E5E0D5)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="tc-coach-panel" style={{ position: 'absolute', bottom: 64, right: 0, width: 360, maxWidth: 'calc(100vw - 40px)', height: 520, maxHeight: 'calc(100vh - 110px)', background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.22)', border: '1px solid var(--line, #E5E0D5)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Header */}
           <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--line, #E5E0D5)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--primary, #1B6B3A)', display: 'grid', placeItems: 'center', color: '#fff', flexShrink: 0 }}><CoachIcon size={15} /></div>

@@ -437,7 +437,7 @@ export default function SponsorsPage() {
             </div>
 
             {addingProspect && (
-              <div style={{ ...s.card, padding: 16, marginBottom: 14, display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1.2fr 0.9fr auto', gap: 10, alignItems: 'center' }}>
+              <div className="tc-prospect-form" style={{ ...s.card, padding: 16, marginBottom: 14, display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1.2fr 0.9fr auto', gap: 10, alignItems: 'center' }}>
                 <input style={s.input} placeholder="Company *" value={prospectDraft.company} onChange={e => setProspectDraft(d => ({ ...d, company: e.target.value }))} />
                 <input style={s.input} placeholder="Contact name" value={prospectDraft.contact_name} onChange={e => setProspectDraft(d => ({ ...d, contact_name: e.target.value }))} />
                 <input style={s.input} placeholder="Title (e.g. owner)" value={prospectDraft.contact_title} onChange={e => setProspectDraft(d => ({ ...d, contact_title: e.target.value }))} />
@@ -455,8 +455,8 @@ export default function SponsorsPage() {
                 <p style={{ color: '#6B7775', fontSize: 14 }}>No prospects yet. Add local businesses you want to pursue — medical practices, law firms, financial advisors, and restaurants convert best.</p>
               </div>
             ) : (
-              <div style={s.card}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div className="tc-scroll-x" style={{ ...s.card }}>
+                <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #E5E0D5', background: '#FAF8F3' }}>
                       {['Prospect', 'Tier', 'Status', 'Last touch', 'Action', ''].map((h, i) => (
