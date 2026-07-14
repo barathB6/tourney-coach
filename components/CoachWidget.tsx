@@ -12,6 +12,7 @@ interface Tournament {
   event_date: string;
   max_players: number;
   cause_story_full: string | null;
+  cause_story: string | null;
 }
 
 // Mounted once in the root layout so the coach is a persistent panel
@@ -77,7 +78,7 @@ export default function CoachWidget() {
     let selectedId: string | null = null;
     try { selectedId = localStorage.getItem(`tourney_selected_tournament_${u.id}`); } catch { /* */ }
 
-    const fields = 'id, name, event_date, max_players, cause_story_full';
+    const fields = 'id, name, event_date, max_players, cause_story_full, cause_story';
     let picked: Tournament | null = null;
     if (selectedId) {
       const { data } = await supabase.from('tournaments').select(fields).eq('organizer_id', u.id).eq('id', selectedId).maybeSingle();
@@ -182,7 +183,7 @@ export default function CoachWidget() {
   const activeNudges = (tournament && messages.length <= 1)
     ? computeNudges({
         daysOut: days, regCount, maxPlayers: tournament.max_players ?? 0,
-        sponsorSold, sponsorTotal, causeStoryDone: !!tournament.cause_story_full,
+        sponsorSold, sponsorTotal, causeStoryDone: !!(tournament.cause_story_full || tournament.cause_story),
       }).filter(n => !dismissedNudges.has(n.id))
     : [];
   const chipsToShow = followups.length > 0 ? followups : FAQ_CHIPS;

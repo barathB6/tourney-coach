@@ -20,6 +20,7 @@ interface Tournament {
   entry_fee: number;
   status: string;
   cause_story_full: string | null;
+  cause_story: string | null;
   organization: string | null;
 }
 
@@ -401,7 +402,7 @@ export default function CoachPage() {
         maxPlayers: tournament.max_players ?? 0,
         sponsorSold,
         sponsorTotal,
-        causeStoryDone: !!tournament.cause_story_full,
+        causeStoryDone: !!(tournament.cause_story_full || tournament.cause_story),
       }).filter(n => !dismissedNudges.has(n.id))
     : [];
 

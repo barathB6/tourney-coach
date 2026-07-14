@@ -126,6 +126,11 @@ export const SCRIPTS: Record<string, { answer: string; spoken?: string; followup
     spoken: "A successful first year isn't just dollars — it's a full field, a smooth day, and sponsors who want to come back. The numbers: 10 to 18 thousand net for a well-run first event. But the real win is the foundation — sponsors who renew and upgrade in Year 2, when events jump to 20 to 35 thousand. Don't overprice into an empty field, don't skimp on the day, and thank everyone personally.",
     followups: ["What should I charge?", "What should sponsorship packages look like?", "How do I find volunteers?"],
   },
+  "how do i write a cause story": {
+    answer: "The best cause stories are specific, not sweeping — one real person or moment beats broad statistics every time.\n\nLead with a concrete detail: a name (or first name), a number, a single scene. \"Fourteen kids stayed in school last year because of this tournament\" does more work than \"we support education.\" Then explain in a sentence or two what the money actually does — tuition, equipment, a program — so a reader can picture exactly where their entry fee or sponsorship goes.\n\nClose with the ask: what this year's event will make possible if it sells out. Keep the whole thing to 3 short paragraphs — sponsors and players skim, they don't read essays. TourneyCoach's cause story builder walks you through this step by step and pulls it into your microsite, registration page, and sponsor outreach automatically.",
+    spoken: "The best cause stories are specific — one real person or moment beats broad statistics. Lead with a concrete detail, explain in a sentence what the money does, and close with what this year's event will make possible. Keep it to three short paragraphs. TourneyCoach's cause story builder walks you through it step by step.",
+    followups: ["What does a successful Year 1 look like?", "How do I get sponsors?", "How do I fill my field?"],
+  },
 
   // ── Escalate to human ───────────────────────────────────────────────────
   "i need to talk to a human": {
@@ -195,7 +200,7 @@ export function computeNudges(state: {
     nudges.push({
       id: 'cause-story',
       text: "Your cause story isn't written yet — it's the single thing that makes sponsors say yes and players show up. Want to talk through what makes a great one?",
-      question: 'What does a successful Year 1 look like?',
+      question: 'How do I write a cause story?',
     });
   }
   if (sponsorTotal === 0) {
