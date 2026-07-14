@@ -261,7 +261,9 @@ export default function SponsorsPage() {
   }
 
   function soldCount(tier: Tier) {
-    return sponsors.filter(s => s.tier_id === tier.id && ['verbal', 'invoiced', 'pending', 'paid'].includes(s.status)).length;
+    // "pending" is an in-progress checkout, not a real commitment — an
+    // abandoned or declined attempt shouldn't count as sold.
+    return sponsors.filter(s => s.tier_id === tier.id && ['verbal', 'invoiced', 'paid'].includes(s.status)).length;
   }
 
   // ── Styles ───────────────────────────────────────────────────────────────

@@ -59,9 +59,13 @@ export async function POST(req: NextRequest) {
             }
           }
         } else {
+          // A declined/failed card must not read as "invoiced" (which implies
+          // we're expecting a check) — that hid failed payments as confirmed
+          // commitments and permanently occupied a tier slot for a purchase
+          // that never happened.
           await supabase
             .from('sponsors')
-            .update({ status: 'invoiced' })
+            .update({ status: 'declined' })
             .eq('id', sponsorId)
             .eq('status', 'pending');
         }

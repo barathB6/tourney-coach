@@ -39,13 +39,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Sponsorship package not found' }, { status: 404 });
     }
 
-    // Check availability (paid + pending count against quantity)
+    // Only count real commitments against quantity — "pending" is an
+    // in-progress checkout that may be abandoned or declined, and would
+    // otherwise permanently occupy a slot for a purchase that never happened.
     if (tier.quantity != null) {
       const { count } = await supabase
         .from('sponsors')
         .select('id', { count: 'exact', head: true })
         .eq('tier_id', tier.id)
-        .in('status', ['paid', 'pending', 'invoiced', 'verbal']);
+        .in('status', ['paid', 'invoiced', 'verbal']);
       if ((count ?? 0) >= tier.quantity) {
         return NextResponse.json({ error: 'This sponsorship level is sold out' }, { status: 409 });
       }
@@ -116,7 +118,7 @@ export async function GET(req: NextRequest) {
     .from('sponsors')
     .select('tier_id')
     .eq('tournament_id', tournamentId)
-    .in('status', ['paid', 'pending', 'invoiced', 'verbal']);
+    .in('status', ['paid', 'invoiced', 'verbal']);
 
   const counts: Record<string, number> = {};
   for (const s of taken ?? []) {
