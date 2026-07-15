@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import supabase from '@/lib/supabaseClient';
 import type { TournamentInput } from '@/lib/tournaments';
 
@@ -33,7 +34,10 @@ interface Course {
   name: string;
   city: string;
   state: string;
+  tees?: string[] | null;
 }
+
+const TEE_LABELS: Record<string, string> = { black: 'Black', blue: 'Blue', white: 'White', gold: 'Gold', red: 'Red' };
 
 export default function SetupClient() {
   const router = useRouter();
@@ -50,6 +54,7 @@ export default function SetupClient() {
     causeName: '',
     eventDate: '',
     courseId: '',
+    selectedTees: [] as string[],
     customCourseName: '',
     customCourseCity: '',
     customCourseState: '',
@@ -119,10 +124,16 @@ export default function SetupClient() {
 
   const fetchCourses = async () => {
     try {
-      const { data, error } = await supabase.from('courses').select('id, name, city, state').order('name');
+      const { data, error } = await supabase.from('courses').select('id, name, city, state, tees').order('name');
       if (error) throw error;
       setCourses(data || []);
-    } catch { setCourses([]); }
+    } catch {
+      // Pre-migration fallback: tees column may not exist yet (023_course_builder).
+      try {
+        const { data } = await supabase.from('courses').select('id, name, city, state').order('name');
+        setCourses(data || []);
+      } catch { setCourses([]); }
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -160,6 +171,7 @@ export default function SetupClient() {
         name: formData.name,
         event_date: formData.eventDate,
         course_id: formData.courseId || undefined,
+        selected_tees: formData.selectedTees.length > 0 ? formData.selectedTees : undefined,
         format: formData.format as TournamentInput['format'],
         max_score_rule: formData.maxScoreRule as TournamentInput['max_score_rule'],
         shotgun_type: formData.shotgunType as TournamentInput['shotgun_type'],
@@ -321,8 +333,38 @@ export default function SetupClient() {
                       ))}
                     </select>
                   </div>
-                  <button type="button" onClick={() => setUseCustomCourse(true)}
-                    className="text-sm text-green-800 font-medium hover:underline">+ Enter a course manually</button>
+                  {formData.courseId && (() => {
+                    const tees = courses.find((c) => c.id === formData.courseId)?.tees;
+                    if (!tees || tees.length === 0) return null;
+                    return (
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-900 mb-1.5">Tees for this tournament</label>
+                        <p className="text-xs text-gray-500 mb-2">Pick which tees the field plays from — leave none selected to decide later.</p>
+                        <div className="flex flex-wrap gap-2">
+                          {tees.map((tee) => {
+                            const active = formData.selectedTees.includes(tee);
+                            return (
+                              <button key={tee} type="button"
+                                onClick={() => setFormData((prev) => ({
+                                  ...prev,
+                                  selectedTees: active ? prev.selectedTees.filter((t) => t !== tee) : [...prev.selectedTees, tee],
+                                }))}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-colors ${
+                                  active ? 'border-green-800 bg-green-800 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                                }`}>
+                                {TEE_LABELS[tee] ?? tee}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className="flex items-center gap-4">
+                    <button type="button" onClick={() => setUseCustomCourse(true)}
+                      className="text-sm text-green-800 font-medium hover:underline">+ Enter a course manually</button>
+                    <Link href="/course/new" className="text-sm text-green-800 font-medium hover:underline">Build a full course profile →</Link>
+                  </div>
                 </>
               ) : (
                 <>

@@ -56,6 +56,7 @@ export default function Dashboard() {
   const [switchOpen, setSwitchOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [phase2CoachDismissed, setPhase2CoachDismissed] = useState(false);
+  const [lastCourseId, setLastCourseId] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -96,6 +97,8 @@ export default function Dashboard() {
           setStoryDone(Object.values(story).some((v) => (v as string)?.trim?.()));
         }
       } catch { /* ignore */ }
+
+      try { setLastCourseId(localStorage.getItem(`tourney_last_course_${u.id}`)); } catch { /* ignore */ }
 
       // The top bar shows whichever tournament was last picked in the
       // Registrations dropdown, so switching there stays consistent when you
@@ -591,6 +594,7 @@ export default function Dashboard() {
                     { label: 'Registration', sub: setupDone ? 'view registrations' : 'not started', href: setupDone ? '/dashboard/registrations' : null },
                     { label: 'Sponsors', sub: setupDone ? 'view sponsors' : 'not started', href: setupDone ? '/sponsors' : null },
                     { label: 'Shotgun start', sub: setupDone ? 'assign holes' : 'not started', href: setupDone ? '/shotgun' : null },
+                    { label: 'Course profile', sub: lastCourseId ? 'resume building' : 'build a course', href: lastCourseId ? `/course/${lastCourseId}` : '/course/new' },
                   ].map(({ label, sub, href }) => (
                     <button key={label} style={s.q} onClick={() => href && router.push(href)} disabled={!href}>
                       <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)' }}>{label}</div>

@@ -18,6 +18,7 @@ export interface TournamentInput {
   max_players?: number;
   entry_fee_cents?: number;
   cause_story?: string;
+  selected_tees?: string[];
 }
 
 // --- Validation ---

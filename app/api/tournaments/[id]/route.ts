@@ -102,7 +102,7 @@ export async function PUT(req: NextRequest, context: RouteContext) {
   // Build update payload
   const update: Record<string, unknown> = {};
   const allowedFields = [
-    'name', 'organization', 'event_date', 'course_id',
+    'name', 'organization', 'event_date', 'course_id', 'selected_tees',
     'custom_course_name', 'custom_course_city', 'custom_course_state',
     'format', 'team_size', 'max_score_rule', 'shotgun_type',
     'max_players', 'entry_fee', 'cause_what', 'cause_who', 'cause_why', 'status',

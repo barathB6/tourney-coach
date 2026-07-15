@@ -41,24 +41,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ errors }, { status: 422 });
   }
 
-  const { data, error } = await supabase
-    .from('tournaments')
-    .insert({
-      organizer_id: user.id,
-      name: body.name.trim(),
-      slug: generateSlug(body.name.trim()),
-      event_date: body.event_date,
-      course_id: body.course_id || null,
-      format: body.format || 'scramble',
-      max_score_rule: body.max_score_rule || 'par',
-      shotgun_type: body.shotgun_type || 'double',
-      max_players: body.max_players || 128,
-      entry_fee_cents: body.entry_fee_cents ?? 12500,
-      cause_story: body.cause_story?.trim() || null,
-      status: 'draft',
-    })
-    .select()
-    .single();
+  const insertRow: Record<string, unknown> = {
+    organizer_id: user.id,
+    name: body.name.trim(),
+    slug: generateSlug(body.name.trim()),
+    event_date: body.event_date,
+    course_id: body.course_id || null,
+    format: body.format || 'scramble',
+    max_score_rule: body.max_score_rule || 'par',
+    shotgun_type: body.shotgun_type || 'double',
+    max_players: body.max_players || 128,
+    entry_fee_cents: body.entry_fee_cents ?? 12500,
+    cause_story: body.cause_story?.trim() || null,
+    status: 'draft',
+  };
+  if (body.selected_tees && body.selected_tees.length > 0) {
+    insertRow.selected_tees = body.selected_tees;
+  }
+
+  let { data, error } = await supabase.from('tournaments').insert(insertRow).select().single();
+
+  // Pre-migration fallback: selected_tees column may not exist yet (023_course_builder).
+  if (error && insertRow.selected_tees && /selected_tees/.test(error.message)) {
+    delete insertRow.selected_tees;
+    ({ data, error } = await supabase.from('tournaments').insert(insertRow).select().single());
+  }
 
   if (error) {
     if (error.code === '23505') {
