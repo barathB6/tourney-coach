@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { validateTournament, TournamentInput } from '@/lib/tournaments';
+import { holeParsFromRows } from '@/lib/course';
 
 function generateSlug(name: string): string {
   return name
@@ -19,6 +20,17 @@ function getSupabase(req: NextRequest) {
     token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : undefined
   );
   return client;
+}
+
+// A course profile carries its own hole-by-hole par layout (Day 17); when a
+// tournament picks that course, the Shotgun Start Manager (Day 16) should
+// see those real pars instead of the tournaments.hole_pars column default
+// (standard par-72) — otherwise a custom/executive course's par-3s never
+// reach the capacity math and conflict detection.
+async function coursePars(supabase: SupabaseClient, courseId: string): Promise<number[] | null> {
+  const { data, error } = await supabase.from('course_holes').select('hole_number, par').eq('course_id', courseId);
+  if (error || !data) return null;
+  return holeParsFromRows(data);
 }
 
 export async function POST(req: NextRequest) {
@@ -58,8 +70,18 @@ export async function POST(req: NextRequest) {
   if (body.selected_tees && body.selected_tees.length > 0) {
     insertRow.selected_tees = body.selected_tees;
   }
+  if (insertRow.course_id) {
+    const pars = await coursePars(supabase, insertRow.course_id as string);
+    if (pars) insertRow.hole_pars = pars;
+  }
 
   let { data, error } = await supabase.from('tournaments').insert(insertRow).select().single();
+
+  // Pre-migration fallback: hole_pars may not exist yet (022_shotgun_start).
+  if (error && insertRow.hole_pars && /hole_pars/.test(error.message)) {
+    delete insertRow.hole_pars;
+    ({ data, error } = await supabase.from('tournaments').insert(insertRow).select().single());
+  }
 
   // Pre-migration fallback: selected_tees column may not exist yet (023_course_builder).
   if (error && insertRow.selected_tees && /selected_tees/.test(error.message)) {

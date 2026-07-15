@@ -8,6 +8,7 @@ import {
   TournamentStatus,
   STATUSES,
 } from '@/lib/tournaments';
+import { holeParsFromRows } from '@/lib/course';
 
 function getSupabase(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -124,6 +125,15 @@ export async function PUT(req: NextRequest, context: RouteContext) {
 
   if (typeof update.name === 'string') update.name = update.name.trim();
   if (typeof update.organization === 'string') update.organization = update.organization.trim() || null;
+
+  // Course changed (or set for the first time) — pull that course's real par
+  // layout into hole_pars so the Shotgun Start Manager reflects it instead of
+  // the standard-par-72 column default. See coursePars() in route.ts for why.
+  if (typeof update.course_id === 'string' && update.course_id !== existing.course_id) {
+    const { data: holes } = await supabase.from('course_holes').select('hole_number, par').eq('course_id', update.course_id);
+    const pars = holes ? holeParsFromRows(holes) : null;
+    if (pars) update.hole_pars = pars;
+  }
 
   const { data, error } = await supabase
     .from('tournaments')

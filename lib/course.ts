@@ -58,3 +58,16 @@ export function handicapConflicts(holes: CourseHole[]): number[] {
   }
   return [...seen.entries()].filter(([, count]) => count > 1).map(([hcp]) => hcp);
 }
+
+// Turns raw course_holes rows into the 18-element par array the Shotgun
+// Start Manager (lib/shotgun.ts, tournaments.hole_pars) expects. Only
+// returns an array when every hole 1-18 has a par set — a partially-built
+// course profile shouldn't silently overwrite a tournament's par layout
+// with nulls/gaps.
+export function holeParsFromRows(rows: { hole_number: number; par: number | null }[]): number[] | null {
+  const pars = new Array<number | null>(18).fill(null);
+  for (const row of rows) {
+    if (row.hole_number >= 1 && row.hole_number <= 18) pars[row.hole_number - 1] = row.par;
+  }
+  return pars.every((p): p is number => p != null) ? pars : null;
+}
