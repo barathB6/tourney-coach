@@ -169,7 +169,7 @@ export default function Dashboard() {
     { label: 'Open registration', done: setupDone, href: null },
     { label: 'Line up your sponsors', done: false, href: '/sponsors' },
     { label: 'Rally your volunteers', done: false, href: null },
-    { label: 'Build your day-of game plan', done: false, href: null },
+    { label: 'Build your day-of game plan', done: false, href: '/shotgun' },
   ];
   const activeIdx = steps.findIndex(s => !s.done);
 
@@ -590,6 +590,7 @@ export default function Dashboard() {
                     { label: 'Event setup', sub: setupDone ? 'done' : 'not started', href: '/setup/format' },
                     { label: 'Registration', sub: setupDone ? 'view registrations' : 'not started', href: setupDone ? '/dashboard/registrations' : null },
                     { label: 'Sponsors', sub: setupDone ? 'view sponsors' : 'not started', href: setupDone ? '/sponsors' : null },
+                    { label: 'Shotgun start', sub: setupDone ? 'assign holes' : 'not started', href: setupDone ? '/shotgun' : null },
                   ].map(({ label, sub, href }) => (
                     <button key={label} style={s.q} onClick={() => href && router.push(href)} disabled={!href}>
                       <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)' }}>{label}</div>
