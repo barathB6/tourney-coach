@@ -129,6 +129,14 @@ export default function ShotgunPage() {
     return teams.find(t => t.startingHole === hole && (t.startSlot ?? 'A') === slot);
   }
 
+  // All teams claiming this exact hole+slot — normally 0 or 1, but a
+  // duplicate-slot conflict means 2+. Rendering every one of them (not just
+  // the first match) is what makes every team involved in a conflict
+  // actually draggable, instead of one silently vanishing from the grid.
+  function teamsAt(hole: number, slot: 'A' | 'B') {
+    return teams.filter(t => t.startingHole === hole && (t.startSlot ?? 'A') === slot);
+  }
+
   // ── Mutations ─────────────────────────────────────────────────────────────
   async function persistTeam(foursomeNumber: number, hole: number | null, slot: 'A' | 'B' | null) {
     if (!tournament) return;
@@ -328,34 +336,47 @@ export default function ShotgunPage() {
                       </button>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {slots.map(slot => {
-                          const occ = teamAt(hole, slot);
-                          return (
-                            <div
-                              key={slot}
-                              onDragOver={e => e.preventDefault()}
-                              onDrop={() => handleDrop(hole, slot)}
-                              style={{
-                                background: '#fff', border: occ ? '1px solid #E5E0D5' : '1px dashed #C9D3CC',
-                                borderRadius: 7, padding: '7px 8px', fontSize: 12, fontWeight: occ ? 600 : 400,
-                                color: occ ? '#1A1F1C' : '#9BA8A4', minHeight: 32,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                                cursor: occ ? 'grab' : 'default',
-                              }}
-                              draggable={!!occ}
-                              onDragStart={() => occ && setDragTeam(occ.foursomeNumber)}
-                            >
-                              {occ ? (
-                                <>
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {format === 'double' && par !== 3 ? `${slot} · ` : ''}{occ.name}
-                                  </span>
-                                  <button onClick={() => persistTeam(occ.foursomeNumber, null, null)} title="Unassign" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9BA8A4', padding: 0, fontSize: 12, lineHeight: 1 }}>✕</button>
-                                </>
-                              ) : (format === 'double' && par !== 3 ? `${slot} · open` : 'Open')}
-                            </div>
-                          );
+                          // Normally 0 or 1 team; a duplicate-slot conflict means
+                          // 2+ landed here (e.g. two direct DB writes, or a stale
+                          // client). Render every one so nobody is left stuck
+                          // with no chip to grab — see teamsAt() for why.
+                          const occs = teamsAt(hole, slot);
+                          if (occs.length === 0) {
+                            return (
+                              <div key={slot} onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(hole, slot)}
+                                style={{ background: '#fff', border: '1px dashed #C9D3CC', borderRadius: 7, padding: '7px 8px', fontSize: 12, color: '#9BA8A4', minHeight: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {format === 'double' && par !== 3 ? `${slot} · open` : 'Open'}
+                              </div>
+                            );
+                          }
+                          return occs.map((occ, idx) => {
+                            const clash = occs.length > 1;
+                            return (
+                              <div
+                                key={occ.id}
+                                onDragOver={e => e.preventDefault()}
+                                onDrop={() => handleDrop(hole, slot)}
+                                style={{
+                                  background: clash ? '#FBE9E7' : '#fff', border: clash ? '1px solid #C0392B' : '1px solid #E5E0D5',
+                                  borderRadius: 7, padding: '7px 8px', fontSize: 12, fontWeight: 600,
+                                  color: clash ? '#C0392B' : '#1A1F1C', minHeight: 32,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                                  cursor: 'grab',
+                                }}
+                                draggable
+                                onDragStart={() => setDragTeam(occ.foursomeNumber)}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {format === 'double' && par !== 3 ? `${slot} · ` : ''}{occ.name}{clash ? ` — move me (${idx + 1}/${occs.length})` : ''}
+                                </span>
+                                <button onClick={() => persistTeam(occ.foursomeNumber, null, null)} title="Unassign" style={{ background: 'none', border: 'none', cursor: 'pointer', color: clash ? '#C0392B' : '#9BA8A4', padding: 0, fontSize: 12, lineHeight: 1 }}>✕</button>
+                              </div>
+                            );
+                          });
                         })}
-                        {/* Orphaned B team on a par 3 renders here so it stays visible + draggable */}
+                        {/* Orphaned B team on a par 3: the format only offers an A
+                            slot on par 3s, so a B assignment here is always invalid
+                            and needs its own render path to stay visible/draggable. */}
                         {par === 3 && teams.filter(t => t.startingHole === hole && t.startSlot === 'B').map(t => (
                           <div key={t.id} draggable onDragStart={() => setDragTeam(t.foursomeNumber)} style={{ background: '#FBE9E7', border: '1px solid #C0392B', borderRadius: 7, padding: '7px 8px', fontSize: 12, fontWeight: 600, color: '#C0392B', cursor: 'grab' }}>
                             B · {t.name} — move me
