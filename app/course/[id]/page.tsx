@@ -197,9 +197,9 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 20 }}>
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 10, marginBottom: 20 }}>
+        <div className="tc-course-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 20 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="tc-hole-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 10, marginBottom: 20 }}>
               {holes.map(h => {
                 const complete = isHoleComplete(h);
                 const active = selectedHole === h.holeNumber;

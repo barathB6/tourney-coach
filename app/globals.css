@@ -124,6 +124,8 @@ body {
 /* Tablet and below */
 @media (max-width: 900px) {
   .tc-two-col { grid-template-columns: 1fr !important; }
+  .tc-course-grid { grid-template-columns: 1fr !important; }
+  .tc-hole-grid { grid-template-columns: repeat(6, 1fr) !important; }
 }
 
 /* Phone */
@@ -134,6 +136,7 @@ body {
   .tc-tier-grid { grid-template-columns: 1fr !important; }
   .tc-strip-hide { display: none !important; }
   .tc-prospect-form { grid-template-columns: 1fr 1fr !important; }
+  .tc-hole-grid { grid-template-columns: repeat(4, 1fr) !important; }
   /* Horizontal-scroll fallback for wide data tables (overrides card's
      overflow:hidden so clipped columns become reachable by swipe) */
   .tc-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
@@ -143,6 +146,7 @@ body {
 @media (max-width: 420px) {
   .tc-quick { grid-template-columns: 1fr !important; }
   .tc-tiles { grid-template-columns: 1fr !important; }
+  .tc-hole-grid { grid-template-columns: repeat(3, 1fr) !important; }
 }
 
 /* The floating coach widget panel: fill the viewport width on phones */
