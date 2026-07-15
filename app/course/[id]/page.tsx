@@ -31,7 +31,14 @@ const s = {
   input: { width: '100%', border: '1px solid #E5E0D5', borderRadius: 8, padding: '9px 11px', fontSize: 14, fontFamily: 'inherit', color: '#1A1F1C', boxSizing: 'border-box' as const },
   btn: { background: '#1B6B3A', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
   btnGhost: { background: '#fff', color: '#1A1F1C', border: '1px solid #E5E0D5', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
+  pill: { fontSize: 12.5, fontWeight: 700, background: '#F1ECDD', color: '#5C6B62', borderRadius: 20, padding: '7px 14px', whiteSpace: 'nowrap' as const },
 };
+
+const TEE_DOT_COLOR: Record<Tee, string> = { black: '#1A1F1C', blue: '#2C5F8A', white: '#fff', gold: '#C08A1E', red: '#B33A2E' };
+
+function TeeDot({ tee }: { tee: Tee }) {
+  return <span style={{ width: 10, height: 10, borderRadius: '50%', background: TEE_DOT_COLOR[tee], border: tee === 'white' ? '1px solid #D8D2C2' : 'none', display: 'inline-block', flexShrink: 0 }} />;
+}
 
 export default function CourseBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = usePromise(params);
@@ -162,23 +169,30 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
   const done = completionCount(holes);
   const activeTees: Tee[] = (course.tees as Tee[] | null) ?? TEES.slice();
   const selected = selectedHole != null ? holes[selectedHole - 1] : null;
+  const primaryTee: Tee = activeTees.includes('blue') ? 'blue' : (activeTees[0] ?? 'blue');
+  const primaryYardage = holes.reduce((sum, h) => sum + (h.teeYardages[primaryTee] ?? 0), 0);
+  const parTotal = holes.reduce((sum, h) => sum + (h.par ?? 0), 0) || course.par_total;
 
   return (
     <div style={s.page}>
       <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-        <button onClick={() => router.push('/dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1B6B3A', fontSize: 14, padding: 0, marginBottom: 8 }}>← Back to dashboard</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <button onClick={() => router.push('/dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1B6B3A', fontSize: 14, padding: 0 }}>← Back to dashboard</button>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#5C6B62', background: '#EFEAD9', border: '1px solid #E5E0D5', borderRadius: 20, padding: '5px 12px' }}>PRO PORTAL</span>
+        </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
           <div>
             <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 700, margin: 0 }}>{course.name}</h1>
             <p style={{ color: '#6B7775', fontSize: 14, margin: '4px 0 0' }}>
-              Par {holes.reduce((sum, h) => sum + (h.par ?? 0), 0) || (course.par_total ?? '—')}
-              {course.total_holes ? ` · ${course.city ?? ''}${course.city && course.state ? ', ' : ''}${course.state ?? ''}` : ''}
+              {parTotal ? `Par ${parTotal}` : 'Par —'}
+              {primaryYardage > 0 ? ` · ${primaryYardage.toLocaleString()} yards from the ${primaryTee}s` : ''}
               {course.slope ? ` · slope ${course.slope}` : ''}
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, color: '#6B7775' }}>{saveNote || `${done} / 18 holes complete`}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={s.pill}>{done} / 18 holes complete</span>
+            {isOwner && <button style={s.btn} onClick={() => { setSaveNote('Saved'); setTimeout(() => setSaveNote(''), 1200); }}>{saveNote || 'Save course'}</button>}
             {!isOwner && <span style={{ fontSize: 12, color: '#B08900', background: '#FFF7E0', padding: '4px 10px', borderRadius: 20 }}>Read-only — you didn&apos;t create this profile</span>}
           </div>
         </div>
@@ -256,11 +270,13 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
                 {TEES.map(tee => (
                   <button key={tee} disabled={!isOwner} onClick={() => toggleTee(tee)}
                     style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
                       fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 16, cursor: isOwner ? 'pointer' : 'default', fontFamily: 'inherit',
                       border: activeTees.includes(tee) ? '1px solid #1B6B3A' : '1px solid #E5E0D5',
                       background: activeTees.includes(tee) ? '#1B6B3A' : '#fff',
                       color: activeTees.includes(tee) ? '#fff' : '#6B7775',
                     }}>
+                    <TeeDot tee={tee} />
                     {tee[0].toUpperCase() + tee.slice(1)}
                   </button>
                 ))}
@@ -270,11 +286,13 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
             <div style={{ ...s.card, background: '#F6F4EC' }}>
               <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 16, margin: '0 0 8px' }}>GPS data status</h3>
               <p style={{ fontSize: 13, color: '#6B7775', lineHeight: 1.5, margin: 0 }}>
-                Each hole has a structural slot ready for tee, fairway, and green positions. GPS mapping from player phones during live tournaments isn&apos;t wired up yet — that starts once this course is used in a real event.
+                Tee, fairway, and green positions for every hole are mapped automatically from player phones during your tournaments — no survey work required. Each hole already has a structural slot waiting for that data.
               </p>
-              <div style={{ marginTop: 12, fontSize: 12, fontWeight: 600, color: '#8A6D00', background: '#FFF3D0', borderRadius: 8, padding: '8px 10px' }}>
-                Not yet collecting — schema is attached, no rounds recorded
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: '#8A6D00', background: '#FFF3D0', border: '1px solid #F0DE9E', borderRadius: 8, padding: '9px 12px' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#C08A1E', flexShrink: 0 }} />
+                Not yet collecting — schema attached, no rounds recorded
               </div>
+              <p style={{ fontSize: 11.5, color: '#9A9587', margin: '8px 0 0' }}>Starts automatically once this course is used in a live tournament.</p>
             </div>
           </div>
         </div>
@@ -330,7 +348,7 @@ function HoleEditor({ hole, tees, onSave }: { hole: CourseHole; tees: Tee[]; onS
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
         {tees.map(tee => (
           <div key={tee} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1ECDD' }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>{tee[0].toUpperCase() + tee.slice(1)}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}><TeeDot tee={tee} />{tee[0].toUpperCase() + tee.slice(1)}</span>
             <span style={{ fontSize: 12, color: '#6B7775', flex: 1, marginLeft: 12 }}>{TEE_LABELS[tee]}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input type="number" style={{ ...s.input, width: 90, textAlign: 'right' }} value={local.teeYardages[tee] ?? ''}
