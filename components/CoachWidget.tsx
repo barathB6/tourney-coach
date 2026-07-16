@@ -108,7 +108,34 @@ export default function CoachWidget() {
       if (soldRows) setSponsorSold(soldRows.filter(s => ['paid', 'invoiced', 'verbal'].includes(s.status)).length);
     }
 
-    setMessages([{ role: 'assistant', content: `Hey${fullName ? `, ${fullName.split(' ')[0]}` : ''}! What can I help with?` }]);
+    // Resume the most recent conversation for this tournament instead of
+    // always starting fresh — messages are already saved server-side, this
+    // just makes the widget show them back on reopen.
+    const resumed = picked ? await loadLatestConversation(picked.id) : null;
+    if (resumed) {
+      setActiveConvId(resumed.id);
+      setMessages(resumed.messages);
+    } else {
+      setMessages([{ role: 'assistant', content: `Hey${fullName ? `, ${fullName.split(' ')[0]}` : ''}! What can I help with?` }]);
+    }
+  }
+
+  async function loadLatestConversation(tournamentId: string): Promise<{ id: string; messages: Message[] } | null> {
+    const { data: conv } = await supabase
+      .from('coach_conversations')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!conv) return null;
+    const { data: rows } = await supabase
+      .from('coach_messages')
+      .select('role, content')
+      .eq('conversation_id', conv.id)
+      .order('created_at', { ascending: true });
+    if (!rows || rows.length === 0) return null;
+    return { id: conv.id, messages: rows as Message[] };
   }
 
   function toggleOpen() {

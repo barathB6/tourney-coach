@@ -22,6 +22,7 @@ function buildSystemPrompt(
   tournament: Record<string, unknown> | null,
   regCount: number,
   sponsorStats: { committed: number; paid: number; raisedCents: number; prospecting: number; needsFollowUp: number; awaitingReply: number } | null,
+  volunteerStats: { total: number; roles: Record<string, number>; unassigned: number } | null,
 ) {
   const base = `You are TourneyCoach, the AI coaching assistant for charity golf tournament organizers. You are warm, encouraging, knowledgeable, and specific. You speak in plain language — never corporate, never condescending. You're like a seasoned friend who has run dozens of charity tournaments and genuinely wants this organizer to succeed.
 
@@ -80,8 +81,9 @@ CURRENT TOURNAMENT CONTEXT (use this to give specific, personalized advice):
 - Cause story: ${tournament.cause_story_full ? 'Written' : 'Not started'}
 - Status: ${tournament.status || 'draft'}
 ${sponsorStats ? `- Sponsors: ${sponsorStats.committed} committed ($${(sponsorStats.raisedCents / 100).toLocaleString()} paid so far from ${sponsorStats.paid} paid sponsors), ${sponsorStats.prospecting} still being prospected${sponsorStats.awaitingReply > 0 ? `, ${sponsorStats.awaitingReply} replied and awaiting the organizer's response` : ''}${sponsorStats.needsFollowUp > 0 ? `, ${sponsorStats.needsFollowUp} overdue for follow-up` : ''}` : '- Sponsors: No sponsorship packages built yet'}
+${volunteerStats ? `- Volunteers: ${volunteerStats.total} signed up${Object.keys(volunteerStats.roles).length > 0 ? ` (${Object.entries(volunteerStats.roles).map(([role, n]) => `${n} ${role}`).join(', ')})` : ''}${volunteerStats.unassigned > 0 ? `, ${volunteerStats.unassigned} with no role assigned yet` : ''}` : '- Volunteers: No volunteer sign-ups yet'}
 
-Use this context to make every answer specific to THIS event, not generic. Name their tournament, course, cause, date, and field size when relevant — e.g. instead of "$100–$125 per player," say something like "For your ${tournament.name || 'event'}${tournament.location_name ? ` at ${tournament.location_name}` : ''}${tournament.max_players ? ` with ${tournament.max_players} players` : ''}, I'd charge…". If they're 3 weeks out with low registration, be proactive about that. If they haven't set a date yet, nudge them. If they ask about sponsors, use the live sponsor pipeline numbers above — don't give generic advice when you have their actual committed/prospecting counts.`;
+Use this context to make every answer specific to THIS event, not generic. Name their tournament, course, cause, date, and field size when relevant — e.g. instead of "$100–$125 per player," say something like "For your ${tournament.name || 'event'}${tournament.location_name ? ` at ${tournament.location_name}` : ''}${tournament.max_players ? ` with ${tournament.max_players} players` : ''}, I'd charge…". If they're 3 weeks out with low registration, be proactive about that. If they haven't set a date yet, nudge them. If they ask about sponsors, use the live sponsor pipeline numbers above — don't give generic advice when you have their actual committed/prospecting counts. If they ask about volunteers, use the live signup numbers and role breakdown above.`;
 
   return base + context;
 }
@@ -156,6 +158,7 @@ export async function POST(req: NextRequest) {
   let tournament: Record<string, unknown> | null = null;
   let regCount = 0;
   let sponsorStats: { committed: number; paid: number; raisedCents: number; prospecting: number; needsFollowUp: number; awaitingReply: number } | null = null;
+  let volunteerStats: { total: number; roles: Record<string, number>; unassigned: number } | null = null;
   if (tournamentId) {
     const { data } = await supabase
       .from('tournaments')
@@ -186,6 +189,20 @@ export async function POST(req: NextRequest) {
           needsFollowUp: sponsorRows.filter(s => s.status === 'no_reply').length,
           awaitingReply: sponsorRows.filter(s => s.status === 'replied').length,
         };
+      }
+
+      const { data: volunteerRows } = await supabase
+        .from('volunteer_signups')
+        .select('role')
+        .eq('tournament_id', tournamentId);
+      if (volunteerRows) {
+        const roles: Record<string, number> = {};
+        let unassigned = 0;
+        for (const v of volunteerRows) {
+          if (v.role && v.role.trim()) roles[v.role] = (roles[v.role] ?? 0) + 1;
+          else unassigned++;
+        }
+        volunteerStats = { total: volunteerRows.length, roles, unassigned };
       }
     }
   }
@@ -228,7 +245,7 @@ export async function POST(req: NextRequest) {
     content: m.content,
   }));
 
-  const systemPrompt = buildSystemPrompt(tournament, regCount, sponsorStats);
+  const systemPrompt = buildSystemPrompt(tournament, regCount, sponsorStats, volunteerStats);
 
   // Stream response
   const stream = await anthropic.messages.stream({

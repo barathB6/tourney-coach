@@ -204,13 +204,42 @@ export default function CoachPage() {
 
       setLoading(false);
 
-      // Show welcome message
+      // Resume the most recent conversation for this tournament instead of
+      // always starting fresh — messages are already saved server-side, this
+      // just makes the page show them back on reload.
+      const resumed = picked ? await loadLatestConversation(picked.id) : null;
+      if (resumed) {
+        setActiveConvId(resumed.id);
+        setMessages(resumed.messages);
+        return;
+      }
+
+      // No prior conversation — show welcome message
       const welcome = "Hey, welcome to TourneyCoach! I'm your AI coaching assistant. Whether this is your first tournament or your tenth, I'm here to help every step of the way. What's on your mind?";
       setMessages([{ role: 'assistant', content: welcome }]);
       setTimeout(() => {
         if (typeof window !== 'undefined' && window.speechSynthesis) speak(welcome);
       }, 400);
     }
+
+    async function loadLatestConversation(tournamentId: string): Promise<{ id: string; messages: Message[] } | null> {
+      const { data: conv } = await supabase
+        .from('coach_conversations')
+        .select('id')
+        .eq('tournament_id', tournamentId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!conv) return null;
+      const { data: rows } = await supabase
+        .from('coach_messages')
+        .select('role, content')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: true });
+      if (!rows || rows.length === 0) return null;
+      return { id: conv.id, messages: rows as Message[] };
+    }
+
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
