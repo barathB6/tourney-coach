@@ -143,8 +143,8 @@ export const SCRIPTS: Record<string, { answer: string; spoken?: string; followup
   // which personalizes with the organizer's own phone number when they've
   // added one to their profile — see resolveScriptKey()/ESCALATION_KEY.
   "i need to talk to a human": {
-    answer: "- You should never feel stuck\n- Email admin@tourneycoach.com — a real person replies within about one business day\n- Time-sensitive? Put your tournament name and date in the subject line\n- Legal, tax, or insurance questions belong with your accountant or attorney, not any AI",
-    spoken: "You should never feel stuck. For anything I can't answer, or when you'd rather talk to a person, email the TourneyCoach team at admin at tourneycoach dot com and a real human will get back to you, usually within one business day. And for legal, tax, or insurance specifics, take those to your accountant or attorney.",
+    answer: "- You should never feel stuck\n- Email admin@tourneycoach.com — a real person replies within about one business day\n- Time-sensitive? Put your tournament name and date in the subject line",
+    spoken: "You should never feel stuck. For anything I can't answer, or when you'd rather talk to a person, email the TourneyCoach team at admin at tourneycoach dot com and a real human will get back to you, usually within one business day.",
     followups: ["What does a successful Year 1 look like?", "How do I fill my field?", "How do I get sponsors?"],
   },
 };
@@ -197,10 +197,10 @@ export function lookupScript(text: string) {
 export function escalationAnswer(phone?: string | null): { answer: string; spoken: string; followups: string[] } {
   const trimmedPhone = phone?.trim();
   const answer = trimmedPhone
-    ? `- You should never feel stuck\n- Email admin@tourneycoach.com — a real person replies within about one business day\n- Prefer a call? We have ${trimmedPhone} on file — reply here and we'll ring you\n- Time-sensitive? Put your tournament name and date in the subject line\n- Legal, tax, or insurance questions belong with your accountant or attorney, not any AI`
+    ? `- You should never feel stuck\n- Email admin@tourneycoach.com — a real person replies within about one business day\n- Prefer a call? We have ${trimmedPhone} on file — reply here and we'll ring you\n- Time-sensitive? Put your tournament name and date in the subject line`
     : SCRIPTS[ESCALATION_KEY].answer;
   const spoken = trimmedPhone
-    ? `You should never feel stuck. Email admin at tourneycoach dot com and a real human will get back to you, usually within one business day. We also have your phone number on file, so just reply here and we'll call you instead. And for legal, tax, or insurance specifics, take those to your accountant or attorney.`
+    ? `You should never feel stuck. Email admin at tourneycoach dot com and a real human will get back to you, usually within one business day. We also have your phone number on file, so just reply here and we'll call you instead.`
     : SCRIPTS[ESCALATION_KEY].spoken!;
   return { answer, spoken, followups: SCRIPTS[ESCALATION_KEY].followups };
 }

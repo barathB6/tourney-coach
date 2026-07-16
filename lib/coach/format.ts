@@ -8,5 +8,6 @@ export function toPlainText(s: string): string {
     .replace(/^\s*[-*]\s+/gm, '• ')         // "- "/"* " bullets -> •
     .replace(/\*/g, '')                     // any leftover asterisks
     .replace(/^\s{0,3}#{1,6}\s+/gm, '')     // # headings
-    .replace(/\n{3,}/g, '\n\n');            // collapse big gaps
+    .replace(/\n{3,}/g, '\n\n')             // collapse big gaps
+    .replace(/\n+(?=• )/g, '\n\n');         // blank line before each bullet so lists read airy, not cramped
 }

@@ -3,11 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { getAnthropicClient } from '@/lib/ai/anthropic';
 
 const COACH_MODEL = 'claude-haiku-4-5';
-// Only the last few turns are needed for a coherent reply; re-sending 40 turns
-// every request is wasted input tokens. Output is the expensive half (~5x input),
-// so a tight max_tokens plus the "keep it short" system rules is the main cost lever.
-const MAX_HISTORY = 12;
-const MAX_TOKENS = 350;
+// Token levers: sliding window over the newest turns only, tight output cap,
+// pruned static prompt split from per-request context (the static block sits
+// behind a cache breakpoint), and a one-line format reminder per request.
+const MAX_HISTORY = 8;   // messages (4 turns), most recent
+const MAX_TOKENS = 300;
 
 function getSupabase(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -18,78 +18,69 @@ function getSupabase(req: NextRequest) {
   );
 }
 
-function buildSystemPrompt(
+// Static persona + knowledge base + one in-context training example. Kept
+// byte-stable and module-level so the cache breakpoint on it can hit. (Haiku
+// 4.5's minimum cacheable prefix is 4096 tokens, so the breakpoint is inert
+// at today's size — it activates automatically if the prompt grows or the
+// model tier changes. The measured savings come from the pruning itself.)
+const BASE_PROMPT = `You are TourneyCoach, the AI coach for charity golf tournament organizers — a seasoned friend who has run dozens of these events. Warm, encouraging, honest, plain language, never corporate.
+
+FORMAT — follow exactly:
+- Every reply is 2-5 bullets. Each bullet starts with "- " and is one short sentence.
+- Plain text only: never asterisks, bold, headings, or numbered lists.
+- Lead with the direct answer, end with one clear next action, prefer specific numbers.
+- If you don't know something event-specific, say so in one bullet and point them where to find out.
+
+EXAMPLE
+User: How many volunteers do I need?
+You:
+- About 10-15 volunteers for a 72-player event.
+- Start with the people your cause serves, then board and staff, then local groups needing service hours.
+- Next step: share the volunteer sign-up link from your microsite this week.
+
+FACTS:
+- First-year events typically net $5,000-$15,000; Year 3 with returning sponsors: $20,000-$35,000.
+- Entry fee sweet spot: $100-$125/player ($400-$500/foursome); premium courses $150-$175.
+- Sponsorships are 50-70% of revenue. Tiers: Presenting $3K-$5K, Gold $1.5K-$2.5K, Silver $750-$1K, Hole $250-$500.
+- Scramble rule: teams pick up at par — saves 30-45 min.
+- Double shotgun supports 128 players on a par-72.
+- TourneyCircle: $29 notification to local charitable golfers, 3-5% conversion.
+- Kitchen notification auto-fires 45 min before the last group finishes.
+
+ESCALATION: if the organizer is frustrated, stuck, or asks for a person, point them to admin@tourneycoach.com — a real human replies within about one business day. Don't pretend to resolve something you can't.`;
+
+// Per-request context: organizer contact preference + live tournament state.
+// Deliberately terse — every line here is paid for on every message.
+function buildContextBlock(
   tournament: Record<string, unknown> | null,
   regCount: number,
   sponsorStats: { committed: number; paid: number; raisedCents: number; prospecting: number; needsFollowUp: number; awaitingReply: number } | null,
   volunteerStats: { total: number; roles: Record<string, number>; unassigned: number } | null,
   organizerPhone: string | null,
 ) {
-  const base = `You are TourneyCoach, the AI coaching assistant for charity golf tournament organizers. You are warm, encouraging, knowledgeable, and specific. You speak in plain language — never corporate, never condescending. You're like a seasoned friend who has run dozens of charity tournaments and genuinely wants this organizer to succeed.
+  const lines: string[] = [];
+  lines.push(organizerPhone
+    ? `Organizer phone on file: ${organizerPhone}. For escalation, offer "reply here and we'll call you at ${organizerPhone}" alongside email — it is their own number, never one for them to dial.`
+    : 'No organizer phone on file — escalation is email only.');
 
-TONE & FORMAT RULES (follow exactly):
-- Warm, encouraging, honest. Use "you" and "your". If something won't work, say so kindly.
-- ALWAYS answer in short bullet points, not paragraphs. Every response is a list of "- " lines.
-- Each bullet is one short sentence — quick to scan, no run-ons, no filler.
-- 2-5 bullets for most questions. Lead with the direct answer, then supporting facts, then one clear next action.
-- Specific numbers beat vague encouragement.
-- Write in PLAIN TEXT within each bullet: no **bold**, no _italics_, no # headings, no literal asterisks anywhere.
-- Never say "let me be honest", "actually", or "to be frank". Never write more than 5 bullets.
-- If you don't know something specific to their event, say so in one bullet and point them where to find out.
-
-KEY FACTS YOU KNOW:
-- 141,000+ charity golf events per year (NGF 2023)
-- First-year events typically raise $5,000–$15,000 net
-- All-event average is $29,500 (skewed by large established events)
-- $4.6B total charitable giving through golf annually
-- For scramble format: par is your friend — teams pick up at par to save 30–45 min
-- Double shotgun start supports up to 128 players on a par-72 course
-- Entry fee sweet spot for first-year: $100–$125/player ($400–$500/foursome)
-- Sponsorship tiers: Presenting $3K–$5K, Gold $1.5K–$2.5K, Silver $750–$1K, Hole $250–$500
-- TourneyCircle: $29 notification to matched local charitable golfers, typically 3–5% conversion
-- Kitchen notification: auto-fires 45 min before last group finishes
-- Normal Monday course revenue: $2,720 vs charity tournament: $9,864 guaranteed (3.6x)
-- 5-year course value of a charity tournament relationship: $53,389
-
-WHAT YOU HELP WITH (top first-time-organizer topics):
-- Pricing registration — what to charge per player and why
-- Sponsorship packages — what tiers and benefits should look like
-- Finding volunteers — how many, where to find them, what roles
-- Vendor and in-kind donations — who to ask and how
-- What a successful Year 1 looks like — realistic goals beyond dollars
-- Tournament setup, format, cause story, field-filling, day-of logistics, and Year 2 planning
-
-ESCALATION — knowing when to defer to a human:
-- If the organizer needs help you genuinely can't provide, is frustrated, or asks to talk to a person, warmly point them to the TourneyCoach team at admin@tourneycoach.com (a real human replies within about one business day). Don't pretend to resolve something you can't.
-${organizerPhone ? `- Their own phone number on file is ${organizerPhone} — this is THEIR number, not a support line. Offer: "reply here and we'll call you at ${organizerPhone}" as an alternative to email. Never present it as a number for them to dial.` : `- They have no phone number on file, so point them to email only. You can mention adding a phone number to their profile so support can call them directly next time.`}
-- For anything needing a licensed professional — legal structure, tax treatment of donations, insurance, contracts — acknowledge the question and say it belongs with their accountant or attorney, not any AI.`;
-
-  if (!tournament) return base;
+  if (!tournament) return lines.join('\n');
 
   const daysOut = tournament.event_date
     ? Math.max(0, Math.round((new Date(tournament.event_date as string).getTime() - Date.now()) / 86400000))
     : null;
+  const max = tournament.max_players as number | undefined;
 
-  const context = `
-
-CURRENT TOURNAMENT CONTEXT (use this to give specific, personalized advice):
-- Tournament: ${tournament.name || 'Untitled'}
-- Benefiting cause: ${tournament.cause_org || tournament.cause_tagline || 'Not set'}
-- Course: ${tournament.location_name || 'Not set'}
-- Event date: ${tournament.event_date ? new Date(tournament.event_date as string).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Not set'}${daysOut !== null ? ` (${daysOut} days from now)` : ''}
-- Format: ${tournament.format || 'Not set'}
-- Team size: ${tournament.team_size || 4}
-- Max players (field size): ${tournament.max_players || 'Not set'}
-- Entry fee: ${tournament.entry_fee_cents ? '$' + ((tournament.entry_fee_cents as number) / 100).toLocaleString() + ' per player' : 'Not set'}
-- Registrations: ${regCount} players registered${tournament.max_players ? ` of ${tournament.max_players} max (${Math.round((regCount / (tournament.max_players as number)) * 100)}% full)` : ''}
-- Cause story: ${tournament.cause_story_full ? 'Written' : 'Not started'}
-- Status: ${tournament.status || 'draft'}
-${sponsorStats ? `- Sponsors: ${sponsorStats.committed} committed ($${(sponsorStats.raisedCents / 100).toLocaleString()} paid so far from ${sponsorStats.paid} paid sponsors), ${sponsorStats.prospecting} still being prospected${sponsorStats.awaitingReply > 0 ? `, ${sponsorStats.awaitingReply} replied and awaiting the organizer's response` : ''}${sponsorStats.needsFollowUp > 0 ? `, ${sponsorStats.needsFollowUp} overdue for follow-up` : ''}` : '- Sponsors: No sponsorship packages built yet'}
-${volunteerStats ? `- Volunteers: ${volunteerStats.total} signed up${Object.keys(volunteerStats.roles).length > 0 ? ` (${Object.entries(volunteerStats.roles).map(([role, n]) => `${n} ${role}`).join(', ')})` : ''}${volunteerStats.unassigned > 0 ? `, ${volunteerStats.unassigned} with no role assigned yet` : ''}` : '- Volunteers: No volunteer sign-ups yet'}
-
-Use this context to make every answer specific to THIS event, not generic. Name their tournament, course, cause, date, and field size when relevant — e.g. instead of "$100–$125 per player," say something like "For your ${tournament.name || 'event'}${tournament.location_name ? ` at ${tournament.location_name}` : ''}${tournament.max_players ? ` with ${tournament.max_players} players` : ''}, I'd charge…". If they're 3 weeks out with low registration, be proactive about that. If they haven't set a date yet, nudge them. If they ask about sponsors, use the live sponsor pipeline numbers above — don't give generic advice when you have their actual committed/prospecting counts. If they ask about volunteers, use the live signup numbers and role breakdown above.`;
-
-  return base + context;
+  lines.push('', 'THIS TOURNAMENT (be specific to it — name it, use these numbers):');
+  lines.push(`- ${tournament.name || 'Untitled'} | ${tournament.cause_org || tournament.cause_tagline || 'cause not set'} | ${tournament.location_name || 'course not set'}`);
+  lines.push(`- ${tournament.event_date ? new Date(tournament.event_date as string).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Date not set'}${daysOut !== null ? ` (${daysOut} days out)` : ''} | ${tournament.format || 'format not set'} | teams of ${tournament.team_size || 4} | ${tournament.entry_fee_cents ? '$' + ((tournament.entry_fee_cents as number) / 100).toLocaleString() + '/player' : 'fee not set'} | ${tournament.status || 'draft'}`);
+  lines.push(`- Registered: ${regCount}${max ? ` of ${max} (${Math.round((regCount / max) * 100)}% full)` : ''} | cause story ${tournament.cause_story_full ? 'written' : 'not started'}`);
+  lines.push(sponsorStats
+    ? `- Sponsors: ${sponsorStats.committed} committed ($${(sponsorStats.raisedCents / 100).toLocaleString()} paid from ${sponsorStats.paid}), ${sponsorStats.prospecting} prospecting${sponsorStats.awaitingReply > 0 ? `, ${sponsorStats.awaitingReply} awaiting your reply` : ''}${sponsorStats.needsFollowUp > 0 ? `, ${sponsorStats.needsFollowUp} overdue follow-up` : ''}`
+    : '- Sponsors: no packages built yet');
+  lines.push(volunteerStats
+    ? `- Volunteers: ${volunteerStats.total}${Object.keys(volunteerStats.roles).length > 0 ? ` (${Object.entries(volunteerStats.roles).map(([role, n]) => `${n} ${role}`).join(', ')})` : ''}${volunteerStats.unassigned > 0 ? `, ${volunteerStats.unassigned} unassigned` : ''}`
+    : '- Volunteers: none yet');
+  return lines.join('\n');
 }
 
 // Cost/abuse guard on the paid Anthropic call: a burst cap (catches a buggy
@@ -239,38 +230,43 @@ export async function POST(req: NextRequest) {
     content: body.message.trim(),
   });
 
-  // Load conversation history (capped)
+  // Sliding window over the MOST RECENT turns. (The previous query took the
+  // oldest N — ascending + limit — so once a conversation grew past the cap,
+  // the model was replaying stale turns and never saw the newest question.)
   const { data: history } = await supabase
     .from('coach_messages')
     .select('role, content')
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(MAX_HISTORY);
 
-  const messages = (history || []).map((m: { role: string; content: string }) => ({
+  const windowed = (history || []).reverse();
+  // The replayed transcript must start with a user turn.
+  while (windowed.length > 0 && windowed[0].role !== 'user') windowed.shift();
+
+  const messages = windowed.map((m: { role: string; content: string }) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
   }));
 
-  // Older conversations may have assistant turns saved before the
-  // bullet-point format rule existed. Replaying those as paragraph prose
-  // biases the model to keep matching that style in-context, even with the
-  // rule stated in the system prompt — recency beats instructions on a
-  // model this size. A steering reminder appended to the outgoing (not
-  // persisted) copy of the latest user turn reliably corrects this without
-  // rewriting history.
+  // Paragraph-style assistant turns saved before the bullet format existed
+  // bias the model back to prose in-context — recency beats instructions on
+  // a model this size. A one-line reminder on the outgoing (not persisted)
+  // copy of the latest user turn corrects it.
   const last = messages[messages.length - 1];
   if (last?.role === 'user') {
-    last.content = `${last.content}\n\n[Reminder: answer in short bullet points only — "- " lines, one short sentence each — regardless of how earlier replies in this chat were formatted.]`;
+    last.content = `${last.content}\n\n[Format: "- " bullets only, one short sentence each.]`;
   }
 
-  const systemPrompt = buildSystemPrompt(tournament, regCount, sponsorStats, volunteerStats, organizerPhone);
-
-  // Stream response
+  // Static block first (cache breakpoint), volatile per-request context after
+  // it — so the cacheable prefix stays byte-identical across requests.
   const stream = await anthropic.messages.stream({
     model: COACH_MODEL,
     max_tokens: MAX_TOKENS,
-    system: systemPrompt,
+    system: [
+      { type: 'text', text: BASE_PROMPT, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: buildContextBlock(tournament, regCount, sponsorStats, volunteerStats, organizerPhone) },
+    ],
     messages,
   });
 

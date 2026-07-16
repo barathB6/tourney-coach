@@ -299,6 +299,31 @@ export default function CoachPage() {
     }
     const { count } = await supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('tournament_id', t.id).in('payment_status', ['pending', 'paid']);
     setRegCount(count ?? 0);
+
+    // Conversations are per-tournament — switching events must also switch
+    // threads, otherwise new messages keep landing in the old event's
+    // conversation. Resume the new tournament's latest thread, or start fresh.
+    const { data: conv } = await supabase
+      .from('coach_conversations')
+      .select('id')
+      .eq('tournament_id', t.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (conv) {
+      const { data: rows } = await supabase
+        .from('coach_messages')
+        .select('role, content')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: true });
+      if (rows && rows.length > 0) {
+        setActiveConvId(conv.id);
+        setMessages(rows as Message[]);
+        return;
+      }
+    }
+    setActiveConvId(null);
+    setMessages([{ role: 'assistant', content: `Switched to ${t.name}. What can I help with?` }]);
   }
 
   // ── Send message ─────────────────────────────────────────────────────────
@@ -334,7 +359,10 @@ export default function CoachPage() {
       return;
     }
 
-    // Live AI mode — try API
+    // Live AI mode only beyond this point — Demo mode always returned above,
+    // so the paid Anthropic API is never called from Demo. Defensive guard:
+    if (mode !== 'live') { setStreaming(false); return; }
+
     const assistantMsg: Message = { role: 'assistant', content: '' };
     setMessages(prev => [...prev, assistantMsg]);
 
