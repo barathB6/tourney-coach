@@ -14,7 +14,20 @@ interface Tournament {
   entry_fee_cents: number | null;
   cause_story: string | null;
   cause_story_one_liner: string | null;
+  // Course Builder + Shotgun Start Manager fields surfaced in the hero header.
+  location_name: string | null;
+  course_id: string | null;
+  shotgun_type: string | null;
+  shotgun_time: string | null;
 }
+
+// Shotgun start method → the phrase shown in the event header.
+const START_LABELS: Record<string, string> = {
+  double: 'Shotgun Start',
+  single: 'Shotgun Start',
+  wave: 'Wave Start',
+  tee_times: 'Tee Times',
+};
 
 interface Player { name: string; email: string; }
 
@@ -68,6 +81,8 @@ function RegisterInner() {
   const attributedSource = srcParam ? (SRC_PARAM_MAP[srcParam] ?? 'other') : null;
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
+  // Course profile (from the Golf Pro Course Builder) for the venue + location line.
+  const [course, setCourse] = useState<{ name: string | null; city: string | null; state: string | null } | null>(null);
   const [registrationCount, setRegistrationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -137,10 +152,18 @@ function RegisterInner() {
     async function load() {
       if (!tournamentId) { setLoading(false); return; }
       const [{ data: t }, { count }] = await Promise.all([
-        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_one_liner').eq('id', tournamentId).single(),
+        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_one_liner, location_name, course_id, shotgun_type, shotgun_time').eq('id', tournamentId).single(),
         supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('tournament_id', tournamentId).in('payment_status', ['pending', 'paid']),
       ]);
-      if (t) setTournament(t);
+      if (t) {
+        setTournament(t);
+        // Pull the course profile the organizer built (name + city/state) so the
+        // header shows the real venue, not just "spots remaining".
+        if (t.course_id) {
+          const { data: c } = await supabase.from('courses').select('name, city, state').eq('id', t.course_id).maybeSingle();
+          if (c) setCourse(c);
+        }
+      }
       setRegistrationCount(count ?? 0);
       setLoading(false);
     }
@@ -417,7 +440,17 @@ function RegisterInner() {
               <div style={s.dateBadge}>{heroDate}</div>
               <h1 style={s.heroName} className="regHeroName">{tournament?.name ?? 'Charity Golf Tournament'}</h1>
               <p style={s.heroMeta}>
-                {spotsRemaining} / {spotsTotal} spots remaining
+                {[
+                  // Venue + location from the Golf Pro Course Builder
+                  course?.name || tournament?.location_name,
+                  course?.city ? `${course.city}${course.state ? `, ${course.state}` : ''}` : null,
+                  // Start method + time from the Shotgun Start Manager config
+                  tournament?.shotgun_time
+                    ? `${tournament.shotgun_time} ${START_LABELS[tournament.shotgun_type ?? ''] ?? 'Shotgun Start'}`
+                    : (tournament?.shotgun_type ? (START_LABELS[tournament.shotgun_type] ?? 'Shotgun Start') : null),
+                  `${spotsTotal}-player field`,
+                  `${spotsRemaining} / ${spotsTotal} spots remaining`,
+                ].filter(Boolean).join(' · ')}
               </p>
               {tournament?.cause_story_one_liner && (
                 <p style={{ ...s.heroMeta, marginTop: 4, fontStyle: 'italic', opacity: 0.9 }}>
