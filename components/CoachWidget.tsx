@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
-import { SCRIPTS, FAQ_CHIPS, lookupScript, daysOut, computeNudges } from '@/lib/coach/scripts';
+import { FAQ_CHIPS, lookupScript, resolveScriptKey, escalationAnswer, ESCALATION_KEY, daysOut, computeNudges } from '@/lib/coach/scripts';
 import { toPlainText } from '@/lib/coach/format';
 
 const TypingDots = () => (
@@ -46,6 +46,7 @@ export default function CoachWidget() {
   const [open, setOpen] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [user, setUser] = useState<{ id: string; initials: string } | null>(null);
+  const [organizerPhone, setOrganizerPhone] = useState<string | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [regCount, setRegCount] = useState(0);
   const [sponsorSold, setSponsorSold] = useState(0);
@@ -84,6 +85,9 @@ export default function CoachWidget() {
     const fullName = u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Organizer';
     const initials = fullName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
     setUser({ id: u.id, initials });
+
+    const { data: profile } = await supabase.from('profiles').select('phone').eq('id', u.id).maybeSingle();
+    setOrganizerPhone(profile?.phone ?? null);
 
     let selectedId: string | null = null;
     try { selectedId = localStorage.getItem(`tourney_selected_tournament_${u.id}`); } catch { /* */ }
@@ -160,7 +164,8 @@ export default function CoachWidget() {
     const fillLast = (content: string) =>
       setMessages(prev => { const c = [...prev]; c[c.length - 1] = { role: 'assistant', content }; return c; });
 
-    const script = lookupScript(msg);
+    const isEscalation = resolveScriptKey(msg) === ESCALATION_KEY;
+    const script = isEscalation ? escalationAnswer(organizerPhone) : lookupScript(msg);
     if (script) {
       await new Promise(r => setTimeout(r, 450 + Math.random() * 250));
       fillLast(script.answer);
