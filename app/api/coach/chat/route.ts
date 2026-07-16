@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAnthropicClient } from '@/lib/ai/anthropic';
 
-const COACH_MODEL = 'claude-sonnet-5';
+const COACH_MODEL = 'claude-sonnet-4-6';
 const MAX_HISTORY = 40;
 const MAX_TOKENS = 1024;
 
