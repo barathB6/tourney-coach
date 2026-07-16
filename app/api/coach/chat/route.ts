@@ -252,6 +252,18 @@ export async function POST(req: NextRequest) {
     content: m.content,
   }));
 
+  // Older conversations may have assistant turns saved before the
+  // bullet-point format rule existed. Replaying those as paragraph prose
+  // biases the model to keep matching that style in-context, even with the
+  // rule stated in the system prompt — recency beats instructions on a
+  // model this size. A steering reminder appended to the outgoing (not
+  // persisted) copy of the latest user turn reliably corrects this without
+  // rewriting history.
+  const last = messages[messages.length - 1];
+  if (last?.role === 'user') {
+    last.content = `${last.content}\n\n[Reminder: answer in short bullet points only — "- " lines, one short sentence each — regardless of how earlier replies in this chat were formatted.]`;
+  }
+
   const systemPrompt = buildSystemPrompt(tournament, regCount, sponsorStats, volunteerStats, organizerPhone);
 
   // Stream response
