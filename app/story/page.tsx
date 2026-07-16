@@ -28,7 +28,7 @@ const STEPS = [
   },
 ];
 
-type PhotoRec = { type: string; reason: string };
+type PhotoRec = { type: string; reason: string; selected?: boolean };
 
 // Step order: 0..STEPS.length-1 = prompts, STEPS.length = full story, STEPS.length+1 = length variants
 const STORY_STEP = STEPS.length;
@@ -178,12 +178,22 @@ export default function CauseStoryBuilder() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'AI photo recommendations failed');
-      setPhotoRecs(data.recommendations);
+      // Preserve any prior selections when re-generating; new suggestions start unselected.
+      const prevSelected = new Set(photoRecs.filter((r) => r.selected).map((r) => r.type));
+      setPhotoRecs(
+        (data.recommendations as PhotoRec[]).map((r) => ({ ...r, selected: prevSelected.has(r.type) })),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'AI photo recommendations failed');
     } finally {
       setGeneratingPhotos(false);
     }
+  };
+
+  // Cards are a shot list the organizer checks off — the picks they intend to
+  // gather. Selection persists in cause_story_photo_recs alongside the text.
+  const togglePhotoRec = (i: number) => {
+    setPhotoRecs((prev) => prev.map((r, idx) => (idx === i ? { ...r, selected: !r.selected } : r)));
   };
 
   const handleFinish = async () => {
@@ -278,20 +288,50 @@ export default function CauseStoryBuilder() {
 
               <div className="mt-10">
                 <h2 className="text-lg mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: 'var(--deep-green)' }}>Photo recommendations</h2>
-                <p className="text-sm mb-3" style={{ color: '#596057' }}>What kinds of photos would make your microsite land, based on your story.</p>
+                <p className="text-sm mb-3" style={{ color: '#596057' }}>What kinds of photos would make your microsite land, based on your story.{photoRecs.length > 0 ? ' Tap the shots you plan to get.' : ''}</p>
                 <button onClick={handleGeneratePhotos} disabled={generatingPhotos}
                   className="px-4 py-2 text-sm font-medium rounded-lg mb-4" style={{ color: 'var(--primary)', background: 'white', border: '1px solid var(--primary)', cursor: 'pointer' }}>
-                  {generatingPhotos ? 'Thinking…' : 'Get photo suggestions'}
+                  {generatingPhotos ? 'Thinking…' : (photoRecs.length > 0 ? 'Regenerate suggestions' : 'Get photo suggestions')}
                 </button>
                 {photoRecs.length > 0 && (
-                  <div className="space-y-2">
-                    {photoRecs.map((rec, i) => (
-                      <div key={i} className="rounded-lg p-3" style={{ background: '#F0F4F2' }}>
-                        <p className="text-sm font-bold" style={{ color: 'var(--primary)' }}>{rec.type}</p>
-                        <p className="text-sm" style={{ color: '#596057' }}>{rec.reason}</p>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      {photoRecs.map((rec, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => togglePhotoRec(i)}
+                          aria-pressed={!!rec.selected}
+                          className="w-full text-left rounded-lg p-3 flex gap-3 items-start transition-colors"
+                          style={{
+                            background: rec.selected ? '#E4EFE7' : '#F0F4F2',
+                            border: rec.selected ? '1.5px solid var(--primary)' : '1.5px solid transparent',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span
+                            className="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                            style={{
+                              background: rec.selected ? 'var(--primary)' : 'transparent',
+                              border: rec.selected ? '1.5px solid var(--primary)' : '1.5px solid #B9C4BC',
+                              color: '#fff',
+                            }}
+                          >
+                            {rec.selected ? '✓' : ''}
+                          </span>
+                          <span>
+                            <span className="block text-sm font-bold" style={{ color: 'var(--primary)' }}>{rec.type}</span>
+                            <span className="block text-sm" style={{ color: '#596057' }}>{rec.reason}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {photoRecs.some((r) => r.selected) && (
+                      <p className="text-xs mt-2 font-medium" style={{ color: 'var(--primary)' }}>
+                        {photoRecs.filter((r) => r.selected).length} shot{photoRecs.filter((r) => r.selected).length === 1 ? '' : 's'} on your list — saved with your story.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
