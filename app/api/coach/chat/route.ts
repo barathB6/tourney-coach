@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAnthropicClient } from '@/lib/ai/anthropic';
 
-const COACH_MODEL = 'claude-sonnet-4-6';
+const COACH_MODEL = 'claude-haiku-4-5';
 // Only the last few turns are needed for a coherent reply; re-sending 40 turns
 // every request is wasted input tokens. Output is the expensive half (~5x input),
 // so a tight max_tokens plus the "keep it short" system rules is the main cost lever.

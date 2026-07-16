@@ -12,7 +12,7 @@ export function getAnthropicClient() {
   return client;
 }
 
-export const CAUSE_STORY_MODEL = "claude-sonnet-4-6";
+export const CAUSE_STORY_MODEL = "claude-haiku-4-5";
 
 export async function askClaude(system: string, prompt: string, maxTokens = 1024): Promise<string> {
   const anthropic = getAnthropicClient();
