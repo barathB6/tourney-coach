@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
 import { SCRIPTS, FAQ_CHIPS, lookupScript, daysOut, computeNudges } from '@/lib/coach/scripts';
+import { toPlainText } from '@/lib/coach/format';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -114,7 +115,8 @@ export default function CoachPage() {
   function speak(text: string) {
     if (!speakEnabled || typeof window === 'undefined' || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const clean = text.replace(/\n\n/g, '. ').replace(/\n/g, ' ').replace(/\$(\d)/g, '$1 dollars ').replace(/ {2,}/g, ' ').trim();
+    // Strip Markdown first so the voice never reads "asterisk asterisk" or "pound".
+    const clean = toPlainText(text).replace(/\n\n/g, '. ').replace(/\n/g, ' ').replace(/•/g, '').replace(/\$(\d)/g, '$1 dollars ').replace(/ {2,}/g, ' ').trim();
     const utt = new SpeechSynthesisUtterance(clean);
     const voices = window.speechSynthesis.getVoices();
     const priority = ['Microsoft Ryan Online (Natural) - English (United Kingdom)', 'Microsoft Guy Online (Natural) - English (United States)', 'Google UK English Male', 'Daniel', 'Alex', 'Google US English'];
@@ -527,7 +529,9 @@ export default function CoachPage() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: '80%', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                     <div style={{ padding: '11px 14px', fontSize: 14, lineHeight: 1.7, color: msg.role === 'user' ? '#fff' : '#1a1a18', background: msg.role === 'user' ? '#1B6B3A' : '#f5f5f3', borderRadius: msg.role === 'user' ? '15px 4px 15px 15px' : '4px 15px 15px 15px', whiteSpace: 'pre-wrap' }}>
-                      {msg.content || (streaming && i === messages.length - 1 ? (
+                      {msg.content
+                        ? (msg.role === 'assistant' ? toPlainText(msg.content) : msg.content)
+                        : (streaming && i === messages.length - 1 ? (
                         <span style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 0' }}>
                           <span style={{ width: 5, height: 5, background: '#9b9b96', borderRadius: '50%', animation: 'bop 1.1s infinite' }} />
                           <span style={{ width: 5, height: 5, background: '#9b9b96', borderRadius: '50%', animation: 'bop 1.1s infinite .2s' }} />

@@ -4,6 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
 import { SCRIPTS, FAQ_CHIPS, lookupScript, daysOut, computeNudges } from '@/lib/coach/scripts';
+import { toPlainText } from '@/lib/coach/format';
+
+const TypingDots = () => (
+  <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', padding: '3px 0' }}>
+    <span style={{ width: 5, height: 5, background: '#9b9b96', borderRadius: '50%', animation: 'tcbop 1.1s infinite' }} />
+    <span style={{ width: 5, height: 5, background: '#9b9b96', borderRadius: '50%', animation: 'tcbop 1.1s infinite .2s' }} />
+    <span style={{ width: 5, height: 5, background: '#9b9b96', borderRadius: '50%', animation: 'tcbop 1.1s infinite .4s' }} />
+    <style>{'@keyframes tcbop{0%,80%,100%{transform:translateY(0);opacity:.5}40%{transform:translateY(-3px);opacity:1}}'}</style>
+  </span>
+);
 
 interface Message { role: 'user' | 'assistant'; content: string; }
 interface Tournament {
@@ -113,14 +123,20 @@ export default function CoachWidget() {
     const msg = (text ?? input).trim();
     if (!msg || streaming) return;
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: msg }]);
+    // Add the user turn AND an empty assistant bubble in the same tick — the
+    // empty bubble renders the animated typing dots, so the coach visibly reacts
+    // the instant you hit send, then fills in place once the reply is ready.
+    setMessages(prev => [...prev, { role: 'user', content: msg }, { role: 'assistant', content: '' }]);
     setStreaming(true);
     setFollowups([]);
 
+    const fillLast = (content: string) =>
+      setMessages(prev => { const c = [...prev]; c[c.length - 1] = { role: 'assistant', content }; return c; });
+
     const script = lookupScript(msg);
     if (script) {
-      await new Promise(r => setTimeout(r, 500 + Math.random() * 300));
-      setMessages(prev => [...prev, { role: 'assistant', content: script.answer }]);
+      await new Promise(r => setTimeout(r, 450 + Math.random() * 250));
+      fillLast(script.answer);
       setFollowups(script.followups);
       setStreaming(false);
       return;
@@ -128,8 +144,6 @@ export default function CoachWidget() {
 
     // Not in the scripted library — try live AI; falls back to a friendly
     // nudge toward the FAQ topics or the full coach page if it's not configured.
-    const assistantMsg: Message = { role: 'assistant', content: '' };
-    setMessages(prev => [...prev, assistantMsg]);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/coach/chat', {
@@ -211,7 +225,9 @@ export default function CoachWidget() {
                   {m.role === 'user' ? (user?.initials || 'You') : 'TC'}
                 </div>
                 <div style={{ padding: '8px 11px', fontSize: 13, lineHeight: 1.55, borderRadius: m.role === 'user' ? '12px 3px 12px 12px' : '3px 12px 12px 12px', background: m.role === 'user' ? 'var(--primary, #1B6B3A)' : '#f5f5f3', color: m.role === 'user' ? '#fff' : '#1a1a18', maxWidth: '78%', whiteSpace: 'pre-wrap' }}>
-                  {m.content || (streaming && i === messages.length - 1 ? '…' : '')}
+                  {m.content
+                    ? (m.role === 'assistant' ? toPlainText(m.content) : m.content)
+                    : (i === messages.length - 1 ? <TypingDots /> : '')}
                 </div>
               </div>
             ))}

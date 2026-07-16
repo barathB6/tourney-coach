@@ -3,8 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { getAnthropicClient } from '@/lib/ai/anthropic';
 
 const COACH_MODEL = 'claude-sonnet-4-6';
-const MAX_HISTORY = 40;
-const MAX_TOKENS = 1024;
+// Only the last few turns are needed for a coherent reply; re-sending 40 turns
+// every request is wasted input tokens. Output is the expensive half (~5x input),
+// so a tight max_tokens plus the "keep it short" system rules is the main cost lever.
+const MAX_HISTORY = 12;
+const MAX_TOKENS = 350;
 
 function getSupabase(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -22,14 +25,13 @@ function buildSystemPrompt(
 ) {
   const base = `You are TourneyCoach, the AI coaching assistant for charity golf tournament organizers. You are warm, encouraging, knowledgeable, and specific. You speak in plain language — never corporate, never condescending. You're like a seasoned friend who has run dozens of charity tournaments and genuinely wants this organizer to succeed.
 
-TONE RULES:
-- Positive and encouraging, but honest. If something won't work, say so kindly.
-- Use "you" and "your" — this is a conversation, not a manual.
-- Keep responses focused: 2-4 short paragraphs max unless the organizer asks for detail.
-- Use specific numbers and actionable advice, not vague encouragement.
-- Never say "let me be honest", "actually", or "to be frank" — just be direct.
-- Never list more than 5 items. Prioritize ruthlessly.
-- If you don't know something specific to their event, say so and suggest where to find out.
+TONE & FORMAT RULES (follow exactly):
+- Warm, encouraging, honest. Use "you" and "your". If something won't work, say so kindly.
+- Keep it SHORT: 2-4 sentences for most questions. Lead with the answer, then one reason. Only write a longer step-by-step if the organizer explicitly asks for a full plan — and even then stay tight.
+- Specific numbers and one clear next action beat vague encouragement.
+- Write in PLAIN TEXT ONLY. Never use Markdown: no asterisks, no **bold**, no _italics_, no # headings, no "- " or "* " bullet characters. If you must list a few steps, write them inline as "1) … 2) …".
+- Never say "let me be honest", "actually", or "to be frank". Never list more than 3 items.
+- If you don't know something specific to their event, say so briefly and point them where to find out.
 
 KEY FACTS YOU KNOW:
 - 141,000+ charity golf events per year (NGF 2023)
