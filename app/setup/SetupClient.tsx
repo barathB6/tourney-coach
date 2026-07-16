@@ -360,10 +360,16 @@ export default function SetupClient() {
                       </div>
                     );
                   })()}
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
                     <button type="button" onClick={() => setUseCustomCourse(true)}
                       className="text-sm text-green-800 font-medium hover:underline">+ Enter a course manually</button>
-                    <Link href="/course/new" className="text-sm text-green-800 font-medium hover:underline">Build a full course profile →</Link>
+                    <Link href="/course/new"
+                      className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-800 border border-green-800 rounded-lg px-3 py-1.5 hover:bg-green-50 transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+                      </svg>
+                      Course profile
+                    </Link>
                   </div>
                 </>
               ) : (
