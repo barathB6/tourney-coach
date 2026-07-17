@@ -1,17 +1,27 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { config } from './config';
 
-// Configure the native Google Sign-in SDK once. webClientId sets the idToken
-// audience to the client Supabase's Google provider already trusts; iosClientId
-// is what actually drives the iOS system sign-in sheet.
-GoogleSignin.configure({
-  webClientId: config.googleWebClientId,
-  iosClientId: config.googleIosClientId || undefined,
-});
+// On iOS the native SDK *requires* an iosClientId (or a GoogleService-Info
+// plist) and throws from configure() itself — which, unguarded, red-boxes the
+// whole app at startup before any UI renders. Only configure when the
+// platform's required client id is actually present; signInWithGoogle()
+// surfaces a clear setup error otherwise, and the rest of the app still runs.
+const googleConfigured = Platform.OS === 'ios'
+  ? Boolean(config.googleIosClientId)
+  : Boolean(config.googleWebClientId);
+
+if (googleConfigured) {
+  // webClientId sets the idToken audience to the client Supabase's Google
+  // provider already trusts; iosClientId drives the iOS system sign-in sheet.
+  GoogleSignin.configure({
+    webClientId: config.googleWebClientId,
+    iosClientId: config.googleIosClientId || undefined,
+  });
+}
 
 // Supabase recommends pausing token auto-refresh while the app is
 // backgrounded and resuming on foreground, so refreshes don't fire uselessly.
@@ -43,6 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signInWithGoogle() {
+    if (!googleConfigured) {
+      throw new Error(
+        Platform.OS === 'ios'
+          ? 'Google Sign-in isn’t configured for this build yet — set EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID in mobile/.env and rebuild.'
+          : 'Google Sign-in isn’t configured for this build yet — set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in mobile/.env and rebuild.'
+      );
+    }
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
     const result = await GoogleSignin.signIn();
     // v16 returns { type: 'success' | 'cancelled', data }.
