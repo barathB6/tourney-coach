@@ -57,6 +57,7 @@ export default function Dashboard() {
   const [avatarError, setAvatarError] = useState(false);
   const [phase2CoachDismissed, setPhase2CoachDismissed] = useState(false);
   const [lastCourseId, setLastCourseId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -89,6 +90,11 @@ export default function Dashboard() {
       const avatar = u.user_metadata?.avatar_url || u.user_metadata?.picture || '';
       console.log('[Dashboard] user_metadata:', u.user_metadata, '| avatar:', avatar);
       setUser({ name: firstName, fullName, initials, avatar, id: u.id });
+
+      // GPS pipeline is an internal surface — only surface its shortcut to
+      // admins, so a regular organizer never sees a button that walls them off.
+      supabase.from('profiles').select('role').eq('id', u.id).maybeSingle()
+        .then(({ data }) => setIsAdmin(data?.role === 'admin'));
 
       try {
         const saved = localStorage.getItem(`tourney_story_${u.id}`);
@@ -377,6 +383,17 @@ export default function Dashboard() {
                 </svg>
                 Course Builder
               </button>
+              {isAdmin && (
+                <button
+                  onClick={() => router.push('/admin/pipeline/gps')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                  </svg>
+                  GPS
+                </button>
+              )}
             </div>
           )}
 
