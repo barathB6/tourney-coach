@@ -27,7 +27,7 @@ export default function GpsAdminPage() {
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { router.replace('/sign-in?next=/admin/gps'); return; }
+      if (!session?.user) { router.replace('/sign-in?next=/admin/pipeline/gps'); return; }
 
       const res = await fetch('/api/gps/admin/stats', {
         headers: { Authorization: `Bearer ${session.access_token}` },

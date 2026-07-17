@@ -13,6 +13,24 @@ export function proxy(request: NextRequest) {
     hostname === '127.0.0.1' ||
     hostname.endsWith('.vercel.app');
 
+  // Internal admin surface — must be carved out BEFORE the microsite
+  // catch-all or admin.tourneycoach.com resolves to /microsite/admin.
+  // Only / and /pipeline/* are remapped under /admin; every other path
+  // (sign-in, auth callback, static assets) serves the main app so login
+  // works on this origin too.
+  if (hostname === 'admin.tourneycoach.com') {
+    const rewriteUrl = nextUrl.clone();
+    if (nextUrl.pathname === '/') {
+      rewriteUrl.pathname = '/admin/pipeline/gps';
+      return NextResponse.rewrite(rewriteUrl);
+    }
+    if (nextUrl.pathname.startsWith('/pipeline/')) {
+      rewriteUrl.pathname = `/admin${nextUrl.pathname}`;
+      return NextResponse.rewrite(rewriteUrl);
+    }
+    return NextResponse.next();
+  }
+
   if (!isMainDomain) {
     const slug = hostname.split('.')[0];
     const rewriteUrl = nextUrl.clone();
