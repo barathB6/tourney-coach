@@ -13,12 +13,20 @@
 --    they are locked down, NOT dropped.
 --
 --    Rather than trusting a hand-maintained name list, the block below is
---    catalog-driven: it locks EVERY public table that still has RLS
---    disabled, except the known app tables listed in the whitelist. Locking
---    means enable RLS (no policies — service-role only, same pattern as the
---    GPS tables in 024) plus revoking the anon/authenticated grants so
---    probes fail loudly with "permission denied" instead of returning empty
---    200s. Service-role access is unaffected.
+--    catalog-driven: it locks EVERY public table except the known app
+--    tables listed in the whitelist. Locking means enable RLS (no policies
+--    — service-role only, same pattern as the GPS tables in 024) plus
+--    revoking the anon/authenticated grants so probes fail loudly with
+--    "permission denied" instead of returning empty 200s. Service-role
+--    access is unaffected.
+--
+--    NOTE: we do NOT gate the loop on "RLS currently disabled". Several of
+--    the spec-pasted tables were created with RLS already enabled but no
+--    policies AND the anon grant left intact — so they returned empty 200s,
+--    not errors. RLS-without-revoke still lets PostgREST answer; it's the
+--    grant revoke that produces the hard 401. Processing every
+--    non-whitelisted table unconditionally (enable RLS is a no-op when
+--    already on) catches those too.
 --
 -- 2) The GPS tables from 024 get the same grant revoke explicitly (they
 --    already have RLS enabled, so the catalog loop skips them).
@@ -46,12 +54,13 @@ begin
     select tablename
     from pg_tables
     where schemaname = 'public'
-      and not rowsecurity
       and tablename not in (
-        -- Known app tables, managed by db/migrations with their own RLS
-        -- policies. (If one of these ever shows up in this loop it means
-        -- its migration forgot "enable row level security" — investigate,
-        -- don't just add it here.)
+        -- Known app tables that the browser (anon key) legitimately reads
+        -- or writes — each managed by db/migrations with its own RLS
+        -- policies and grants. They MUST stay out of this loop or the app
+        -- breaks (e.g. anon INSERT on registrations for public signups).
+        -- This list matches every non-GPS table referenced by a client
+        -- component; GPS tables are absent on purpose (service-role only).
         'profiles',
         'tournaments',
         'registrations',
