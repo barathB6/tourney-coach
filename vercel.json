@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sponsor-followups",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/gps-clusters",
+      "schedule": "0 6 * * *"
     }
   ]
 }
