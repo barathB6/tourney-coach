@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isDeviceConsented } from '@/lib/gps/consent';
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,12 +46,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .eq('registration_id', id)
       .maybeSingle();
     if (device) {
-      const { data: consent } = await supabase
-        .from('gps_active_consent')
-        .select('event')
-        .eq('device_id', device.id)
-        .maybeSingle();
-      hasConsent = consent?.event === 'granted';
+      hasConsent = await isDeviceConsented(supabase, device.id);
     } else {
       hasConsent = false;
     }

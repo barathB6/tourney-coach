@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { activeConsentDeviceIds as computeActiveConsentDeviceIds } from '@/lib/gps/consent';
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
     { count: totalDevices },
     { count: tracksLast24h },
     { data: lastTrack },
-    { data: consentEvents },
+    activeDeviceIds,
     { data: holes },
     { data: features },
   ] = await Promise.all([
@@ -40,16 +41,14 @@ export async function GET(req: NextRequest) {
     supabase.from('gps_devices').select('*', { count: 'exact', head: true }),
     supabase.from('gps_tracks').select('*', { count: 'exact', head: true }).gte('received_at', since24h),
     supabase.from('gps_tracks').select('received_at').order('received_at', { ascending: false }).limit(1).maybeSingle(),
-    supabase.from('gps_active_consent').select('device_id, event'),
+    computeActiveConsentDeviceIds(supabase),
     supabase.from('course_holes').select('course_id, hole_number, gps_status, courses(name, total_holes)'),
     supabase.from('course_gps_features').select('feature_type'),
   ]);
 
-  const activeConsentDeviceIds = (consentEvents ?? []).filter((e) => e.event === 'granted').map((e) => e.device_id);
-
   let registrationsWithConsent = 0;
-  if (activeConsentDeviceIds.length) {
-    const { data: devices } = await supabase.from('gps_devices').select('registration_id').in('id', activeConsentDeviceIds);
+  if (activeDeviceIds.length) {
+    const { data: devices } = await supabase.from('gps_devices').select('registration_id').in('id', activeDeviceIds);
     registrationsWithConsent = new Set((devices ?? []).map((d) => d.registration_id)).size;
   }
 
@@ -76,7 +75,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     totalTracks: totalTracks ?? 0,
     totalDevices: totalDevices ?? 0,
-    activeConsentDevices: activeConsentDeviceIds.length,
+    activeConsentDevices: activeDeviceIds.length,
     registrationsWithConsent,
     tracksLast24h: tracksLast24h ?? 0,
     lastIngestAt: lastTrack?.received_at ?? null,

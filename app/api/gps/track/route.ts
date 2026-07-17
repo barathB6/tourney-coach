@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isDeviceConsented } from '@/lib/gps/consent';
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,8 +54,7 @@ export async function POST(req: NextRequest) {
   const { data: device } = await supabase.from('gps_devices').select('id, registration_id').eq('device_token', deviceToken).maybeSingle();
   if (!device) return NextResponse.json({ error: 'Unknown device — consent required first' }, { status: 403 });
 
-  const { data: consent } = await supabase.from('gps_active_consent').select('event').eq('device_id', device.id).maybeSingle();
-  if (consent?.event !== 'granted') {
+  if (!(await isDeviceConsented(supabase, device.id))) {
     return NextResponse.json({ error: 'Consent not active for this device' }, { status: 403 });
   }
 
