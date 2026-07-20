@@ -20,6 +20,14 @@ WebBrowser.maybeCompleteAuthSession();
 // Redirect URLs.
 const REDIRECT_URI = Linking.createURL('auth-callback');
 
+// The OAuth redirect may arrive at /auth-callback OR — on Android, where the
+// browser dispatches it as a fresh deep link — at the scheme root with the
+// tokens in the query or fragment. Match any of those so expo-router doesn't
+// swallow it as an "unmatched route".
+function isAuthRedirect(url: string): boolean {
+  return url.includes('auth-callback') || /[#?&](access_token|code)=/.test(url);
+}
+
 // Supabase can return either tokens (implicit) or a code (PKCE) on the
 // redirect URL depending on the client's flow type — handle both.
 async function createSessionFromUrl(url: string): Promise<Session | null> {
@@ -70,11 +78,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Safety net: if the app is cold-started by the redirect deep link (rather
-  // than the openAuthSessionAsync round-trip completing in-process), catch it.
+  // Catch the OAuth redirect deep link that expo-router would otherwise route
+  // to a not-found page — both when the app is already open (event) and when
+  // it's cold-started by the redirect (initial URL). On success the session
+  // flips and RootNavigator redirects into (app).
   useEffect(() => {
+    Linking.getInitialURL().then((url) => { if (url && isAuthRedirect(url)) createSessionFromUrl(url).catch(() => {}); });
     const sub = Linking.addEventListener('url', ({ url }) => {
-      if (url.includes('auth-callback')) createSessionFromUrl(url).catch(() => {});
+      if (isAuthRedirect(url)) createSessionFromUrl(url).catch(() => {});
     });
     return () => sub.remove();
   }, []);
