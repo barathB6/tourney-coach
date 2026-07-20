@@ -27,19 +27,13 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "@react-native-google-signin/google-signin",
-        {
-          "iosUrlScheme": "com.googleusercontent.apps.395828923741-s0696n8hd10lr9ibvaqpff5nmr3njnqk"
-        }
-      ],
+      "expo-web-browser",
       [
         "expo-location",
         {
           "locationWhenInUsePermission": "TourneyCoach records your location during tournament play to automatically map the course (tee, fairway, and green positions). Only while the app is open, and only after you opt in on the Live Round screen."
         }
-      ],
-      "./plugins/withModularHeaders"
+      ]
     ]
   }
 }

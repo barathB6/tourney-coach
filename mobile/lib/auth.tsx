@@ -1,30 +1,48 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { AppState, Platform } from 'react-native';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { AppState } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import { getQueryParams } from 'expo-auth-session/build/QueryParams';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import { config } from './config';
 
-// On iOS the native SDK *requires* an iosClientId (or a GoogleService-Info
-// plist) and throws from configure() itself — which, unguarded, red-boxes the
-// whole app at startup before any UI renders. Only configure when the
-// platform's required client id is actually present; signInWithGoogle()
-// surfaces a clear setup error otherwise, and the rest of the app still runs.
-const googleConfigured = Platform.OS === 'ios'
-  ? Boolean(config.googleIosClientId)
-  : Boolean(config.googleWebClientId);
+// Auth uses the OAuth authorization-code/implicit web flow — the SAME flow
+// the website uses — rather than a native Google SDK. This deliberately
+// avoids @react-native-google-signin, which required an id_token nonce that
+// Supabase rejected on iOS and a per-app SHA-1 Android OAuth client
+// (DEVELOPER_ERROR). The web flow reuses the existing web Google client, so
+// there is nothing to configure in Google Cloud per platform; Supabase just
+// needs REDIRECT_URI in its redirect allow-list.
+WebBrowser.maybeCompleteAuthSession();
 
-if (googleConfigured) {
-  // webClientId sets the idToken audience to the client Supabase's Google
-  // provider already trusts; iosClientId drives the iOS system sign-in sheet.
-  GoogleSignin.configure({
-    webClientId: config.googleWebClientId,
-    iosClientId: config.googleIosClientId || undefined,
-  });
+// Deterministic native deep link back into the app (scheme set in app.json).
+// This exact value must be added to Supabase → Auth → URL Configuration →
+// Redirect URLs.
+const REDIRECT_URI = Linking.createURL('auth-callback');
+
+// Supabase can return either tokens (implicit) or a code (PKCE) on the
+// redirect URL depending on the client's flow type — handle both.
+async function createSessionFromUrl(url: string): Promise<Session | null> {
+  const { params, errorCode } = getQueryParams(url);
+  if (errorCode) throw new Error(errorCode);
+
+  if (params.access_token) {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: params.access_token,
+      refresh_token: params.refresh_token,
+    });
+    if (error) throw error;
+    return data.session;
+  }
+  if (params.code) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(params.code);
+    if (error) throw error;
+    return data.session;
+  }
+  return null;
 }
 
-// Supabase recommends pausing token auto-refresh while the app is
-// backgrounded and resuming on foreground, so refreshes don't fire uselessly.
+// Supabase recommends pausing token auto-refresh while backgrounded.
 AppState.addEventListener('change', (state) => {
   if (state === 'active') supabase.auth.startAutoRefresh();
   else supabase.auth.stopAutoRefresh();
@@ -52,31 +70,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Safety net: if the app is cold-started by the redirect deep link (rather
+  // than the openAuthSessionAsync round-trip completing in-process), catch it.
+  useEffect(() => {
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      if (url.includes('auth-callback')) createSessionFromUrl(url).catch(() => {});
+    });
+    return () => sub.remove();
+  }, []);
+
   async function signInWithGoogle() {
-    if (!googleConfigured) {
-      throw new Error(
-        Platform.OS === 'ios'
-          ? 'Google Sign-in isn’t configured for this build yet — set EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID in mobile/.env and rebuild.'
-          : 'Google Sign-in isn’t configured for this build yet — set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in mobile/.env and rebuild.'
-      );
-    }
-    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
-    const result = await GoogleSignin.signIn();
-    // v16 returns { type: 'success' | 'cancelled', data }.
-    if (result.type !== 'success') return; // user cancelled the sheet
-    const idToken = result.data?.idToken;
-    if (!idToken) throw new Error('No ID token returned from Google');
-    // Note: the iOS GoogleSignin SDK embeds a nonce in the ID token that this
-    // library doesn't surface, so we can't thread it to signInWithIdToken.
-    // Supabase's Google provider must therefore have "Skip nonce check"
-    // enabled (Auth → Providers → Google) — the vendor-recommended setting
-    // for this native flow.
-    const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: REDIRECT_URI, skipBrowserRedirect: true },
+    });
     if (error) throw error;
+    if (!data?.url) throw new Error('Could not start Google sign-in');
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_URI);
+    if (result.type === 'success') {
+      await createSessionFromUrl(result.url);
+    }
+    // result.type 'cancel'/'dismiss' → user backed out; leave the screen as-is.
   }
 
   async function signOut() {
-    try { await GoogleSignin.signOut(); } catch { /* not signed in with Google; ignore */ }
     await supabase.auth.signOut();
   }
 
