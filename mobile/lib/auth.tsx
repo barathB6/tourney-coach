@@ -66,6 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (result.type !== 'success') return; // user cancelled the sheet
     const idToken = result.data?.idToken;
     if (!idToken) throw new Error('No ID token returned from Google');
+    // Note: the iOS GoogleSignin SDK embeds a nonce in the ID token that this
+    // library doesn't surface, so we can't thread it to signInWithIdToken.
+    // Supabase's Google provider must therefore have "Skip nonce check"
+    // enabled (Auth → Providers → Google) — the vendor-recommended setting
+    // for this native flow.
     const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
     if (error) throw error;
   }
