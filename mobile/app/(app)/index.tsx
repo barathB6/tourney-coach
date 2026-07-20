@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { colors, font } from '../../lib/theme';
@@ -14,6 +15,7 @@ type Tournament = {
 };
 
 export default function DashboardScreen() {
+  const router = useRouter();
   const { session, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -117,6 +119,14 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        <Pressable onPress={() => router.push('/live')} style={styles.liveCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.liveTitle}>Live Round · GPS</Text>
+            <Text style={styles.liveSub}>Consent-gated course mapping during play</Text>
+          </View>
+          <Text style={styles.liveArrow}>›</Text>
+        </Pressable>
+
         <Text style={styles.sectionLabel}>JUMP BACK IN</Text>
         <View style={styles.tiles}>
           {[
@@ -158,6 +168,10 @@ const styles = StyleSheet.create({
   statVal: { fontFamily: font.serif, fontSize: 28, color: colors.ink },
   statLabel: { fontFamily: font.sans, fontSize: 12.5, color: colors.muted, marginTop: 2 },
   sectionLabel: { fontFamily: font.sansBold, fontSize: 11, letterSpacing: 1, color: colors.muted, marginBottom: 10 },
+  liveCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.greenSoft, borderWidth: 1, borderColor: colors.greenBorder, borderRadius: 14, padding: 16, marginBottom: 20 },
+  liveTitle: { fontFamily: font.sansBold, fontSize: 15, color: colors.deepGreen },
+  liveSub: { fontFamily: font.sans, fontSize: 12.5, color: colors.muted, marginTop: 2 },
+  liveArrow: { fontSize: 22, color: colors.green, marginLeft: 8 },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: { width: '47%', flexGrow: 1, backgroundColor: colors.card, borderColor: colors.line, borderWidth: 1, borderRadius: 14, padding: 16 },
   tileTitle: { fontFamily: font.sansBold, fontSize: 15, color: colors.ink },

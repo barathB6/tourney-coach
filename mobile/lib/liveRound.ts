@@ -1,0 +1,107 @@
+// GPS collection engine for the Live Round screen — the mobile half of the
+// Day 18 pipeline, hitting the same production API routes as the web
+// /live/[id] page (consent audit log, batch ingestion, score-triggered
+// green labeling). Module 8 contract: log a fix every 15 seconds while the
+// round screen is active, cache locally through connectivity gaps, and
+// transmit in batches — on hole change, on backgrounding, on a slow
+// fallback timer — never continuously (battery).
+import * as Location from 'expo-location';
+import * as Crypto from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { config } from './config';
+
+export type QueuedPoint = { lat: number; lng: number; accuracy?: number; recordedAt: string };
+
+const LOG_EVERY_MS = 15000;
+export const FALLBACK_FLUSH_MS = 120000;
+const MAX_QUEUE_BEFORE_FLUSH = 40;
+
+const deviceKey = (regId: string) => `tc_gps_device_${regId}`;
+const queueKey = (regId: string) => `tc_gps_queue_${regId}`;
+
+export async function getOrCreateDeviceToken(registrationId: string): Promise<string> {
+  const existing = await AsyncStorage.getItem(deviceKey(registrationId));
+  if (existing) return existing;
+  const token = Crypto.randomUUID();
+  await AsyncStorage.setItem(deviceKey(registrationId), token);
+  return token;
+}
+
+export async function loadQueue(registrationId: string): Promise<QueuedPoint[]> {
+  try {
+    const raw = await AsyncStorage.getItem(queueKey(registrationId));
+    return raw ? (JSON.parse(raw) as QueuedPoint[]) : [];
+  } catch {
+    return []; // corrupt cache — drop it
+  }
+}
+
+export function persistQueue(registrationId: string, queue: QueuedPoint[]) {
+  AsyncStorage.setItem(queueKey(registrationId), JSON.stringify(queue)).catch(() => {});
+}
+
+async function api(path: string, body: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+  const res = await fetch(`${config.apiBaseUrl}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  return { ok: res.ok, status: res.status, data };
+}
+
+export type LiveContext = {
+  registration: { id: string; contactName: string; startingHole: number | null };
+  tournament: { id: string; name: string; courseId: string };
+  course: { id: string; name: string; totalHoles: number } | null;
+  holes: { hole_number: number; par: number | null }[];
+  hasConsent: boolean | null;
+};
+
+export async function getContext(registrationId: string, deviceToken?: string | null): Promise<LiveContext | null> {
+  const qs = deviceToken ? `?device=${deviceToken}` : '';
+  const res = await fetch(`${config.apiBaseUrl}/api/gps/context/${registrationId}${qs}`);
+  if (!res.ok) return null;
+  return (await res.json()) as LiveContext;
+}
+
+export const grantConsent = (registrationId: string, deviceToken: string, playerName: string | null) =>
+  api('/api/gps/consent', { registrationId, deviceToken, playerName });
+
+export const revokeConsent = (deviceToken: string) => api('/api/gps/consent/revoke', { deviceToken });
+
+export const uploadBatch = (params: {
+  deviceToken: string; tournamentId: string; courseId: string; holeNumber: number; points: QueuedPoint[];
+}) => api('/api/gps/track', params);
+
+export const submitScore = (params: { deviceToken: string; holeNumber: number; strokes: number }) =>
+  api('/api/gps/score', params);
+
+// Foreground OS permission + a throttled watcher. Returns a stop function.
+// The OS permission dialog this triggers carries the consent language from
+// app.json's expo-location plugin config.
+export async function startWatching(onPoint: (p: QueuedPoint) => void): Promise<{ stop: () => void } | { error: string }> {
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== 'granted') {
+    return { error: 'Location permission was declined — tracking stays off.' };
+  }
+  let lastLoggedAt = 0;
+  const sub = await Location.watchPositionAsync(
+    // timeInterval is respected on Android; iOS delivers on its own cadence,
+    // so the manual throttle below is what actually enforces the 15s rule.
+    { accuracy: Location.Accuracy.High, timeInterval: LOG_EVERY_MS, distanceInterval: 0 },
+    (pos) => {
+      if (pos.timestamp - lastLoggedAt < LOG_EVERY_MS) return;
+      lastLoggedAt = pos.timestamp;
+      onPoint({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy ?? undefined,
+        recordedAt: new Date(pos.timestamp).toISOString(),
+      });
+    }
+  );
+  return { stop: () => sub.remove() };
+}
+
+export const QUEUE_FLUSH_THRESHOLD = MAX_QUEUE_BEFORE_FLUSH;
