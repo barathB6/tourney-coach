@@ -77,6 +77,20 @@ export const uploadBatch = (params: {
 export const submitScore = (params: { deviceToken: string; holeNumber: number; strokes: number }) =>
   api('/api/gps/score', params);
 
+export const markTee = (params: { deviceToken: string; holeNumber: number; lat: number; lng: number }) =>
+  api('/api/gps/mark-tee', params);
+
+// A fresh high-accuracy single fix for "mark tee here" — the player's spot
+// at tap time, not the throttled watch cache.
+export async function getCurrentFix(): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  } catch {
+    return null;
+  }
+}
+
 // Foreground OS permission + a throttled watcher. Returns a stop function.
 // The OS permission dialog this triggers carries the consent language from
 // app.json's expo-location plugin config.

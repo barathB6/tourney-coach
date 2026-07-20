@@ -53,6 +53,8 @@ export default function LiveRoundPage() {
   const [strokes, setStrokes] = useState(4);
   const [submittingScore, setSubmittingScore] = useState(false);
   const [scoreResult, setScoreResult] = useState('');
+  const [markingTee, setMarkingTee] = useState(false);
+  const [teeResult, setTeeResult] = useState('');
 
   const queueRef = useRef<QueuedPoint[]>([]);
   const lastLoggedAtRef = useRef(0);
@@ -185,6 +187,34 @@ export default function LiveRoundPage() {
       setScoreResult(err instanceof Error ? err.message : 'Score submission failed');
     } finally {
       setSubmittingScore(false);
+    }
+  }
+
+  // Manual tee-box mark: take a FRESH high-accuracy fix (not the throttled
+  // watch cache) at the moment the player taps, since "here" should be the
+  // spot they're standing on right now, and tag it as this hole's tee.
+  async function markTee() {
+    setMarkingTee(true);
+    setTeeResult('');
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
+      );
+      const res = await fetch('/api/gps/mark-tee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken, holeNumber: currentHole, lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not mark tee');
+      setTeeResult(`Tee box for hole ${currentHole} marked at your position.`);
+    } catch (err) {
+      const msg = err instanceof GeolocationPositionError || (err && typeof err === 'object' && 'code' in err)
+        ? 'Could not read your location — check permission and try again.'
+        : err instanceof Error ? err.message : 'Could not mark tee';
+      setTeeResult(msg);
+    } finally {
+      setMarkingTee(false);
     }
   }
 
@@ -325,6 +355,16 @@ export default function LiveRoundPage() {
               </button>
             </div>
             {scoreResult && <p style={{ fontSize: 12.5, color: scoreResult.startsWith('Score saved') ? '#1B6B3A' : '#B91C1C', margin: '10px 0 0' }} data-testid="score-result">{scoreResult}</p>}
+
+            <button
+              onClick={markTee}
+              disabled={markingTee}
+              style={{ width: '100%', marginTop: 12, padding: '11px', background: '#fff', color: '#1B4425', border: '1.5px solid #1B4425', borderRadius: 10, fontWeight: 700, fontSize: 13.5, cursor: markingTee ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: markingTee ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22V4l14 4-14 4" /></svg>
+              {markingTee ? 'Reading location…' : 'Mark tee box here'}
+            </button>
+            {teeResult && <p style={{ fontSize: 12.5, color: teeResult.startsWith('Tee box') ? '#1B6B3A' : '#B91C1C', margin: '8px 0 0' }} data-testid="tee-result">{teeResult}</p>}
           </div>
         )}
 

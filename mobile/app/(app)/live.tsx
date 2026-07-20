@@ -8,6 +8,7 @@ import {
   type QueuedPoint, type LiveContext,
   getOrCreateDeviceToken, loadQueue, persistQueue, getContext,
   grantConsent, revokeConsent, uploadBatch, submitScore as submitScoreApi,
+  markTee as markTeeApi, getCurrentFix,
   startWatching, FALLBACK_FLUSH_MS, QUEUE_FLUSH_THRESHOLD,
 } from '../../lib/liveRound';
 
@@ -32,6 +33,8 @@ export default function LiveRoundScreen() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [scoreResult, setScoreResult] = useState('');
+  const [teeResult, setTeeResult] = useState('');
+  const [markingTee, setMarkingTee] = useState(false);
 
   const queueRef = useRef<QueuedPoint[]>([]);
   const stopWatchRef = useRef<(() => void) | null>(null);
@@ -158,6 +161,25 @@ export default function LiveRoundScreen() {
     flushRef.current(); // attribute buffered points to the outgoing hole
     setCurrentHole(next);
     setScoreResult('');
+    setTeeResult('');
+  }
+
+  // Manual tee mark: fresh fix at tap time -> tag as this hole's tee.
+  async function onMarkTee() {
+    if (!deviceToken) return;
+    setMarkingTee(true);
+    setTeeResult('');
+    try {
+      const fix = await getCurrentFix();
+      if (!fix) { setTeeResult('Could not read your location — check permission and try again.'); return; }
+      const res = await markTeeApi({ deviceToken, holeNumber: currentHole, lat: fix.lat, lng: fix.lng });
+      if (!res.ok) throw new Error((res.data.error as string) || 'Could not mark tee');
+      setTeeResult(`Tee box for hole ${currentHole} marked at your position.`);
+    } catch (e) {
+      setTeeResult(e instanceof Error ? e.message : 'Could not mark tee');
+    } finally {
+      setMarkingTee(false);
+    }
   }
 
   async function turnOff() {
@@ -266,6 +288,14 @@ export default function LiveRoundScreen() {
                   {scoreResult}
                 </Text>
               )}
+              <Pressable onPress={onMarkTee} disabled={markingTee} style={[s.markTeeBtn, markingTee && { opacity: 0.7 }]}>
+                <Text style={s.markTeeText}>⛳  {markingTee ? 'Reading location…' : 'Mark tee box here'}</Text>
+              </Pressable>
+              {!!teeResult && (
+                <Text style={[s.body, { marginTop: 8, color: teeResult.startsWith('Tee box') ? colors.green : colors.alert }]}>
+                  {teeResult}
+                </Text>
+              )}
             </View>
           </>
         )}
@@ -305,4 +335,6 @@ const s = StyleSheet.create({
   holeLabel: { fontFamily: font.sans, fontWeight: '700', fontSize: 14, color: colors.ink, minWidth: 110, textAlign: 'center' },
   scoreKicker: { fontFamily: font.sans, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', color: colors.muted, marginBottom: 10 },
   strokes: { fontFamily: font.serif, fontSize: 22, fontWeight: '700', color: colors.ink, minWidth: 28, textAlign: 'center' },
+  markTeeBtn: { marginTop: 12, paddingVertical: 11, borderRadius: 10, borderWidth: 1.5, borderColor: colors.primary, alignItems: 'center' },
+  markTeeText: { fontFamily: font.sansBold, fontSize: 13.5, color: colors.primary },
 });
