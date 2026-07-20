@@ -50,6 +50,9 @@ export default function LiveRoundPage() {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [geoError, setGeoError] = useState('');
   const [starting, setStarting] = useState(false);
+  const [strokes, setStrokes] = useState(4);
+  const [submittingScore, setSubmittingScore] = useState(false);
+  const [scoreResult, setScoreResult] = useState('');
 
   const queueRef = useRef<QueuedPoint[]>([]);
   const lastLoggedAtRef = useRef(0);
@@ -154,6 +157,35 @@ export default function LiveRoundPage() {
   function changeHole(next: number) {
     flushRef.current();
     setCurrentHole(next);
+    setScoreResult('');
+  }
+
+  // The patent trigger, from the player's side: flush buffered GPS first so
+  // the contemporaneous points are server-side, then submit the score — the
+  // server labels those points as this hole's green location.
+  async function submitScore() {
+    if (!deviceToken) return;
+    setSubmittingScore(true);
+    setScoreResult('');
+    try {
+      await flush();
+      const res = await fetch('/api/gps/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken, holeNumber: currentHole, strokes }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Score submission failed');
+      setScoreResult(
+        data.labeledPoints > 0
+          ? `Score saved — green location for hole ${currentHole} labeled from ${data.labeledPoints} GPS point${data.labeledPoints === 1 ? '' : 's'}.`
+          : 'Score saved — no recent GPS points were available to label.'
+      );
+    } catch (err) {
+      setScoreResult(err instanceof Error ? err.message : 'Score submission failed');
+    } finally {
+      setSubmittingScore(false);
+    }
   }
 
   async function grantConsent() {
@@ -276,6 +308,25 @@ export default function LiveRoundPage() {
           <p style={{ fontWeight: 700, fontSize: 14, margin: 0, minWidth: 90, textAlign: 'center' }}>Hole {currentHole} of {ctx.course.totalHoles}</p>
           <button onClick={() => changeHole(currentHole >= ctx.course!.totalHoles ? 1 : currentHole + 1)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 16 }}>›</button>
         </div>
+
+        {consent === 'granted' && (
+          <div style={{ background: '#fff', border: '1px solid #E5E0D5', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B7775', margin: '0 0 10px' }}>Score for hole {currentHole}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button onClick={() => setStrokes((n) => Math.max(1, n - 1))} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 16 }}>−</button>
+              <p style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 700, margin: 0, minWidth: 28, textAlign: 'center' }}>{strokes}</p>
+              <button onClick={() => setStrokes((n) => Math.min(20, n + 1))} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 16 }}>+</button>
+              <button
+                onClick={submitScore}
+                disabled={submittingScore}
+                style={{ flex: 1, padding: '11px', background: '#1B4425', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 13.5, cursor: submittingScore ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: submittingScore ? 0.7 : 1 }}
+              >
+                {submittingScore ? 'Submitting…' : 'Submit score'}
+              </button>
+            </div>
+            {scoreResult && <p style={{ fontSize: 12.5, color: scoreResult.startsWith('Score saved') ? '#1B6B3A' : '#B91C1C', margin: '10px 0 0' }}>{scoreResult}</p>}
+          </div>
+        )}
 
         {schematicHole ? <HoleSchematic hole={schematicHole} /> : (
           <p style={{ textAlign: 'center', color: '#6B7775', fontSize: 13 }}>No data for this hole yet.</p>
