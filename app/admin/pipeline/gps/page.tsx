@@ -74,7 +74,21 @@ export default function GpsPipelinePage() {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) { router.replace('/sign-in?next=/admin/pipeline/gps'); return; }
-      const res = await fetch('/api/gps/admin/stats', { headers: { Authorization: `Bearer ${session.access_token}` } });
+
+      let res = await fetch('/api/gps/admin/stats', { headers: { Authorization: `Bearer ${session.access_token}` } });
+
+      // A cached access token can outlive its server-side session (e.g. after
+      // signing in elsewhere) — the token isn't expired but auth.getUser
+      // rejects the dead session with 401. Try one refresh, then send the
+      // user to re-authenticate rather than dead-ending on a load error.
+      if (res.status === 401) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (refreshed.session) {
+          res = await fetch('/api/gps/admin/stats', { headers: { Authorization: `Bearer ${refreshed.session.access_token}` } });
+        }
+        if (res.status === 401) { router.replace('/sign-in?next=/admin/pipeline/gps'); return; }
+      }
+
       if (res.status === 403) { setForbidden(true); setLoading(false); return; }
       if (!res.ok) { setLoading(false); return; }
       setStats(await res.json());
