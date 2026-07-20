@@ -1,0 +1,4 @@
+# The Expo/React Native app is a sibling project — never part of the web
+# deploy. Its generated native trees (ios/Pods, android build output) are
+# tens of thousands of files and blow Vercel's upload limit.
+mobile
