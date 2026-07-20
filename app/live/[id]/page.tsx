@@ -176,11 +176,11 @@ export default function LiveRoundPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Score submission failed');
-      setScoreResult(
-        data.labeledPoints > 0
-          ? `Score saved — green location for hole ${currentHole} labeled from ${data.labeledPoints} GPS point${data.labeledPoints === 1 ? '' : 's'}.`
-          : 'Score saved — no recent GPS points were available to label.'
-      );
+      const labelPart = data.labeledPoints > 0
+        ? `green location for hole ${currentHole} labeled from ${data.labeledPoints} GPS point${data.labeledPoints === 1 ? '' : 's'}`
+        : 'no recent GPS points were available to label';
+      // Don't claim the score was saved when the server said it wasn't.
+      setScoreResult(data.scoreStored ? `Score saved — ${labelPart}.` : `Score NOT stored (database not ready) — ${labelPart}.`);
     } catch (err) {
       setScoreResult(err instanceof Error ? err.message : 'Score submission failed');
     } finally {
@@ -324,7 +324,7 @@ export default function LiveRoundPage() {
                 {submittingScore ? 'Submitting…' : 'Submit score'}
               </button>
             </div>
-            {scoreResult && <p style={{ fontSize: 12.5, color: scoreResult.startsWith('Score saved') ? '#1B6B3A' : '#B91C1C', margin: '10px 0 0' }}>{scoreResult}</p>}
+            {scoreResult && <p style={{ fontSize: 12.5, color: scoreResult.startsWith('Score saved') ? '#1B6B3A' : '#B91C1C', margin: '10px 0 0' }} data-testid="score-result">{scoreResult}</p>}
           </div>
         )}
 
