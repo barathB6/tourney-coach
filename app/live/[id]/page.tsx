@@ -54,6 +54,7 @@ export default function LiveRoundPage() {
   const [submittingScore, setSubmittingScore] = useState(false);
   const [scoreResult, setScoreResult] = useState('');
   const [markingTee, setMarkingTee] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const [teeResult, setTeeResult] = useState('');
 
   const queueRef = useRef<QueuedPoint[]>([]);
@@ -368,10 +369,39 @@ export default function LiveRoundPage() {
           </div>
         )}
 
-        {schematicHole ? <HoleSchematic hole={schematicHole} /> : (
+        {schematicHole ? (
+          <>
+            <HoleSchematic hole={schematicHole} />
+            <button
+              onClick={() => setMapOpen(true)}
+              style={{ width: '100%', marginTop: 10, padding: '11px', background: '#fff', color: '#1B4425', border: '1px solid #E5E0D5', borderRadius: 10, fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2z" /><path d="M9 3v16M15 5v16" /></svg>
+              View full map
+            </button>
+          </>
+        ) : (
           <p style={{ textAlign: 'center', color: '#6B7775', fontSize: 13 }}>No data for this hole yet.</p>
         )}
       </div>
+
+      {mapOpen && schematicHole && (
+        <div
+          onClick={() => setMapOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(26,31,28,.55)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, maxHeight: '92vh', overflowY: 'auto', position: 'relative' }}>
+            <button
+              onClick={() => setMapOpen(false)}
+              aria-label="Close map"
+              style={{ position: 'absolute', top: 12, right: 12, zIndex: 1, width: 34, height: 34, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 17, lineHeight: 1, color: '#1A1F1C' }}
+            >
+              ✕
+            </button>
+            <HoleSchematic hole={schematicHole} maxWidth={360} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

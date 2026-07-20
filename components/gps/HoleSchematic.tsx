@@ -26,7 +26,7 @@ const BOTTOM = 460;
 // data — no satellite imagery, no mapping API key. Tee markers are placed
 // proportionally along a single fairway axis by yardage; there's no real
 // dogleg/terrain geometry to draw since none of that is captured yet.
-export default function HoleSchematic({ hole, highlightTee }: { hole: SchematicHole; highlightTee?: Tee | null }) {
+export default function HoleSchematic({ hole, highlightTee, maxWidth = 220 }: { hole: SchematicHole; highlightTee?: Tee | null; maxWidth?: number }) {
   const entries = TEES
     .map((tee) => ({ tee, yards: hole.teeYardages[tee] }))
     .filter((e): e is { tee: Tee; yards: number } => typeof e.yards === 'number');
@@ -44,7 +44,7 @@ export default function HoleSchematic({ hole, highlightTee }: { hole: SchematicH
       </div>
       {hole.description && <p style={{ fontSize: 12.5, color: '#6B7775', margin: '0 0 10px' }}>{hole.description}</p>}
 
-      <svg viewBox={`0 0 ${WIDTH} 500`} style={{ width: '100%', maxWidth: 220, display: 'block', margin: '0 auto' }}>
+      <svg viewBox={`0 0 ${WIDTH} 500`} style={{ width: '100%', maxWidth, display: 'block', margin: '0 auto' }}>
         <polygon
           points={`${WIDTH / 2 - 10},${TOP + 20} ${WIDTH / 2 + 10},${TOP + 20} ${WIDTH / 2 + 46},${BOTTOM} ${WIDTH / 2 - 46},${BOTTOM}`}
           fill="#EAF2ED"
