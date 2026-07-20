@@ -86,7 +86,15 @@ export default function GpsPipelinePage() {
         if (refreshed.session) {
           res = await fetch('/api/gps/admin/stats', { headers: { Authorization: `Bearer ${refreshed.session.access_token}` } });
         }
-        if (res.status === 401) { router.replace('/sign-in?next=/admin/pipeline/gps'); return; }
+        if (res.status === 401) {
+          // The session is dead server-side. Clear the stale local session
+          // FIRST — otherwise /sign-in sees the cached token via getSession(),
+          // bounces back here, and we loop. signOut local-only (a server
+          // signOut would 403 on the already-dead session).
+          await supabase.auth.signOut({ scope: 'local' });
+          router.replace('/sign-in?next=/admin/pipeline/gps');
+          return;
+        }
       }
 
       if (res.status === 403) { setForbidden(true); setLoading(false); return; }
