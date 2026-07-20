@@ -77,13 +77,13 @@ export default function DashboardScreen() {
 
   const setupDone = !!tournament;
   const causeStoryDone = !!tournament?.cause_story;
-  const steps = [
+  const steps: { label: string; done: boolean; path?: string | null; native?: '/live' | '/volunteers' | '/registrations' | '/sponsors' }[] = [
     { label: 'Tell your cause story', done: causeStoryDone, path: '/story' },
     { label: 'Set up the event details', done: setupDone, path: '/setup/format' },
-    { label: 'Open registration', done: setupDone, path: null as string | null },
+    { label: 'Open registration', done: setupDone, path: null },
     { label: 'Line up your sponsors', done: false, path: '/sponsors' },
-    { label: 'Rally your volunteers', done: false, path: null as string | null },
-    { label: 'Build your day-of game plan', done: false, path: '/shotgun' },
+    { label: 'Build your day-of game plan', done: true, path: '/shotgun' },
+    { label: 'Rally your volunteers', done: false, native: '/volunteers' },
   ];
   const activeIdx = steps.findIndex((st) => !st.done);
   const days = daysUntil(tournament?.event_date ?? null);
@@ -175,7 +175,7 @@ export default function DashboardScreen() {
                 {steps.map((st, i) => {
                   const isNow = i === activeIdx;
                   return (
-                    <Pressable key={st.label} onPress={() => st.path && openWeb(st.path)} style={s.stepRow}>
+                    <Pressable key={st.label} onPress={() => st.native ? router.push(st.native) : st.path ? openWeb(st.path) : undefined} style={s.stepRow}>
                       <View style={[s.dot, st.done ? s.dotDone : isNow ? s.dotNow : s.dotTodo]}>
                         <Text style={st.done ? s.dotDoneText : isNow ? s.dotNowText : s.dotTodoText}>{st.done ? '✓' : isNow ? '▸' : `${i + 1}`}</Text>
                       </View>
