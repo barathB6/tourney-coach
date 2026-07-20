@@ -100,7 +100,9 @@ export default function DashboardScreen() {
   const coachBtnPath = steps[activeIdx]?.path;
 
   const ACTIONS = [
-    { label: 'Volunteers', path: '/dashboard/volunteers' },
+    { label: 'Volunteers', native: '/volunteers' as const },
+    { label: 'Registrations', native: '/registrations' as const },
+    { label: 'Sponsors', native: '/sponsors' as const },
     { label: 'Microsite', path: '/dashboard/microsite' },
     { label: 'Share', path: '/dashboard/share' },
     { label: 'Shotgun Start', path: '/shotgun' },
@@ -111,9 +113,9 @@ export default function DashboardScreen() {
   const JUMP = [
     { label: 'Cause story', sub: causeStoryDone ? 'done' : 'not started', path: '/story' },
     { label: 'Event setup', sub: setupDone ? 'done' : 'not started', path: '/setup/format' },
-    { label: 'Registration', sub: setupDone ? 'view registrations' : 'not started', path: '/dashboard/registrations' },
-    { label: 'Sponsors', sub: setupDone ? 'view sponsors' : 'not started', path: '/sponsors' },
-    { label: 'Shotgun start', sub: setupDone ? 'assign holes' : 'not started', path: '/shotgun' },
+    { label: 'Registration', sub: setupDone ? 'view registrations' : 'not started', native: '/registrations' as const },
+    { label: 'Sponsors', sub: setupDone ? 'view sponsors' : 'not started', native: '/sponsors' as const },
+    { label: 'Volunteers', sub: 'view signups', native: '/volunteers' as const },
     { label: 'Live Round · GPS', sub: 'course mapping', native: '/live' as const },
   ];
 
