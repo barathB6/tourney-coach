@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import HoleSchematic, { type SchematicHole } from '@/components/gps/HoleSchematic';
+import HoleSchematic, { type SchematicHole, type GpsHazard } from '@/components/gps/HoleSchematic';
 import type { Tee } from '@/lib/course';
 
 type Hole = {
@@ -56,6 +56,9 @@ export default function LiveRoundPage() {
   const [markingTee, setMarkingTee] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [teeResult, setTeeResult] = useState('');
+  // Inferred hazards live in course_gps_features, not course_holes.gps_status,
+  // so they come from the aggregated course profile endpoint (best-effort).
+  const [hazardsByHole, setHazardsByHole] = useState<Record<number, GpsHazard[]>>({});
 
   const queueRef = useRef<QueuedPoint[]>([]);
   const lastLoggedAtRef = useRef(0);
@@ -69,6 +72,21 @@ export default function LiveRoundPage() {
       const data: Context = await res.json();
       setCtx(data);
       setCurrentHole(data.registration.startingHole ?? 1);
+      // Best-effort: pull aggregated hazards for this course (non-blocking; the
+      // map renders fine without them).
+      if (data.tournament?.courseId) {
+        fetch(`/api/course/${data.tournament.courseId}/profile`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((p) => {
+            if (!p?.holes) return;
+            const map: Record<number, GpsHazard[]> = {};
+            for (const h of p.holes) {
+              if (Array.isArray(h.gpsDerived?.hazards) && h.gpsDerived.hazards.length) map[h.holeNumber] = h.gpsDerived.hazards;
+            }
+            setHazardsByHole(map);
+          })
+          .catch(() => { /* profile is optional */ });
+      }
       if (existingToken) {
         setDeviceToken(existingToken);
         setConsent(data.hasConsent ? 'granted' : 'declined');
@@ -276,7 +294,7 @@ export default function LiveRoundPage() {
 
   const hole = ctx.holes.find((h) => h.hole_number === currentHole);
   const schematicHole: SchematicHole | null = hole
-    ? { holeNumber: hole.hole_number, par: hole.par, description: hole.description, teeYardages: hole.tee_yardages, gpsStatus: hole.gps_status }
+    ? { holeNumber: hole.hole_number, par: hole.par, description: hole.description, teeYardages: hole.tee_yardages, gpsStatus: hole.gps_status, hazards: hazardsByHole[hole.hole_number] }
     : null;
 
   return (
