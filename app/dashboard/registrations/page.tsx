@@ -432,6 +432,15 @@ export default function RegistrationsPage() {
                         </span>
                       </td>
                       <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <a
+                          href={`/live/${r.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Open this player's Live Round view — the GPS hole map"
+                          style={{ background: 'none', border: '1px solid #E5E0D5', borderRadius: 8, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, color: '#1B6B3A', textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", marginRight: 8, display: 'inline-block' }}
+                        >
+                          Live map ↗
+                        </a>
                         {r.payment_status === 'paid' && (
                           <button
                             onClick={() => handleRefund(r)}
