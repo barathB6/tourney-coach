@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   const { data: device } = await supabase
     .from('gps_devices')
-    .select('id, registration_id, registrations(tournaments(course_id))')
+    .select('id, registration_id, registrations(tournament_id, tournaments(course_id))')
     .eq('device_token', deviceToken)
     .maybeSingle();
   if (!device) {
@@ -40,12 +40,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Consent not active for this device' }, { status: 403 });
   }
 
-  const reg = device.registrations as unknown as { tournaments: { course_id: string | null } | null } | null;
+  const reg = device.registrations as unknown as { tournament_id: string | null; tournaments: { course_id: string | null } | null } | null;
   const courseId = reg?.tournaments?.course_id;
   if (!courseId) {
     return NextResponse.json({ error: 'No course profile for this tournament' }, { status: 404 });
   }
 
-  await markTeeBox({ courseId, holeNumber, lat, lng });
+  await markTeeBox({ courseId, holeNumber, lat, lng, tournamentId: reg?.tournament_id ?? null });
   return NextResponse.json({ marked: true, holeNumber });
 }

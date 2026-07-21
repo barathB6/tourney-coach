@@ -39,7 +39,7 @@ export async function labelGreenOnScoreSubmission(params: {
 
   const { data: tracks } = await supabase
     .from('gps_tracks')
-    .select('id, device_id, lat, lng, recorded_at, course_id')
+    .select('id, device_id, lat, lng, recorded_at, course_id, tournament_id')
     .eq('foursome_id', foursomeId)
     .eq('hole_number', holeNumber)
     .is('feature_type', null)
@@ -52,7 +52,7 @@ export async function labelGreenOnScoreSubmission(params: {
   // Closest-in-time ping per device — each phone in the foursome may have
   // one in-window ping, and averaging across teammates gives a steadier fix
   // than any single phone's GPS noise.
-  type Track = { id: string; device_id: string; lat: number; lng: number; recorded_at: string; course_id: string | null };
+  type Track = { id: string; device_id: string; lat: number; lng: number; recorded_at: string; course_id: string | null; tournament_id: string | null };
   const closestByDevice = new Map<string, Track>();
   for (const t of tracks as Track[]) {
     const existing = closestByDevice.get(t.device_id);
@@ -76,6 +76,7 @@ export async function labelGreenOnScoreSubmission(params: {
     await supabase.from('course_gps_features').insert({
       course_id: courseId,
       hole_number: holeNumber,
+      tournament_id: matched[0].tournament_id ?? null,
       feature_type: 'green',
       lat: green.lat,
       lng: green.lng,

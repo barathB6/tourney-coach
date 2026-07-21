@@ -21,7 +21,7 @@ export interface ClusterResult {
   centroid: LatLng;
 }
 
-type Track = { id: string; device_id: string; foursome_id: string; lat: number; lng: number; recorded_at: string };
+type Track = { id: string; device_id: string; foursome_id: string; tournament_id: string | null; lat: number; lng: number; recorded_at: string };
 
 // Patent mechanism, tee-box half: "when 4 players cluster at the same spot
 // before a hole → tag as tee_box for that hole." For each foursome, each
@@ -51,7 +51,7 @@ export async function detectTeeClusters(): Promise<ClusterResult[]> {
   for (const hole of pending) {
     const { data: tracks } = await supabase
       .from('gps_tracks')
-      .select('id, device_id, foursome_id, lat, lng, recorded_at')
+      .select('id, device_id, foursome_id, tournament_id, lat, lng, recorded_at')
       .eq('course_id', hole.course_id)
       .eq('hole_number', hole.hole_number)
       .is('feature_type', null)
@@ -90,6 +90,7 @@ export async function detectTeeClusters(): Promise<ClusterResult[]> {
     await supabase.from('course_gps_features').insert({
       course_id: hole.course_id,
       hole_number: hole.hole_number,
+      tournament_id: best.pings[0].tournament_id ?? null,
       feature_type: 'tee_box',
       lat: center.lat,
       lng: center.lng,

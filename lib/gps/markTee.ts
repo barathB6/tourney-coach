@@ -17,14 +17,16 @@ export async function markTeeBox(params: {
   holeNumber: number;
   lat: number;
   lng: number;
+  tournamentId?: string | null;
 }): Promise<void> {
-  const { courseId, holeNumber, lat, lng } = params;
+  const { courseId, holeNumber, lat, lng, tournamentId } = params;
   const supabase = getSupabase();
   const now = new Date().toISOString();
 
   await supabase.from('course_gps_features').insert({
     course_id: courseId,
     hole_number: holeNumber,
+    tournament_id: tournamentId ?? null,
     feature_type: 'tee_box',
     lat,
     lng,
