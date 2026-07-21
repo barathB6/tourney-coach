@@ -1,6 +1,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -56,14 +57,7 @@ export default function CheckinPage() {
     setCheckingIn(true);
     setError('');
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error('Not signed in');
-
-      const res = await fetch(`/api/registrations/${regId}/checkin`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authedFetch(`/api/registrations/${regId}/checkin`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok && res.status !== 409) throw new Error(data.error || 'Check-in failed');
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 import { FAQ_CHIPS, lookupScript, resolveScriptKey, escalationAnswer, ESCALATION_KEY, daysOut, computeNudges } from '@/lib/coach/scripts';
 import { toPlainText } from '@/lib/coach/format';
 
@@ -177,10 +178,9 @@ export default function CoachWidget() {
     // Not in the scripted library — try live AI; falls back to a friendly
     // nudge toward the FAQ topics or the full coach page if it's not configured.
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/coach/chat', {
+      const res = await authedFetch('/api/coach/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: msg, conversationId: activeConvId || undefined, tournamentId: tournament?.id }),
       });
 

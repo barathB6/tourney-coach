@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import supabase from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 import type { TournamentInput } from '@/lib/tournaments';
 
 const TOTAL_STEPS = 6;
@@ -179,9 +180,9 @@ export default function SetupClient() {
         entry_fee_cents: parseInt(formData.entryFee) * 100,
         cause_story: causeStory,
       };
-      const res = await fetch('/api/tournaments', {
+      const res = await authedFetch('/api/tournaments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json();

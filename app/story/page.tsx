@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 import FormattableTextarea from '@/components/FormattableTextarea';
 import { renderRichText } from '@/lib/richtext/render';
 
@@ -202,13 +203,9 @@ export default function CauseStoryBuilder() {
     if (tournamentId) {
       setSaving(true);
       setError('');
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/tournaments/${tournamentId}`, {
+      const res = await authedFetch(`/api/tournaments/${tournamentId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cause_story_answers: fields,
           cause_story_full: fullStory || null,

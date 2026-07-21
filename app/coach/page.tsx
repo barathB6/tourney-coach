@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 import { FAQ_CHIPS, lookupScript, resolveScriptKey, escalationAnswer, ESCALATION_KEY, daysOut, computeNudges } from '@/lib/coach/scripts';
 import { toPlainText } from '@/lib/coach/format';
 
@@ -285,12 +286,6 @@ export default function CoachPage() {
     return () => clearInterval(timer);
   }, [kitchenShown]);
 
-  // ── Auth token helper ────────────────────────────────────────────────────
-  async function getToken() {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? '';
-  }
-
   async function switchTournament(t: Tournament) {
     setTournament(t);
     setSwitchOpen(false);
@@ -367,10 +362,9 @@ export default function CoachPage() {
     setMessages(prev => [...prev, assistantMsg]);
 
     try {
-      const token = await getToken();
-      const res = await fetch('/api/coach/chat', {
+      const res = await authedFetch('/api/coach/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: msg, conversationId: activeConvId || undefined, tournamentId: tournament?.id }),
       });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -129,13 +130,9 @@ export default function RegistrationsPage() {
 
     setAddSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error('Not signed in');
-
-      const res = await fetch('/api/registrations', {
+      const res = await authedFetch('/api/registrations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tournament_id: selectedTournament,
           registration_type: addForm.type,
@@ -175,13 +172,9 @@ export default function RegistrationsPage() {
     setRefunding(reg.id);
     setError('');
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error('Not signed in');
-
-      const res = await fetch('/api/payments/refund', {
+      const res = await authedFetch('/api/payments/refund', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ registration_id: reg.id, reason: 'Organizer-initiated refund' }),
       });
       const data = await res.json();
@@ -202,14 +195,7 @@ export default function RegistrationsPage() {
     setDeleting(reg.id);
     setError('');
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error('Not signed in');
-
-      const res = await fetch(`/api/registrations/${reg.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authedFetch(`/api/registrations/${reg.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to delete registration');
 
@@ -229,14 +215,7 @@ export default function RegistrationsPage() {
     setDeletingTournament(true);
     setError('');
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error('Not signed in');
-
-      const res = await fetch(`/api/tournaments/${selectedTournament}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authedFetch(`/api/tournaments/${selectedTournament}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to delete tournament');
 

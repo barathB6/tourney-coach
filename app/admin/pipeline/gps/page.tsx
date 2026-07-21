@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 
 type Coverage = 'verified' | 'building' | 'pending';
 
@@ -75,28 +76,10 @@ export default function GpsPipelinePage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) { router.replace('/sign-in?next=/admin/pipeline/gps'); return; }
 
-      let res = await fetch('/api/gps/admin/stats', { headers: { Authorization: `Bearer ${session.access_token}` } });
-
-      // A cached access token can outlive its server-side session (e.g. after
-      // signing in elsewhere) — the token isn't expired but auth.getUser
-      // rejects the dead session with 401. Try one refresh, then send the
-      // user to re-authenticate rather than dead-ending on a load error.
-      if (res.status === 401) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        if (refreshed.session) {
-          res = await fetch('/api/gps/admin/stats', { headers: { Authorization: `Bearer ${refreshed.session.access_token}` } });
-        }
-        if (res.status === 401) {
-          // The session is dead server-side. Clear the stale local session
-          // FIRST — otherwise /sign-in sees the cached token via getSession(),
-          // bounces back here, and we loop. signOut local-only (a server
-          // signOut would 403 on the already-dead session).
-          await supabase.auth.signOut({ scope: 'local' });
-          router.replace('/sign-in?next=/admin/pipeline/gps');
-          return;
-        }
-      }
-
+      // authedFetch handles stale sessions: refresh-once on 401, then clear
+      // the dead local session and redirect to /sign-in (prevents the
+      // bounce-back loop a bare redirect caused).
+      const res = await authedFetch('/api/gps/admin/stats');
       if (res.status === 403) { setForbidden(true); setLoading(false); return; }
       if (!res.ok) { setLoading(false); return; }
       setStats(await res.json());

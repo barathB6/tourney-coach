@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 import { useRouter } from 'next/navigation';
 
 type Tier = {
@@ -249,10 +250,9 @@ export default function SponsorsPage() {
   // ── AI outreach ──────────────────────────────────────────────────────────
   async function draftEmail(sp: Sponsor, mode: 'intro' | 'follow_up') {
     setEmailModal({ sponsor: sp, subject: '', body: '', loading: true, error: '' });
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch('/api/sponsors/outreach', {
+    const res = await authedFetch('/api/sponsors/outreach', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sponsor_id: sp.id, mode }),
     });
     const data = await res.json();
@@ -267,10 +267,9 @@ export default function SponsorsPage() {
     if (!emailModal || !activeEmailSponsor) return;
     setSending(true);
     setSendResult(null);
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch('/api/sponsors/outreach/send', {
+    const res = await authedFetch('/api/sponsors/outreach/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sponsor_id: activeEmailSponsor.id, subject: emailModal.subject, body: emailModal.body }),
     });
     setSending(false);
@@ -286,11 +285,7 @@ export default function SponsorsPage() {
   async function markSponsorPaid(sponsorId: string) {
     if (!tournamentId) return;
     setMarkingPaidId(sponsorId);
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`/api/sponsors/${sponsorId}/mark-paid`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
-    });
+    const res = await authedFetch(`/api/sponsors/${sponsorId}/mark-paid`, { method: 'POST' });
     setMarkingPaidId(null);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
