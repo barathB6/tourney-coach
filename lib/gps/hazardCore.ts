@@ -46,9 +46,16 @@ export const MIN_NEIGHBOR_VISITS = 3;     // rounds in surrounding cells for "su
 // alone, which is acceptable for "hazard boundaries" (regions, not points).
 export const MIN_REGION_CELLS = 4;
 const M_PER_DEG_LAT = 111_320;
+// No real golf hole is longer than ~700m; a tee→green separation beyond this
+// means a mistagged or garbage coordinate (e.g. a 0,0 "null island" fix). The
+// corridor grid is sized to hole length, so without this bound one bad row
+// would allocate millions of cells and OOM the whole aggregation cron.
+export const MAX_HOLE_LENGTH_M = 1200;
 
 export function inferHazards(tee: LatLng, green: LatLng, rounds: RoundTrack[]): HazardRegion[] {
   if (rounds.length === 0) return [];
+  const holeLen0 = haversineMeters(tee, green);
+  if (!(holeLen0 > 0) || holeLen0 > MAX_HOLE_LENGTH_M) return [];
   const mPerDegLng = M_PER_DEG_LAT * Math.cos((tee.lat * Math.PI) / 180);
   const toCell = (p: LatLng) => ({
     i: Math.floor(((p.lat - tee.lat) * M_PER_DEG_LAT) / GRID_M),
@@ -72,7 +79,7 @@ export function inferHazards(tee: LatLng, green: LatLng, rounds: RoundTrack[]): 
   }
 
   // Corridor = cells within CORRIDOR_HALF_WIDTH_M of the tee→green segment.
-  const holeLenM = haversineMeters(tee, green);
+  const holeLenM = holeLen0;
   const steps = Math.max(1, Math.ceil(holeLenM / GRID_M));
   const corridor = new Set<string>();
   const cellsPerHalfWidth = Math.ceil(CORRIDOR_HALF_WIDTH_M / GRID_M);
@@ -149,12 +156,16 @@ export function inferHazards(tee: LatLng, green: LatLng, rounds: RoundTrack[]): 
     // the fairway-facing edge golfers actually skirt. The unweighted centroid
     // sits deeper in the avoidance "shadow" behind the hazard, which
     // over-estimates the hazard's distance from the line of play.
+    // Project in metric space: longitude degrees are shorter than latitude
+    // degrees by cos(lat), so scale lng before projecting or a diagonal hole's
+    // axis is rotated and the "fairway-facing" cell is picked wrong.
+    const kx = Math.cos((tee.lat * Math.PI) / 180);
     const axisLat = green.lat - tee.lat;
-    const axisLng = green.lng - tee.lng;
+    const axisLng = (green.lng - tee.lng) * kx;
     const axisLenSq = axisLat * axisLat + axisLng * axisLng || 1;
     const perpDist = (p: LatLng) => {
-      const t = ((p.lat - tee.lat) * axisLat + (p.lng - tee.lng) * axisLng) / axisLenSq;
-      const proj = { lat: tee.lat + axisLat * t, lng: tee.lng + axisLng * t };
+      const t = ((p.lat - tee.lat) * axisLat + (p.lng - tee.lng) * kx * axisLng) / axisLenSq;
+      const proj = { lat: tee.lat + axisLat * t, lng: tee.lng + (axisLng * t) / kx };
       return haversineMeters(p, proj);
     };
     const center = centers.reduce((best, c) => (perpDist(c) < perpDist(best) ? c : best));

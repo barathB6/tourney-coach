@@ -70,60 +70,74 @@ export async function aggregateCourseProfiles(): Promise<AggregationRunResult> {
       });
     }
 
+    // Assemble each hole's NEW gps_status in memory (seeded from the existing
+    // column), across every slot (tee, green, fairway), and write the whole
+    // column exactly ONCE per hole at the end. Supabase .update replaces the
+    // whole jsonb column, so per-slot read-modify-write would clobber earlier
+    // slots' confidence/metadata — building it fully in memory first avoids
+    // that entirely.
+    const newStatus = new Map<number, Record<string, unknown>>();
+    const statusFor = (holeNumber: number) => {
+      if (!newStatus.has(holeNumber)) {
+        const hr = holeRows.get(holeNumber);
+        newStatus.set(holeNumber, { ...((hr?.gps_status as Record<string, unknown>) ?? {}) });
+      }
+      return newStatus.get(holeNumber)!;
+    };
+
     // Aggregate tee/green per hole; remember them for fairway/hazard passes.
     const aggregated = new Map<number, { tee?: LatLng; green?: LatLng }>();
     for (const [k, samples] of grouped) {
       const [holeStr, featureType] = k.split(':');
       const holeNumber = Number(holeStr);
+      if (!holeRows.has(holeNumber)) continue; // feature for a hole with no course_holes row
       const agg = aggregateFeature(samples);
       if (!agg) continue;
 
-      const slot = featureType === 'tee_box' ? 'tee' : 'green';
+      const slot: 'tee' | 'green' = featureType === 'tee_box' ? 'tee' : 'green';
       const entry = aggregated.get(holeNumber) ?? {};
-      entry[slot as 'tee' | 'green'] = { lat: agg.lat, lng: agg.lng };
+      entry[slot] = { lat: agg.lat, lng: agg.lng };
       aggregated.set(holeNumber, entry);
 
-      const holeRow = holeRows.get(holeNumber);
-      if (holeRow) {
-        const existing = (holeRow.gps_status as Record<string, unknown>) ?? {};
-        await supabase
-          .from('course_holes')
-          .update({
-            gps_status: {
-              ...existing,
-              [slot]: {
-                lat: agg.lat,
-                lng: agg.lng,
-                confidence: agg.confidence,
-                sample_count: agg.contributingSamples,
-                tournaments: agg.independentTournaments,
-                spread_m: agg.spreadMeters,
-                source: 'aggregate',
-                aggregated_at: new Date().toISOString(),
-              },
-            },
-          })
-          .eq('id', holeRow.id);
-        result.holesAggregated += 1;
-        // keep the local copy fresh for the second slot of the same hole
-        (holeRow.gps_status as Record<string, unknown>) = {
-          ...existing,
-          [slot]: { lat: agg.lat, lng: agg.lng },
-        };
-      }
+      statusFor(holeNumber)[slot] = {
+        lat: agg.lat,
+        lng: agg.lng,
+        confidence: agg.confidence,
+        sample_count: agg.contributingSamples,
+        tournaments: agg.independentTournaments,
+        spread_m: agg.spreadMeters,
+        source: 'aggregate',
+        aggregated_at: new Date().toISOString(),
+      };
     }
 
     // Fairway + hazards need raw per-round tracks for holes with both ends known.
     for (const [holeNumber, ends] of aggregated) {
       if (!ends.tee || !ends.green) continue;
 
-      const { data: tracks } = await supabase
+      const { data: tracks, error: tracksErr } = await supabase
         .from('gps_tracks')
         .select('device_id, tournament_id, lat, lng, recorded_at')
         .eq('course_id', courseId)
         .eq('hole_number', holeNumber)
-        .order('recorded_at', { ascending: true })
+        // NEWEST first: a hot hole can exceed the cap, and we want the cap to
+        // fall on the OLDEST pings so recent tournaments keep flowing in —
+        // ascending would freeze fairway/hazards on the first tournaments.
+        .order('recorded_at', { ascending: false })
         .limit(20000);
+      if (tracksErr) continue; // transient read error — leave existing derived data untouched
+
+      // Always clear this hole's derived hazards up front; we re-derive below
+      // only if enough independent rounds remain. This self-heals when tracks
+      // are purged or a hole drops back under HAZARD_MIN_ROUNDS (otherwise
+      // stale hazards would be served forever from data that no longer exists).
+      await supabase
+        .from('course_gps_features')
+        .delete()
+        .eq('course_id', courseId)
+        .eq('hole_number', holeNumber)
+        .eq('feature_type', 'hazard');
+
       if (!tracks?.length) continue;
 
       const roundMap = new Map<string, RoundTrack>();
@@ -138,36 +152,21 @@ export async function aggregateCourseProfiles(): Promise<AggregationRunResult> {
 
       // Fairway route → gps_status.fairway (the third placeholder slot).
       const fairway = aggregateFairway(ends.tee, ends.green, rounds);
-      const holeRow = holeRows.get(holeNumber);
-      if (fairway && holeRow) {
-        const existing = (holeRow.gps_status as Record<string, unknown>) ?? {};
-        await supabase
-          .from('course_holes')
-          .update({
-            gps_status: {
-              ...existing,
-              fairway: {
-                waypoints: fairway.waypoints,
-                confidence: fairway.confidence,
-                rounds: fairway.contributingRounds,
-                tournaments: fairway.independentTournaments,
-                source: 'aggregate',
-                aggregated_at: new Date().toISOString(),
-              },
-            },
-          })
-          .eq('id', holeRow.id);
+      if (fairway) {
+        statusFor(holeNumber).fairway = {
+          waypoints: fairway.waypoints,
+          confidence: fairway.confidence,
+          rounds: fairway.contributingRounds,
+          tournaments: fairway.independentTournaments,
+          source: 'aggregate',
+          aggregated_at: new Date().toISOString(),
+        };
       }
 
-      // Hazards: only with enough independent rounds; replace, don't accumulate.
+      // Hazards: only with enough independent rounds; the up-front delete above
+      // means "not enough rounds" correctly leaves the hole with no hazards.
       if (rounds.length >= HAZARD_MIN_ROUNDS) {
         const hazards = inferHazards(ends.tee, ends.green, rounds);
-        await supabase
-          .from('course_gps_features')
-          .delete()
-          .eq('course_id', courseId)
-          .eq('hole_number', holeNumber)
-          .eq('feature_type', 'hazard');
         for (const hz of hazards) {
           await supabase.from('course_gps_features').insert({
             course_id: courseId,
@@ -183,6 +182,14 @@ export async function aggregateCourseProfiles(): Promise<AggregationRunResult> {
           result.hazardsWritten += 1;
         }
       }
+    }
+
+    // One write per hole — count distinct holes, not per-feature slots.
+    for (const [holeNumber, status] of newStatus) {
+      const holeRow = holeRows.get(holeNumber);
+      if (!holeRow) continue;
+      await supabase.from('course_holes').update({ gps_status: status }).eq('id', holeRow.id);
+      result.holesAggregated += 1;
     }
   }
 

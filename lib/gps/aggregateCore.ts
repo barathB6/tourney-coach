@@ -72,9 +72,12 @@ export function aggregateFeature(samples: FeatureSample[]): AggregatedFeature | 
   // mean centroid ~40m and cause good events to fall outside the radius too.
   const ref = componentMedian(samples);
   const surviving = samples.filter((s) => haversineMeters(s, ref) <= OUTLIER_RADIUS_M);
-  // Everything an outlier relative to each other (bimodal data): fall back to
-  // the largest cluster around the single sample nearest the most neighbors.
-  const kept = surviving.length > 0 ? surviving : [nearestToPeers(samples)];
+  // Everything an outlier relative to each other (balanced bimodal data — e.g.
+  // a tee relocated between seasons): the component median lands between the
+  // clusters and rejects everything. Fall back to the cluster AROUND the
+  // sample nearest the most neighbors, so we keep that cluster's corroboration
+  // instead of collapsing to a lone point.
+  const kept = surviving.length > 0 ? surviving : clusterAround(nearestToPeers(samples), samples);
 
   let wSum = 0, latSum = 0, lngSum = 0;
   for (const s of kept) {
@@ -120,12 +123,17 @@ export function aggregateFairway(
   const usable = rounds.filter((r) => r.points.length >= 3);
   if (usable.length === 0) return null;
 
+  // Project in metric space: scale longitude by cos(lat) so the tee→green axis
+  // isn't rotated on a diagonal hole (a point offset purely perpendicular in
+  // meters would otherwise get a nonzero along-track fraction and land in the
+  // wrong waypoint bin).
+  const kx = Math.cos((tee.lat * Math.PI) / 180);
   const axisLat = green.lat - tee.lat;
-  const axisLng = green.lng - tee.lng;
+  const axisLng = (green.lng - tee.lng) * kx;
   const axisLenSq = axisLat * axisLat + axisLng * axisLng;
   if (axisLenSq === 0) return null;
   const fractionAlong = (p: LatLng) =>
-    ((p.lat - tee.lat) * axisLat + (p.lng - tee.lng) * axisLng) / axisLenSq;
+    ((p.lat - tee.lat) * axisLat + (p.lng - tee.lng) * kx * axisLng) / axisLenSq;
 
   // per-round per-bin means
   const perRoundBins: (LatLng | null)[][] = usable.map((r) => {
@@ -177,4 +185,10 @@ function nearestToPeers(samples: FeatureSample[]): FeatureSample {
     if (score < bestScore) { bestScore = score; best = s; }
   }
   return best;
+}
+
+// The samples within one outlier radius of a seed — the seed's local cluster.
+function clusterAround(seed: FeatureSample, samples: FeatureSample[]): FeatureSample[] {
+  const near = samples.filter((s) => haversineMeters(s, seed) <= OUTLIER_RADIUS_M);
+  return near.length > 0 ? near : [seed];
 }
