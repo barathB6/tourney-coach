@@ -21,11 +21,8 @@ export interface LabelGreenResult {
 // That single behavioral signal labels the green location with zero manual
 // survey work from the organizer or golf pro.
 //
-// Fully implemented and ready to call, but NOT wired to a caller: no
-// score-entry feature exists yet anywhere in the app (out of scope for this
-// pass — see Day 18 scoping). Once a score-submission API route exists,
-// hooking this up is one line at the point a score is saved:
-//   await labelGreenOnScoreSubmission({ foursomeId: registrationId, holeNumber, scoreSubmittedAt: new Date() });
+// Called by app/api/gps/score/route.ts on every score submission (web and
+// native clients both flush their GPS queue first, then post the score).
 export async function labelGreenOnScoreSubmission(params: {
   foursomeId: string; // registrations.id — the registration row is the foursome unit
   holeNumber: number;

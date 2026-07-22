@@ -32,6 +32,13 @@ type QueuedPoint = { lat: number; lng: number; accuracy?: number; recordedAt: st
 const LOG_EVERY_MS = 15000;
 const FALLBACK_FLUSH_MS = 120000;
 const MAX_QUEUE_BEFORE_FLUSH = 40;
+// Battery/quality gates (Day 20): a golfer is stationary for most of a round,
+// and a phone walking out of a clubhouse emits garbage cold-start fixes. Both
+// gates yield to a keep-alive so bad signal degrades to sparse points, never
+// to silence — the queue keeps breathing even at ±80m accuracy.
+const MAX_ACCURACY_M = 50;   // drop fixes worse than this…
+const MIN_MOVE_M = 4;        // …and near-duplicates while standing still…
+const KEEPALIVE_MS = 60000;  // …unless we'd otherwise log nothing for a minute
 
 const deviceKey = (regId: string) => `tc_gps_device_${regId}`;
 const queueKey = (regId: string) => `tc_gps_queue_${regId}`;
@@ -62,6 +69,7 @@ export default function LiveRoundPage() {
 
   const queueRef = useRef<QueuedPoint[]>([]);
   const lastLoggedAtRef = useRef(0);
+  const lastPosRef = useRef<{ lat: number; lng: number } | null>(null);
   const flushRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -141,13 +149,32 @@ export default function LiveRoundPage() {
   useEffect(() => {
     if (consent !== 'granted') return;
 
+    // Start "one interval ago", NOT at 0: otherwise the first fix reads as
+    // overdue and bypasses the accuracy gate — and the first fix after
+    // opening the page is exactly the cold-start garbage the gate rejects.
+    lastLoggedAtRef.current = Date.now() - LOG_EVERY_MS;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         setGeoError('');
         // watchPosition fires as often as the OS likes; only keep a point
         // every LOG_EVERY_MS per the spec's 15-second logging interval.
-        if (pos.timestamp - lastLoggedAtRef.current < LOG_EVERY_MS) return;
+        const sinceLast = pos.timestamp - lastLoggedAtRef.current;
+        if (sinceLast < LOG_EVERY_MS) return;
+        const overdue = sinceLast >= KEEPALIVE_MS;
+        // Quality gate: garbage-accuracy fixes pollute green labeling and
+        // waste upload battery — but never go fully silent (see KEEPALIVE_MS).
+        if ((pos.coords.accuracy ?? 0) > MAX_ACCURACY_M && !overdue) return;
+        // Stationary dedup: standing on a tee shouldn't stack identical points.
+        const prev = lastPosRef.current;
+        if (prev && !overdue) {
+          const movedM = Math.hypot(
+            (pos.coords.latitude - prev.lat) * 111_320,
+            (pos.coords.longitude - prev.lng) * 111_320 * Math.cos((prev.lat * Math.PI) / 180),
+          );
+          if (movedM < MIN_MOVE_M) return;
+        }
         lastLoggedAtRef.current = pos.timestamp;
+        lastPosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         queueRef.current.push({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,

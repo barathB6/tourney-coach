@@ -15,6 +15,17 @@ export type QueuedPoint = { lat: number; lng: number; accuracy?: number; recorde
 const LOG_EVERY_MS = 15000;
 export const FALLBACK_FLUSH_MS = 120000;
 const MAX_QUEUE_BEFORE_FLUSH = 40;
+// Battery/quality gates (Day 20). These are JS-level only — deliberately NOT
+// an OS distance filter: a distance filter suppresses callbacks entirely
+// while stationary, and standing still at a tee or green is precisely when
+// the two patent mechanisms need points (first-ping tee clustering, ±3min
+// green labeling). With callbacks flowing every 15s, the gates cut logged
+// points ~4x while stationary (one per KEEPALIVE_MS) without ever going
+// silent. Both gates yield to KEEPALIVE_MS so bad signal degrades to sparse
+// points, never silence.
+const MAX_ACCURACY_M = 50;
+const MIN_MOVE_M = 4;
+const KEEPALIVE_MS = 60000;
 
 const deviceKey = (regId: string) => `tc_gps_device_${regId}`;
 const queueKey = (regId: string) => `tc_gps_queue_${regId}`;
@@ -99,14 +110,32 @@ export async function startWatching(onPoint: (p: QueuedPoint) => void): Promise<
   if (status !== 'granted') {
     return { error: 'Location permission was declined — tracking stays off.' };
   }
-  let lastLoggedAt = 0;
+  // Start "one interval ago", NOT at 0: with lastLoggedAt=0 the first fix
+  // would read as overdue and bypass the accuracy gate — and the first fix
+  // after opening the app is exactly the cold-start/WiFi-centroid garbage
+  // the gate exists to reject (and exactly the ping tee clustering keys on).
+  let lastLoggedAt = Date.now() - LOG_EVERY_MS;
+  let lastPos: { lat: number; lng: number } | null = null;
   const sub = await Location.watchPositionAsync(
     // timeInterval is respected on Android; iOS delivers on its own cadence,
     // so the manual throttle below is what actually enforces the 15s rule.
+    // distanceInterval stays 0 — see the gate comment above: an OS distance
+    // filter would starve the keep-alive while the player stands still.
     { accuracy: Location.Accuracy.High, timeInterval: LOG_EVERY_MS, distanceInterval: 0 },
     (pos) => {
-      if (pos.timestamp - lastLoggedAt < LOG_EVERY_MS) return;
+      const sinceLast = pos.timestamp - lastLoggedAt;
+      if (sinceLast < LOG_EVERY_MS) return;
+      const overdue = sinceLast >= KEEPALIVE_MS;
+      if ((pos.coords.accuracy ?? 0) > MAX_ACCURACY_M && !overdue) return;
+      if (lastPos && !overdue) {
+        const movedM = Math.hypot(
+          (pos.coords.latitude - lastPos.lat) * 111_320,
+          (pos.coords.longitude - lastPos.lng) * 111_320 * Math.cos((lastPos.lat * Math.PI) / 180),
+        );
+        if (movedM < MIN_MOVE_M) return;
+      }
       lastLoggedAt = pos.timestamp;
+      lastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       onPoint({
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,

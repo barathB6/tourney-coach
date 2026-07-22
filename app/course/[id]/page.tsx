@@ -46,6 +46,9 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
   const [userId, setUserId] = useState<string | null>(null);
   const [course, setCourse] = useState<Course | null>(null);
   const [holes, setHoles] = useState<CourseHole[]>(emptyHoles());
+  // Which holes have GPS-derived positions (from live play aggregation) —
+  // shown as a badge so course pros can see the hybrid profile filling in.
+  const [gpsHoles, setGpsHoles] = useState<Record<number, boolean>>({});
   const [selectedHole, setSelectedHole] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [migrationMissing, setMigrationMissing] = useState(false);
@@ -76,6 +79,7 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
         setMigrationMissing(true);
       } else if (h) {
         const next = emptyHoles();
+        const gps: Record<number, boolean> = {};
         for (const row of h) {
           next[row.hole_number - 1] = {
             holeNumber: row.hole_number,
@@ -84,8 +88,11 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
             description: row.description,
             teeYardages: row.tee_yardages ?? {},
           };
+          const status = row.gps_status as { tee?: unknown; green?: unknown } | null;
+          if (status?.tee || status?.green) gps[row.hole_number] = true;
         }
         setHoles(next);
+        setGpsHoles(gps);
       }
       setLoading(false);
     });
@@ -211,7 +218,12 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
                       border: active ? '1px solid #1B6B3A' : '1px solid #E5E0D5',
                       borderRadius: 10, padding: '10px 10px 12px',
                     }}>
-                    <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 700 }}>{h.holeNumber}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                      <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 700 }}>{h.holeNumber}</span>
+                      {gpsHoles[h.holeNumber] && (
+                        <span title="GPS positions mapped from live tournament play" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.06em', color: '#1B6B3A', background: '#E7F4EC', border: '1px solid #B7E0C6', borderRadius: 4, padding: '1px 4px' }}>GPS</span>
+                      )}
+                    </div>
                     {complete ? (
                       <>
                         <div style={{ fontSize: 10.5, color: '#6B7775', marginTop: 2 }}>{h.teeYardages[activeTees[0]] ?? Object.values(h.teeYardages)[0]} yds{h.handicap ? ` · HCP ${h.handicap}` : ''}</div>
