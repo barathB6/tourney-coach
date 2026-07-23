@@ -23,6 +23,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .eq('id', id)
     .maybeSingle();
   if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+  // This is a PUBLIC endpoint via the service-role client, which bypasses RLS
+  // — so re-apply the same visibility rule the tournaments RLS policy enforces
+  // (migration 002): a draft tournament's roster and scores must stay private.
+  if (!['published', 'live', 'completed'].includes(tournament.status)) {
+    return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+  }
 
   const [{ data: regs }, { data: scores }, { data: holes }] = await Promise.all([
     supabase.from('registrations')
@@ -42,7 +48,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .map((r) => ({
       registrationId: r.id,
       teamName: r.team_name,
-      contactName: r.contact_name,
+      // Public page — never fall back to a person's real contact name. Use a
+      // neutral foursome label when no team name was set.
+      contactName: r.foursome_number != null ? `Foursome #${r.foursome_number}` : 'Team',
       foursomeNumber: r.foursome_number,
     }));
 

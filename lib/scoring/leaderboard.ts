@@ -67,7 +67,11 @@ export function latestScores(rows: ScoreRow[]): Map<string, Map<number, ScoreRow
     if (!byTeam.has(row.registrationId)) byTeam.set(row.registrationId, new Map());
     const holes = byTeam.get(row.registrationId)!;
     const existing = holes.get(row.holeNumber);
-    if (!existing || Date.parse(row.submittedAt) >= Date.parse(existing.submittedAt)) {
+    // Latest submission wins. A valid timestamp always beats an unparseable
+    // stored one, so a newer real score can't be blocked by malformed data.
+    const rt = Date.parse(row.submittedAt);
+    const et = existing ? Date.parse(existing.submittedAt) : NaN;
+    if (!existing || Number.isNaN(et) || (!Number.isNaN(rt) && rt >= et)) {
       holes.set(row.holeNumber, row);
     }
   }
@@ -76,20 +80,30 @@ export function latestScores(rows: ScoreRow[]): Map<string, Map<number, ScoreRow
 
 // ── Tie-breaking: USGA-recommended scorecard countback ─────────────────────
 // Industry standard for events that can't play extra holes: compare the last
-// nine (holes 10–18), then last six (13–18), last three (16–18), then the
-// 18th, by strokes relative to par over those holes. Countback is by HOLE
-// NUMBER (card order) regardless of shotgun starting hole, per the USGA
-// recommendation. Teams tied through every stage share the rank.
+// nine, then last six, last three, then the final hole, by strokes relative
+// to par over those holes, in card order. Segments are derived from the
+// event's actual holes, so a 9-hole event breaks ties on its last 6/3/1
+// rather than the (unplayed) 10–18. Countback is by HOLE NUMBER regardless of
+// shotgun starting hole, per the USGA recommendation.
 //
-// Countback only differentiates teams that completed the compared segment;
-// mid-round ties (different holes completed) stay tied on the leaderboard —
-// standings among teams mid-play are provisional by nature.
-const COUNTBACK_SEGMENTS: number[][] = [
-  [10, 11, 12, 13, 14, 15, 16, 17, 18],
-  [13, 14, 15, 16, 17, 18],
-  [16, 17, 18],
-  [18],
-];
+// IMPORTANT: only applied between teams who have FINISHED the round (see
+// computeStandings). Card-order countback across teams who have completed
+// DIFFERENT segments is not a consistent ordering, so mid-round ties are left
+// tied — standings among teams still playing are provisional by nature.
+export function countbackSegments(holeNumbers: number[]): number[][] {
+  const holes = [...new Set(holeNumbers)].sort((a, b) => a - b);
+  const suffix = (n: number) => (holes.length >= n ? holes.slice(holes.length - n) : holes.slice());
+  const raw = [suffix(9), suffix(6), suffix(3), suffix(1)];
+  // Drop segments that don't actually narrow (e.g. "last 9" of a 9-hole card
+  // equals the whole card), keeping the nested progression unique.
+  const seen = new Set<string>();
+  const segments: number[][] = [];
+  for (const seg of raw) {
+    const key = seg.join(',');
+    if (seg.length && !seen.has(key)) { seen.add(key); segments.push(seg); }
+  }
+  return segments;
+}
 
 function segmentToPar(holeScores: Record<number, number>, pars: Map<number, number>, segment: number[]): number | null {
   let total = 0;
@@ -103,13 +117,15 @@ function segmentToPar(holeScores: Record<number, number>, pars: Map<number, numb
 }
 
 // Returns <0 when a ranks ahead of b via countback, >0 when b ranks ahead,
-// 0 when indistinguishable (true tie).
+// 0 when indistinguishable (true tie). Segments default to a full 18-hole
+// card when not supplied (keeps the standalone/unit call site simple).
 export function countbackCompare(
   a: { holeScores: Record<number, number> },
   b: { holeScores: Record<number, number> },
   pars: Map<number, number>,
+  segments: number[][] = countbackSegments([...pars.keys()]),
 ): number {
-  for (const segment of COUNTBACK_SEGMENTS) {
+  for (const segment of segments) {
     const sa = segmentToPar(a.holeScores, pars, segment);
     const sb = segmentToPar(b.holeScores, pars, segment);
     if (sa == null || sb == null) continue; // can't compare this segment
@@ -134,6 +150,13 @@ export function computeStandings(params: {
 }): StandingRow[] {
   const pars = new Map<number, number>();
   for (const h of params.holes) if (h.par != null) pars.set(h.holeNumber, h.par);
+  // Event-wide (NOT per-team) decision: rank by to-par when the event has any
+  // pars at all, else by total strokes. Deciding per team would compare a
+  // to-par integer against a raw stroke count — a birdying team could sort
+  // below a +6 team. to-par sums only over completed holes that HAVE a par.
+  const hasAnyPar = pars.size > 0;
+  const finishedCount = new Set(params.holes.map((h) => h.holeNumber)).size;
+  const segments = countbackSegments([...pars.keys()]);
 
   const byTeam = latestScores(params.scores);
 
@@ -141,12 +164,12 @@ export function computeStandings(params: {
     const holeMap = byTeam.get(team.registrationId) ?? new Map<number, ScoreRow>();
     const holeScores: Record<number, number> = {};
     let totalStrokes = 0;
-    let toPar: number | null = 0;
+    let toParKnown = 0; // over completed holes with a known par
     for (const [hole, row] of holeMap) {
       holeScores[hole] = row.strokes;
       totalStrokes += row.strokes;
       const par = pars.get(hole);
-      if (toPar != null) toPar = par == null ? null : toPar + (row.strokes - par);
+      if (par != null) toParKnown += row.strokes - par;
     }
     return {
       registrationId: team.registrationId,
@@ -154,7 +177,7 @@ export function computeStandings(params: {
       foursomeNumber: team.foursomeNumber,
       holesCompleted: holeMap.size,
       totalStrokes,
-      toPar,
+      toPar: hasAnyPar ? toParKnown : null,
       holeScores,
     };
   });
@@ -163,17 +186,25 @@ export function computeStandings(params: {
   const started = rows.filter((r) => r.holesCompleted > 0);
   const waiting = rows.filter((r) => r.holesCompleted === 0).sort((a, b) => a.teamName.localeCompare(b.teamName));
 
-  const primary = (r: typeof rows[number]) => (r.toPar != null ? r.toPar : r.totalStrokes);
+  const primary = (r: typeof rows[number]) => (hasAnyPar ? r.toPar! : r.totalStrokes);
+  // Countback only orders teams who have BOTH finished the round — mid-round
+  // it is not a consistent total order (different teams, different segments),
+  // so unfinished ties stay tied rather than getting contradictory ranks.
+  const tieBreak = (a: typeof rows[number], b: typeof rows[number]) =>
+    (finishedCount > 0 && a.holesCompleted === finishedCount && b.holesCompleted === finishedCount)
+      ? countbackCompare(a, b, pars, segments)
+      : 0;
+
   started.sort((a, b) => {
     const pa = primary(a), pb = primary(b);
     if (pa !== pb) return pa - pb;
-    const cb = countbackCompare(a, b, pars);
+    const cb = tieBreak(a, b);
     if (cb !== 0) return cb;
     return a.teamName.localeCompare(b.teamName); // stable display order for true ties
   });
 
-  // Assign ranks: countback breaks the rank; identical primary AND countback
-  // 0 means a shared (T) rank.
+  // Assign ranks: countback breaks the rank; identical primary AND no
+  // countback separation means a shared (T) rank.
   const standings: StandingRow[] = [];
   for (let i = 0; i < started.length; i++) {
     const r = started[i];
@@ -182,7 +213,7 @@ export function computeStandings(params: {
     if (i > 0) {
       const prev = started[i - 1];
       const samePrimary = primary(prev) === primary(r);
-      if (samePrimary && countbackCompare(prev, r, pars) === 0) {
+      if (samePrimary && tieBreak(prev, r) === 0) {
         rank = standings[i - 1].rank;
         tied = true;
         standings[i - 1].tied = true;

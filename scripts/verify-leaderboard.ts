@@ -127,5 +127,55 @@ section('5. Course without pars → total strokes fallback');
   ok(s[0].registrationId === 'A' && s[0].toPar === null && s[0].totalStrokes === 12, 'ranks by total strokes with toPar null', `${s[0].totalStrokes} vs ${s[1].totalStrokes}`);
 }
 
+// ── 6. Mixed known/unknown pars → event-wide to-par, not per-team ──────────
+section('6. Event-wide fallback: a team touching a par-less hole is not mis-ranked');
+{
+  // holes 1,2 par 4; hole 3 has NO par entered.
+  const holes: HoleInfo[] = [{ holeNumber: 1, par: 4 }, { holeNumber: 2, par: 4 }, { holeNumber: 3, par: null }];
+  const teams = [team('GOOD', 'Birdies', 1), team('BAD', 'Bogeys', 2)];
+  const scores: ScoreRow[] = [
+    // GOOD birdies all three (touches the par-less hole 3)
+    { registrationId: 'GOOD', holeNumber: 1, strokes: 3, submittedAt: at(1) },
+    { registrationId: 'GOOD', holeNumber: 2, strokes: 3, submittedAt: at(2) },
+    { registrationId: 'GOOD', holeNumber: 3, strokes: 3, submittedAt: at(3) },
+    // BAD plays two 7s on par 4 (+6), never touches hole 3
+    { registrationId: 'BAD', holeNumber: 1, strokes: 7, submittedAt: at(1) },
+    { registrationId: 'BAD', holeNumber: 2, strokes: 7, submittedAt: at(2) },
+  ];
+  const s = computeStandings({ format: 'stroke_play', maxScoreRule: 'none', teams, holes, scores });
+  ok(s[0].registrationId === 'GOOD' && s[0].rank === 1, 'the birdying team leads despite touching a par-less hole', `${s[0].teamName} toPar ${s[0].toPar}`);
+  ok(s[0].toPar === -2 && s[1].toPar === 6, 'to-par computed over known-par holes only', `${s[0].toPar} vs ${s[1].toPar}`);
+}
+
+// ── 7. 9-hole event countback ──────────────────────────────────────────────
+section('7. Countback works for a 9-hole event (last 6 / 3 / 1, not 10–18)');
+{
+  const nineHoles: HoleInfo[] = range(1, 9).map((h) => ({ holeNumber: h, par: 4 }));
+  const pars9 = new Map(nineHoles.map((h) => [h.holeNumber, 4]));
+  // Both even over 9; A better on the last 3 (birdie hole 9), B worse.
+  const cardA: Record<number, number> = {}; const cardB: Record<number, number> = {};
+  for (const h of range(1, 9)) { cardA[h] = 4; cardB[h] = 4; }
+  cardA[1] = 5; cardA[9] = 3; // A: +1 early, -1 on 9  → last-3 = -1
+  cardB[8] = 5; cardB[7] = 3; // B: even on 9, last-3 = 0
+  ok(countbackCompare({ holeScores: cardA }, { holeScores: cardB }, pars9) < 0, 'a 9-hole event breaks the tie on the closing holes', 'A wins last-3');
+}
+
+// ── 8. Intransitive mid-round countback → left tied, never contradictory ───
+section('8. Mid-round teams on different segments stay tied (no self-contradicting ranks)');
+{
+  // Three teams even-par but each completed a different number of back-nine holes.
+  const teams = [team('A', 'A', 1), team('B', 'B', 2), team('C', 'C', 3)];
+  const mk = (id: string, holes: number[], deltas: Record<number, number>): ScoreRow[] =>
+    holes.map((h, i) => ({ registrationId: id, holeNumber: h, strokes: par(h) + (deltas[h] ?? 0), submittedAt: at(i) }));
+  const scores = [
+    ...mk('A', [16, 17, 18], {}),                              // E thru 3
+    ...mk('B', range(13, 18), { 13: 1, 16: -1 }),              // E thru 6
+    ...mk('C', range(10, 18), { 10: 1, 11: 1, 13: -1, 14: -1 }), // E thru 9
+  ];
+  const s = computeStandings({ format: 'stroke_play', maxScoreRule: 'none', teams, holes: HOLES, scores });
+  // None finished the round (18 holes) → all three share the top rank, no contradiction.
+  ok(s.every((r) => r.rank === s[0].rank && r.tied), 'unfinished equal-to-par teams all share one rank', `ranks ${s.map((r) => r.rank).join(',')}`);
+}
+
 console.log(`\n${failures === 0 ? '✅ ALL CHECKS PASSED' : `❌ ${failures} CHECK(S) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

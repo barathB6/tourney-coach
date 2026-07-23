@@ -104,12 +104,19 @@ export async function POST(req: NextRequest) {
   }
 
   // The inventive step, live: label this submission's contemporaneous GPS
-  // points as the green for this hole.
-  const labelResult = await labelGreenOnScoreSubmission({
-    foursomeId: device.registration_id,
-    holeNumber,
-    scoreSubmittedAt: submittedAt,
-  });
+  // points as the green for this hole. Guarded so a labeling failure (e.g. a
+  // transient network error to PostgREST) never sinks the score itself —
+  // scoring and labeling are independent, as documented.
+  let labelResult: { labeled: number; green: unknown } = { labeled: 0, green: null };
+  try {
+    labelResult = await labelGreenOnScoreSubmission({
+      foursomeId: device.registration_id,
+      holeNumber,
+      scoreSubmittedAt: submittedAt,
+    });
+  } catch {
+    // labeling failed; the score still persists below and reports greenLabeled:false
+  }
 
   // Persist the score itself. Kept independent of labeling: if migration
   // 026 hasn't been applied yet the labeling above still ran — report both

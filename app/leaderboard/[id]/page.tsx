@@ -49,16 +49,20 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
   // Realtime push on every score write, with a 30s poll as the safety net so
   // the board is never more than half a minute stale even if a push is missed.
   useEffect(() => {
+    const reduceMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    let flashTimer: ReturnType<typeof setTimeout> | undefined;
     const channel = supabase
       .channel(`leaderboard:${id}`)
       .on('broadcast', { event: 'score' }, () => {
         load();
-        setFlash(true);
-        setTimeout(() => setFlash(false), 900);
+        if (!reduceMotion) {
+          setFlash(true);
+          flashTimer = setTimeout(() => setFlash(false), 900);
+        }
       })
       .subscribe((status) => setLive(status === 'SUBSCRIBED'));
     const poll = setInterval(load, 30_000);
-    return () => { supabase.removeChannel(channel); clearInterval(poll); };
+    return () => { supabase.removeChannel(channel); clearInterval(poll); clearTimeout(flashTimer); };
   }, [id, load]);
 
   if (error) return <Shell><p style={{ color: '#B91C1C', textAlign: 'center', fontSize: 15 }}>{error}</p></Shell>;
@@ -107,7 +111,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
                     </td>
                     <td style={{ padding: '13px 16px' }}>
                       <div style={{ fontWeight: 600, fontSize: 14.5, color: '#1A1F1C' }}>{s.teamName}</div>
-                      {s.foursomeNumber != null && <div style={{ fontSize: 11.5, color: '#9AA39D' }}>Foursome #{s.foursomeNumber}</div>}
+                      {s.foursomeNumber != null && s.teamName !== `Foursome #${s.foursomeNumber}` && <div style={{ fontSize: 11.5, color: '#9AA39D' }}>Foursome #{s.foursomeNumber}</div>}
                     </td>
                     <td style={{ padding: '13px 16px', textAlign: 'right', fontSize: 14, color: '#6B7775', fontVariantNumeric: 'tabular-nums' }}>
                       {s.holesCompleted === 0 ? '—' : s.holesCompleted === 18 ? 'F' : s.holesCompleted}
