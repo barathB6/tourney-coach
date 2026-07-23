@@ -3,7 +3,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { authedFetch } from '@/lib/authedFetch';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 type Registration = {
   id: string;
@@ -57,6 +57,40 @@ export default function RegistrationsPage() {
   });
 
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Organizer score correction (per team). Opening a row reveals hole/strokes/
+  // reason inputs; submitting appends a corrected score + writes an audit row.
+  const [correcting, setCorrecting] = useState<string | null>(null);
+  const [correctForm, setCorrectForm] = useState({ hole: '1', strokes: '4', reason: '' });
+  const [correctSaving, setCorrectSaving] = useState(false);
+  const [correctMsg, setCorrectMsg] = useState('');
+
+  async function submitCorrection(reg: Registration) {
+    setCorrectSaving(true);
+    setCorrectMsg('');
+    try {
+      const res = await authedFetch('/api/scores/correct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registrationId: reg.id,
+          holeNumber: Number(correctForm.hole),
+          strokes: Number(correctForm.strokes),
+          reason: correctForm.reason.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Correction failed');
+      const from = data.previousStrokes != null ? `${data.previousStrokes} → ` : '';
+      const capNote = data.capped ? ' (capped by max-score rule)' : '';
+      const auditNote = data.auditLogged ? '' : ' — audit table missing, run migration 028';
+      setCorrectMsg(`Hole ${correctForm.hole} corrected: ${from}${data.strokesRecorded}${capNote}.${auditNote}`);
+    } catch (e) {
+      setCorrectMsg(e instanceof Error ? e.message : 'Correction failed');
+    } finally {
+      setCorrectSaving(false);
+    }
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -414,7 +448,8 @@ export default function RegistrationsPage() {
                 {registrations.map((r, i) => {
                   const st = STATUS_STYLES[r.payment_status] ?? STATUS_STYLES.pending;
                   return (
-                    <tr key={r.id} style={{ borderBottom: i < registrations.length - 1 ? '1px solid #E5E0D5' : 'none' }}>
+                    <React.Fragment key={r.id}>
+                    <tr style={{ borderBottom: i < registrations.length - 1 ? '1px solid #E5E0D5' : 'none' }}>
                       <td style={{ padding: '14px 16px' }}>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{r.contact_name}</div>
                         <a href={`mailto:${r.contact_email}`} style={{ color: '#1B6B3A', textDecoration: 'none', fontSize: 12.5 }}>{r.contact_email}</a>
@@ -441,6 +476,15 @@ export default function RegistrationsPage() {
                         >
                           Live map ↗
                         </a>
+                        {r.registration_type !== 'sponsor' && (
+                          <button
+                            onClick={() => { setCorrecting(correcting === r.id ? null : r.id); setCorrectMsg(''); }}
+                            title="Correct this team's score for a hole (audit-logged)"
+                            style={{ background: 'none', border: '1px solid #E5E0D5', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: '#1A1F1C', fontFamily: "'DM Sans', sans-serif", marginRight: 8 }}
+                          >
+                            {correcting === r.id ? 'Close' : 'Fix score'}
+                          </button>
+                        )}
                         {r.payment_status === 'paid' && (
                           <button
                             onClick={() => handleRefund(r)}
@@ -462,6 +506,38 @@ export default function RegistrationsPage() {
                         )}
                       </td>
                     </tr>
+                    {correcting === r.id && (
+                      <tr key={`${r.id}-correct`}>
+                        <td colSpan={7} style={{ padding: '14px 16px', background: '#FAF8F3', borderBottom: '1px solid #E5E0D5' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 }}>
+                            <label style={{ fontSize: 12, color: '#6B7775', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              Hole
+                              <select value={correctForm.hole} onChange={e => setCorrectForm(f => ({ ...f, hole: e.target.value }))} style={{ padding: '8px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 14 }}>
+                                {Array.from({ length: 18 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
+                              </select>
+                            </label>
+                            <label style={{ fontSize: 12, color: '#6B7775', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              Strokes
+                              <input type="number" min={1} max={20} value={correctForm.strokes} onChange={e => setCorrectForm(f => ({ ...f, strokes: e.target.value }))} style={{ width: 70, padding: '8px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 14 }} />
+                            </label>
+                            <label style={{ fontSize: 12, color: '#6B7775', display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 200px' }}>
+                              Reason (optional)
+                              <input value={correctForm.reason} onChange={e => setCorrectForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. scorer typo" style={{ padding: '8px 10px', border: '1px solid #E5E0D5', borderRadius: 8, fontSize: 14 }} />
+                            </label>
+                            <button
+                              onClick={() => submitCorrection(r)}
+                              disabled={correctSaving}
+                              style={{ background: '#1B4425', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: correctSaving ? 'not-allowed' : 'pointer', fontSize: 13.5, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", opacity: correctSaving ? 0.6 : 1 }}
+                            >
+                              {correctSaving ? 'Saving…' : 'Apply correction'}
+                            </button>
+                          </div>
+                          {correctMsg && <p style={{ margin: '10px 0 0', fontSize: 13, color: correctMsg.includes('corrected') ? '#1B6B3A' : '#B91C1C' }}>{correctMsg}</p>}
+                          <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#9AA39D' }}>Appends a corrected score (history is preserved) and records who changed it in the audit log.</p>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                   );
                 })}
               </tbody>

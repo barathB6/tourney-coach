@@ -204,7 +204,10 @@ export default function LiveRoundScreen() {
       const labelPart = labeled > 0
         ? `green for hole ${currentHole} labeled from ${labeled} GPS point${labeled === 1 ? '' : 's'}`
         : 'no recent GPS points to label';
-      setScoreResult(res.data.scoreStored ? `Score saved — ${labelPart}.` : `Score NOT stored (database not ready) — ${labelPart}.`);
+      // Friendly pick-up-at-par message: explain the cap, don't silently rewrite.
+      const capPart = res.data.capped ? ` Max score reached — recorded as ${res.data.strokesRecorded} (pick-up rule).` : '';
+      if (res.data.capped) setStrokes(res.data.strokesRecorded as number);
+      setScoreResult(res.data.scoreStored ? `Score saved —${capPart} ${labelPart}.` : `Score NOT stored (database not ready) — ${labelPart}.`);
     } catch (e) {
       setScoreResult(e instanceof Error ? e.message : 'Score submission failed');
     } finally {
