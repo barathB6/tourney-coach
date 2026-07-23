@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const body = await req.json().catch(() => null);
   const { holeNumber, contestType, prize, winnerName, winnerDetail } = body ?? {};
-  if (typeof holeNumber !== 'number' || holeNumber < 1 || holeNumber > 18) {
+  if (!Number.isInteger(holeNumber) || holeNumber < 1 || holeNumber > 18) {
     return NextResponse.json({ error: 'holeNumber must be 1-18' }, { status: 400 });
   }
   if (!TYPES.includes(contestType)) {

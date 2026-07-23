@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (typeof deviceToken !== 'string' || deviceToken.length < 10) {
     return NextResponse.json({ error: 'Missing deviceToken' }, { status: 400 });
   }
-  if (typeof holeNumber !== 'number' || holeNumber < 1 || holeNumber > 18) {
+  if (!Number.isInteger(holeNumber) || holeNumber < 1 || holeNumber > 18) {
     return NextResponse.json({ error: 'holeNumber must be 1-18' }, { status: 400 });
   }
   if (typeof strokes !== 'number' || !Number.isInteger(strokes) || strokes < 1 || strokes > 20) {
