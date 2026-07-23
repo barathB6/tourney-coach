@@ -227,8 +227,11 @@ export default function LiveRoundPage() {
       const labelPart = data.labeledPoints > 0
         ? `green location for hole ${currentHole} labeled from ${data.labeledPoints} GPS point${data.labeledPoints === 1 ? '' : 's'}`
         : 'no recent GPS points were available to label';
+      // Friendly pick-up-at-par message: explain the cap, don't silently rewrite.
+      const capPart = data.capped ? ` Max score reached — recorded as ${data.strokesRecorded} (pick-up rule).` : '';
+      if (data.capped) setStrokes(data.strokesRecorded);
       // Don't claim the score was saved when the server said it wasn't.
-      setScoreResult(data.scoreStored ? `Score saved — ${labelPart}.` : `Score NOT stored (database not ready) — ${labelPart}.`);
+      setScoreResult(data.scoreStored ? `Score saved —${capPart} ${labelPart}.` : `Score NOT stored (database not ready) — ${labelPart}.`);
     } catch (err) {
       setScoreResult(err instanceof Error ? err.message : 'Score submission failed');
     } finally {
@@ -429,6 +432,14 @@ export default function LiveRoundPage() {
           <p style={{ textAlign: 'center', color: '#6B7775', fontSize: 13 }}>No data for this hole yet.</p>
         )}
       </div>
+
+      <a
+        href={`/leaderboard/${ctx.tournament.id}`}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', maxWidth: 460, margin: '14px auto 0', padding: '13px', background: '#1B4425', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 14.5, textDecoration: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif" }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16M7 20V10M12 20V4M17 20v-7" /></svg>
+        Live leaderboard
+      </a>
 
       {mapOpen && schematicHole && (
         <div
