@@ -66,6 +66,8 @@ export default function LiveRoundPage() {
   // Inferred hazards live in course_gps_features, not course_holes.gps_status,
   // so they come from the aggregated course profile endpoint (best-effort).
   const [hazardsByHole, setHazardsByHole] = useState<Record<number, GpsHazard[]>>({});
+  // Contest holes (HIO / closest-to-pin / long-drive) shown as scorecard badges.
+  const [contestsByHole, setContestsByHole] = useState<Record<number, string[]>>({});
 
   const queueRef = useRef<QueuedPoint[]>([]);
   const lastLoggedAtRef = useRef(0);
@@ -94,6 +96,18 @@ export default function LiveRoundPage() {
             setHazardsByHole(map);
           })
           .catch(() => { /* profile is optional */ });
+      }
+      // Contest holes are tournament-level (not gated on a course), best-effort.
+      if (data.tournament?.id) {
+        fetch(`/api/tournament/${data.tournament.id}/board`, { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((b) => {
+            if (!Array.isArray(b?.contests)) return;
+            const map: Record<number, string[]> = {};
+            for (const c of b.contests) { (map[c.holeNumber] ??= []).push(c.type); }
+            setContestsByHole(map);
+          })
+          .catch(() => { /* contests are optional */ });
       }
       if (existingToken) {
         setDeviceToken(existingToken);
@@ -388,6 +402,16 @@ export default function LiveRoundPage() {
           <button onClick={() => changeHole(currentHole >= ctx.course!.totalHoles ? 1 : currentHole + 1)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 16 }}>›</button>
         </div>
 
+        {(contestsByHole[currentHole] ?? []).length > 0 && (
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+            {contestsByHole[currentHole].map((c) => (
+              <span key={c} style={{ fontSize: 12, fontWeight: 700, color: '#7A4A08', background: '#FFF3D6', border: '1px solid #E6CE86', borderRadius: 999, padding: '4px 11px' }}>
+                {{ hole_in_one: '⛳ Hole-in-One', closest_to_pin: '🎯 Closest to Pin', long_drive: '💥 Long Drive' }[c] ?? '🏆 Contest'}
+              </span>
+            ))}
+          </div>
+        )}
+
         {consent === 'granted' && (
           <div style={{ background: '#fff', border: '1px solid #E5E0D5', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
             <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B7775', margin: '0 0 10px' }}>Score for hole {currentHole}</p>
@@ -439,6 +463,14 @@ export default function LiveRoundPage() {
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16M7 20V10M12 20V4M17 20v-7" /></svg>
         Live leaderboard
+      </a>
+
+      <a
+        href={`/scorecard/${regId}`}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', maxWidth: 460, margin: '10px auto 0', padding: '11px', background: '#fff', color: '#1B4425', border: '1px solid #E5E0D5', borderRadius: 12, fontWeight: 700, fontSize: 13.5, textDecoration: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif" }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+        Your scorecard
       </a>
 
       {mapOpen && schematicHole && (

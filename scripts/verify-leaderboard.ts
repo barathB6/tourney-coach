@@ -7,6 +7,7 @@ import {
   countbackCompare,
   latestScores,
   maxScoreCap,
+  recentFormFromHoleRows,
   type HoleInfo,
   type ScoreRow,
   type TeamInfo,
@@ -175,6 +176,27 @@ section('8. Mid-round teams on different segments stay tied (no self-contradicti
   const s = computeStandings({ format: 'stroke_play', maxScoreRule: 'none', teams, holes: HOLES, scores });
   // None finished the round (18 holes) → all three share the top rank, no contradiction.
   ok(s.every((r) => r.rank === s[0].rank && r.tied), 'unfinished equal-to-par teams all share one rank', `ranks ${s.map((r) => r.rank).join(',')}`);
+}
+
+// ── 9. Recent-form trend (TV board momentum, honestly derived) ─────────────
+section('9. Recent-form trend over the last N submitted holes');
+{
+  const holes: HoleInfo[] = range(1, 9).map((h) => ({ holeNumber: h, par: 4 }));
+  const pars = new Map(holes.map((h) => [h.holeNumber, 4]));
+  // Team recently birdied holes 7,8,9 (submitted last), earlier holes at par.
+  const hot: ScoreRow[] = [
+    ...range(1, 6).map((h, i) => ({ registrationId: 'H', holeNumber: h, strokes: 4, submittedAt: at(i) })),
+    { registrationId: 'H', holeNumber: 7, strokes: 3, submittedAt: at(20) },
+    { registrationId: 'H', holeNumber: 8, strokes: 3, submittedAt: at(21) },
+    { registrationId: 'H', holeNumber: 9, strokes: 3, submittedAt: at(22) },
+  ];
+  const t = recentFormFromHoleRows(hot.filter((r) => [7, 8, 9].concat(range(1, 6)).includes(r.holeNumber)), pars, 3)!;
+  ok(t.direction === 'up' && t.toPar === -3 && t.holes === 3, 'three recent birdies → up trend, -3 over 3 holes', `${t.direction} ${t.toPar}`);
+  const cold = recentFormFromHoleRows([{ registrationId: 'C', holeNumber: 9, strokes: 6, submittedAt: at(30) }], pars, 3)!;
+  ok(cold.direction === 'down' && cold.toPar === 2, 'a recent double → down trend', `${cold.direction} ${cold.toPar}`);
+  ok(recentFormFromHoleRows([], pars, 3) === null, 'no scores → null (UI shows a neutral dash, not a made-up number)');
+  const noPar = recentFormFromHoleRows([{ registrationId: 'N', holeNumber: 1, strokes: 4, submittedAt: at(1) }], new Map(), 3);
+  ok(noPar === null, 'no pars → null trend');
 }
 
 console.log(`\n${failures === 0 ? '✅ ALL CHECKS PASSED' : `❌ ${failures} CHECK(S) FAILED`}`);

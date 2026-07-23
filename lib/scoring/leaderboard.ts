@@ -78,6 +78,26 @@ export function latestScores(rows: ScoreRow[]): Map<string, Map<number, ScoreRow
   return byTeam;
 }
 
+// ── Recent-form trend ───────────────────────────────────────────────────────
+// A real, honestly-derivable momentum signal for the TV board: strokes-to-par
+// over a team's N MOST RECENTLY SUBMITTED holes. Negative = playing hot
+// (under par lately) → an "up" trend; positive = cooling off. Requires pars
+// on the sampled holes; returns null when it can't be computed (no pars / no
+// scores) so the UI can show a neutral dash rather than invent a number.
+export interface Trend { toPar: number; holes: number; direction: 'up' | 'down' | 'flat' }
+
+// Given ONE team's latest-per-hole rows, compute the trend over its n most
+// recent holes (by submission time). Callers must reduce to latest-per-hole
+// first (e.g. via latestScores) so a corrected hole isn't double-counted.
+export function recentFormFromHoleRows(teamRows: ScoreRow[], pars: Map<number, number>, n = 3): Trend | null {
+  const withPar = teamRows.filter((r) => pars.has(r.holeNumber));
+  if (withPar.length === 0) return null;
+  const ts = (r: ScoreRow) => { const t = Date.parse(r.submittedAt); return Number.isNaN(t) ? 0 : t; };
+  const recent = [...withPar].sort((a, b) => ts(b) - ts(a)).slice(0, n);
+  const toPar = recent.reduce((sum, r) => sum + (r.strokes - pars.get(r.holeNumber)!), 0);
+  return { toPar, holes: recent.length, direction: toPar < 0 ? 'up' : toPar > 0 ? 'down' : 'flat' };
+}
+
 // ── Tie-breaking: USGA-recommended scorecard countback ─────────────────────
 // Industry standard for events that can't play extra holes: compare the last
 // nine, then last six, last three, then the final hole, by strokes relative
