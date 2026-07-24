@@ -42,6 +42,13 @@ const KEEPALIVE_MS = 60000;  // …unless we'd otherwise log nothing for a minut
 
 const deviceKey = (regId: string) => `tc_gps_device_${regId}`;
 const queueKey = (regId: string) => `tc_gps_queue_${regId}`;
+const scoreQueueKey = (regId: string) => `tc_score_queue_${regId}`;
+
+// A score entered while offline. It carries the time it was ENTERED (enteredAt)
+// so that when it finally syncs, latest-wins ordering on the leaderboard still
+// reflects when the team actually played the hole — not when the phone
+// reconnected.
+type QueuedScore = { holeNumber: number; strokes: number; enteredAt: string };
 
 export default function LiveRoundPage() {
   const params = useParams();
@@ -73,6 +80,10 @@ export default function LiveRoundPage() {
   const lastLoggedAtRef = useRef(0);
   const lastPosRef = useRef<{ lat: number; lng: number } | null>(null);
   const flushRef = useRef<() => void>(() => {});
+  // Offline score queue: scores entered without a connection, synced later.
+  const scoreQueueRef = useRef<QueuedScore[]>([]);
+  const [pendingScores, setPendingScores] = useState(0);
+  const flushScoresRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     async function load() {
@@ -116,6 +127,12 @@ export default function LiveRoundPage() {
         if (savedQueue) {
           try { queueRef.current = JSON.parse(savedQueue); } catch { /* corrupt cache, drop it */ }
         }
+      }
+      // Restore any scores that were entered offline in a previous session so
+      // they sync as soon as we're back online.
+      const savedScores = localStorage.getItem(scoreQueueKey(regId));
+      if (savedScores) {
+        try { scoreQueueRef.current = JSON.parse(savedScores); setPendingScores(scoreQueueRef.current.length); } catch { /* corrupt, drop */ }
       }
       setLoading(false);
     }
@@ -222,32 +239,81 @@ export default function LiveRoundPage() {
     setScoreResult('');
   }
 
+  // Persist + push one score. Throws on network/HTTP failure so the caller can
+  // queue it. enteredAt (when the player actually entered it) is honored by the
+  // server as submitted_at so offline scores keep correct latest-wins ordering.
+  const postScore = useCallback(async (deviceToken: string, holeNumber: number, strokes: number, enteredAt: string) => {
+    const res = await fetch('/api/gps/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceToken, holeNumber, strokes, enteredAt }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Score submission failed');
+    return data as { scoreStored: boolean; capped?: boolean; strokesRecorded?: number; labeledPoints: number };
+  }, []);
+
+  // Drain the offline score queue — called on reconnect, on a timer, and on
+  // load. Stops at the first still-failing score so order is preserved.
+  const flushScores = useCallback(async () => {
+    if (!deviceToken || !scoreQueueRef.current.length || !navigator.onLine) return;
+    const pending = [...scoreQueueRef.current];
+    for (const q of pending) {
+      try {
+        await postScore(deviceToken, q.holeNumber, q.strokes, q.enteredAt);
+        scoreQueueRef.current = scoreQueueRef.current.filter((s) => s !== q);
+        localStorage.setItem(scoreQueueKey(regId), JSON.stringify(scoreQueueRef.current));
+        setPendingScores(scoreQueueRef.current.length);
+      } catch {
+        break; // still offline / server down — try again next trigger
+      }
+    }
+  }, [deviceToken, postScore, regId]);
+  useEffect(() => { flushScoresRef.current = flushScores; }, [flushScores]);
+
+  // Sync queued scores the moment the connection returns, plus a slow retry
+  // timer and an attempt as soon as the device token is ready.
+  useEffect(() => {
+    if (!deviceToken) return;
+    flushScoresRef.current();
+    const onOnline = () => { flushRef.current(); flushScoresRef.current(); };
+    window.addEventListener('online', onOnline);
+    const retry = setInterval(() => flushScoresRef.current(), 20000);
+    return () => { window.removeEventListener('online', onOnline); clearInterval(retry); };
+  }, [deviceToken]);
+
   // The patent trigger, from the player's side: flush buffered GPS first so
   // the contemporaneous points are server-side, then submit the score — the
-  // server labels those points as this hole's green location.
+  // server labels those points as this hole's green location. If the network
+  // is down, the score is queued and synced on reconnect (never lost).
   async function submitScore() {
     if (!deviceToken) return;
     setSubmittingScore(true);
     setScoreResult('');
+    const enteredAt = new Date().toISOString();
+    const holeAtEntry = currentHole;
     try {
       await flush();
-      const res = await fetch('/api/gps/score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceToken, holeNumber: currentHole, strokes }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Score submission failed');
+      const data = await postScore(deviceToken, holeAtEntry, strokes, enteredAt);
       const labelPart = data.labeledPoints > 0
-        ? `green location for hole ${currentHole} labeled from ${data.labeledPoints} GPS point${data.labeledPoints === 1 ? '' : 's'}`
+        ? `green location for hole ${holeAtEntry} labeled from ${data.labeledPoints} GPS point${data.labeledPoints === 1 ? '' : 's'}`
         : 'no recent GPS points were available to label';
       // Friendly pick-up-at-par message: explain the cap, don't silently rewrite.
       const capPart = data.capped ? ` Max score reached — recorded as ${data.strokesRecorded} (pick-up rule).` : '';
-      if (data.capped) setStrokes(data.strokesRecorded);
+      if (data.capped && data.strokesRecorded) setStrokes(data.strokesRecorded);
       // Don't claim the score was saved when the server said it wasn't.
       setScoreResult(data.scoreStored ? `Score saved —${capPart} ${labelPart}.` : `Score NOT stored (database not ready) — ${labelPart}.`);
     } catch (err) {
-      setScoreResult(err instanceof Error ? err.message : 'Score submission failed');
+      // Offline or the request failed — queue the score so it's not lost, and
+      // sync it automatically when the connection comes back.
+      if (!navigator.onLine || err instanceof TypeError) {
+        scoreQueueRef.current = [...scoreQueueRef.current.filter((s) => s.holeNumber !== holeAtEntry), { holeNumber: holeAtEntry, strokes, enteredAt }];
+        localStorage.setItem(scoreQueueKey(regId), JSON.stringify(scoreQueueRef.current));
+        setPendingScores(scoreQueueRef.current.length);
+        setScoreResult(`No signal — hole ${holeAtEntry} saved on your phone. It'll sync automatically when you're back online.`);
+      } else {
+        setScoreResult(err instanceof Error ? err.message : 'Score submission failed');
+      }
     } finally {
       setSubmittingScore(false);
     }
@@ -427,7 +493,12 @@ export default function LiveRoundPage() {
                 {submittingScore ? 'Submitting…' : 'Submit score'}
               </button>
             </div>
-            {scoreResult && <p style={{ fontSize: 12.5, color: scoreResult.startsWith('Score saved') ? '#1B6B3A' : '#B91C1C', margin: '10px 0 0' }} data-testid="score-result">{scoreResult}</p>}
+            {scoreResult && <p style={{ fontSize: 12.5, color: scoreResult.startsWith('Score saved') ? '#1B6B3A' : scoreResult.startsWith('No signal') ? '#B08900' : '#B91C1C', margin: '10px 0 0' }} data-testid="score-result">{scoreResult}</p>}
+            {pendingScores > 0 && (
+              <p style={{ fontSize: 11.5, color: '#B08900', background: '#FFF7E0', border: '1px solid #F0E2B8', borderRadius: 8, padding: '6px 10px', margin: '8px 0 0' }} data-testid="pending-scores">
+                ⏳ {pendingScores} score{pendingScores === 1 ? '' : 's'} saved offline — syncing automatically when you have signal.
+              </p>
+            )}
 
             <button
               onClick={markTee}

@@ -30,7 +30,7 @@ const getSupabase = () => createClient(
 // no fresh points for a revoked device because ingestion stopped.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  const { deviceToken, holeNumber, strokes, currentLat, currentLng, currentAccuracy } = body ?? {};
+  const { deviceToken, holeNumber, strokes, currentLat, currentLng, currentAccuracy, enteredAt } = body ?? {};
 
   if (typeof deviceToken !== 'string' || deviceToken.length < 10) {
     return NextResponse.json({ error: 'Missing deviceToken' }, { status: 400 });
@@ -59,7 +59,16 @@ export async function POST(req: NextRequest) {
   } | null;
   const tournamentId = reg?.tournament_id ?? null;
   const courseId = reg?.tournaments?.course_id ?? null;
-  const submittedAt = new Date();
+  // A score entered offline carries its ENTRY time so late syncs keep correct
+  // latest-wins ordering. Trust it only within a sane window (not in the
+  // future, not older than 25h) so a client can't forge arbitrary timestamps.
+  const submittedAt = (() => {
+    if (typeof enteredAt === 'string') {
+      const t = Date.parse(enteredAt);
+      if (!Number.isNaN(t) && t <= Date.now() + 5 * 60_000 && t >= Date.now() - 25 * 3_600_000) return new Date(t);
+    }
+    return new Date();
+  })();
 
   // Contemporaneous fix from the submitting phone (optional): ingested as a
   // normal track point — consent-gated exactly like /api/gps/track — so the
