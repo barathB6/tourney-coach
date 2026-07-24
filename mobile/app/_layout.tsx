@@ -23,6 +23,7 @@ function RootNavigator() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FAF8F3' } }}>
       <Stack.Screen name="sign-in" />
+      <Stack.Screen name="auth-callback" />
       <Stack.Screen name="(app)" />
     </Stack>
   );
