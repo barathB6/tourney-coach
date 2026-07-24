@@ -5,10 +5,10 @@ import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { colors, font } from '../../lib/theme';
 import {
-  type QueuedPoint, type LiveContext,
+  type QueuedPoint, type LiveContext, type QueuedScore,
   getOrCreateDeviceToken, loadQueue, persistQueue, getContext,
   grantConsent, revokeConsent, uploadBatch, submitScore as submitScoreApi,
-  markTee as markTeeApi, getCurrentFix,
+  markTee as markTeeApi, getCurrentFix, loadScoreQueue, persistScoreQueue,
   startWatching, FALLBACK_FLUSH_MS, QUEUE_FLUSH_THRESHOLD,
 } from '../../lib/liveRound';
 
@@ -39,6 +39,10 @@ export default function LiveRoundScreen() {
   const queueRef = useRef<QueuedPoint[]>([]);
   const stopWatchRef = useRef<(() => void) | null>(null);
   const flushRef = useRef<() => Promise<void>>(async () => {});
+  // Offline score queue: scores entered without signal, synced later.
+  const scoreQueueRef = useRef<QueuedScore[]>([]);
+  const [pendingScores, setPendingScores] = useState(0);
+  const flushScoresRef = useRef<() => Promise<void>>(async () => {});
 
   // Organizer picks which registration (foursome) this phone tracks for.
   useEffect(() => {
@@ -88,6 +92,36 @@ export default function LiveRoundScreen() {
   }, [ctx, deviceToken, currentHole]);
   useEffect(() => { flushRef.current = flush; }, [flush]);
 
+  // Drain the offline score queue. Stops at the first still-failing score so
+  // order is preserved. Called on a timer, on foreground, and after load.
+  const flushScores = useCallback(async () => {
+    const regId = ctx?.registration.id;
+    if (!regId || !deviceToken || scoreQueueRef.current.length === 0) return;
+    for (const q of [...scoreQueueRef.current]) {
+      try {
+        const res = await submitScoreApi({ deviceToken, holeNumber: q.holeNumber, strokes: q.strokes, enteredAt: q.enteredAt });
+        if (!res.ok) break; // server rejected — leave it and stop
+        scoreQueueRef.current = scoreQueueRef.current.filter((s) => s !== q);
+        persistScoreQueue(regId, scoreQueueRef.current);
+        setPendingScores(scoreQueueRef.current.length);
+      } catch {
+        break; // still offline — retry on the next trigger
+      }
+    }
+  }, [ctx, deviceToken]);
+  useEffect(() => { flushScoresRef.current = flushScores; }, [flushScores]);
+
+  // Sync queued scores when the app returns to the foreground (signal usually
+  // back by then), on a slow retry timer, and once the device is ready. No
+  // NetInfo dependency needed — foreground + retry covers the on-course case.
+  useEffect(() => {
+    if (!deviceToken || !ctx) return;
+    flushScoresRef.current();
+    const retry = setInterval(() => flushScoresRef.current(), 20000);
+    const appState = AppState.addEventListener('change', (s) => { if (s === 'active') flushScoresRef.current(); });
+    return () => { clearInterval(retry); appState.remove(); };
+  }, [deviceToken, ctx]);
+
   async function pickRegistration(reg: Registration) {
     setBusy(true);
     setNotice('');
@@ -95,6 +129,8 @@ export default function LiveRoundScreen() {
       const token = await getOrCreateDeviceToken(reg.id);
       setDeviceToken(token);
       queueRef.current = await loadQueue(reg.id);
+      scoreQueueRef.current = await loadScoreQueue(reg.id);
+      setPendingScores(scoreQueueRef.current.length);
       const context = await getContext(reg.id, token);
       if (!context || !context.course) {
         setNotice('This tournament has no course profile yet — GPS mapping needs one.');
@@ -196,13 +232,29 @@ export default function LiveRoundScreen() {
     if (!deviceToken) return;
     setBusy(true);
     setScoreResult('');
+    const enteredAt = new Date().toISOString();
+    const holeAtEntry = currentHole;
     try {
       await flush(); // contemporaneous points must be server-side before labeling
-      const res = await submitScoreApi({ deviceToken, holeNumber: currentHole, strokes });
+      let res;
+      try {
+        res = await submitScoreApi({ deviceToken, holeNumber: holeAtEntry, strokes, enteredAt });
+      } catch {
+        // Network failure (offline) — queue the score so it's not lost and
+        // syncs automatically when the connection comes back.
+        const regId = ctx?.registration.id;
+        if (regId) {
+          scoreQueueRef.current = [...scoreQueueRef.current.filter((s) => s.holeNumber !== holeAtEntry), { holeNumber: holeAtEntry, strokes, enteredAt }];
+          persistScoreQueue(regId, scoreQueueRef.current);
+          setPendingScores(scoreQueueRef.current.length);
+        }
+        setScoreResult(`No signal — hole ${holeAtEntry} saved on your phone. It'll sync automatically when you're back online.`);
+        return;
+      }
       if (!res.ok) throw new Error((res.data.error as string) || 'Score submission failed');
       const labeled = (res.data.labeledPoints as number) ?? 0;
       const labelPart = labeled > 0
-        ? `green for hole ${currentHole} labeled from ${labeled} GPS point${labeled === 1 ? '' : 's'}`
+        ? `green for hole ${holeAtEntry} labeled from ${labeled} GPS point${labeled === 1 ? '' : 's'}`
         : 'no recent GPS points to label';
       // Friendly pick-up-at-par message: explain the cap, don't silently rewrite.
       const capPart = res.data.capped ? ` Max score reached — recorded as ${res.data.strokesRecorded} (pick-up rule).` : '';
@@ -287,8 +339,13 @@ export default function LiveRoundScreen() {
                 </Pressable>
               </View>
               {!!scoreResult && (
-                <Text style={[s.body, { marginTop: 10, color: scoreResult.startsWith('Score saved') ? colors.green : colors.alert }]}>
+                <Text style={[s.body, { marginTop: 10, color: scoreResult.startsWith('Score saved') ? colors.green : scoreResult.startsWith('No signal') ? '#B08900' : colors.alert }]}>
                   {scoreResult}
+                </Text>
+              )}
+              {pendingScores > 0 && (
+                <Text style={{ marginTop: 8, fontSize: 12.5, color: '#7A5A08', backgroundColor: '#FFF7E0', borderColor: '#F0E2B8', borderWidth: 1, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, fontFamily: font.sans }}>
+                  ⏳ {pendingScores} score{pendingScores === 1 ? '' : 's'} saved offline — syncing automatically when you have signal.
                 </Text>
               )}
               <Pressable onPress={onMarkTee} disabled={markingTee} style={[s.markTeeBtn, markingTee && { opacity: 0.7 }]}>

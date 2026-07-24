@@ -29,6 +29,24 @@ const KEEPALIVE_MS = 60000;
 
 const deviceKey = (regId: string) => `tc_gps_device_${regId}`;
 const queueKey = (regId: string) => `tc_gps_queue_${regId}`;
+const scoreQueueKey = (regId: string) => `tc_score_queue_${regId}`;
+
+// A score entered while offline. enteredAt (when the player actually entered
+// it) is honored by the server as submitted_at so a late sync keeps correct
+// latest-wins ordering — matching the web client.
+export type QueuedScore = { holeNumber: number; strokes: number; enteredAt: string };
+
+export async function loadScoreQueue(registrationId: string): Promise<QueuedScore[]> {
+  try {
+    const raw = await AsyncStorage.getItem(scoreQueueKey(registrationId));
+    return raw ? (JSON.parse(raw) as QueuedScore[]) : [];
+  } catch {
+    return [];
+  }
+}
+export function persistScoreQueue(registrationId: string, queue: QueuedScore[]) {
+  AsyncStorage.setItem(scoreQueueKey(registrationId), JSON.stringify(queue)).catch(() => {});
+}
 
 export async function getOrCreateDeviceToken(registrationId: string): Promise<string> {
   const existing = await AsyncStorage.getItem(deviceKey(registrationId));
@@ -85,7 +103,7 @@ export const uploadBatch = (params: {
   deviceToken: string; tournamentId: string; courseId: string; holeNumber: number; points: QueuedPoint[];
 }) => api('/api/gps/track', params);
 
-export const submitScore = (params: { deviceToken: string; holeNumber: number; strokes: number }) =>
+export const submitScore = (params: { deviceToken: string; holeNumber: number; strokes: number; enteredAt?: string }) =>
   api('/api/gps/score', params);
 
 export const markTee = (params: { deviceToken: string; holeNumber: number; lat: number; lng: number }) =>
