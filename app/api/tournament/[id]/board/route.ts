@@ -78,9 +78,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     trend: recentFormFromHoleRows([...(latestByTeam.get(s.registrationId)?.values() ?? [])], pars, 3),
   }));
 
-  // Committed sponsors with a logo, for the rotating corner display.
+  // Every COMMITTED sponsor that has an uploaded logo, for the rotating corner
+  // display — not just the paid ones (a verbal/invoiced sponsor who already
+  // sent their logo should still appear on the clubhouse TV).
+  const COMMITTED = ['paid', 'invoiced', 'verbal'];
   const sponsorLogos = (sponsors ?? [])
-    .filter((sp) => sp.status === 'paid' && sp.logo_url)
+    .filter((sp) => COMMITTED.includes(sp.status as string) && sp.logo_url)
     .map((sp) => ({ company: sp.company as string, logoUrl: sp.logo_url as string }));
 
   // Live fundraising total — REAL money only: every paid registration
