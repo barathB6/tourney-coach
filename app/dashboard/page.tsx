@@ -51,6 +51,7 @@ export default function Dashboard() {
   const [allTournaments, setAllTournaments] = useState<Tournament[]>([]);
   const [registrationCount, setRegistrationCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [coachRefresh, setCoachRefresh] = useState(0);
   const [storyDone, setStoryDone] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [switchOpen, setSwitchOpen] = useState(false);
@@ -158,7 +159,16 @@ export default function Dashboard() {
       setLoading(false);
     }
     load();
-  }, [router]);
+  }, [router, coachRefresh]);
+
+  // When the AI coach changes the event on the organizer's behalf, refetch so
+  // the dashboard's live figures (field size, format, status, goal…) update
+  // immediately — no reload needed.
+  useEffect(() => {
+    const onCoachAction = () => setCoachRefresh(n => n + 1);
+    window.addEventListener('tc-coach-action', onCoachAction);
+    return () => window.removeEventListener('tc-coach-action', onCoachAction);
+  }, []);
 
   if (loading) {
     return (

@@ -213,6 +213,11 @@ export default function CoachWidget() {
                 return c;
               });
               if (!activeConvId && data.conversationId) setActiveConvId(data.conversationId);
+            } else if ((data.type === 'done' || data.type === 'error') && Array.isArray(data.actions) && data.actions.length > 0) {
+              // The coach changed the event — tell the dashboard to refresh its
+              // live figures. Fires on the error path too, since a change may
+              // have committed before the stream failed.
+              window.dispatchEvent(new CustomEvent('tc-coach-action', { detail: { actions: data.actions } }));
             }
           } catch { /* skip */ }
         }
