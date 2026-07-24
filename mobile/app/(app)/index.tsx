@@ -77,8 +77,8 @@ export default function DashboardScreen() {
 
   const setupDone = !!tournament;
   const causeStoryDone = !!tournament?.cause_story;
-  const steps: { label: string; done: boolean; path?: string | null; native?: '/live' | '/volunteers' | '/registrations' | '/sponsors' }[] = [
-    { label: 'Tell your cause story', done: causeStoryDone, path: '/story' },
+  const steps: { label: string; done: boolean; path?: string | null; native?: '/live' | '/volunteers' | '/registrations' | '/sponsors' | '/story' }[] = [
+    { label: 'Tell your cause story', done: causeStoryDone, native: '/story' },
     { label: 'Set up the event details', done: setupDone, path: '/setup/format' },
     { label: 'Open registration', done: setupDone, path: null },
     { label: 'Line up your sponsors', done: false, path: '/sponsors' },
@@ -97,7 +97,7 @@ export default function DashboardScreen() {
     ? `Cause story locked in, ${firstName}. Now set up your event details — format, field size, date, and pricing.`
     : `You're building momentum, ${firstName}. Keep going — the next step is small enough to finish before lunch.`;
   const coachBtnLabel = activeIdx === 0 ? 'Start your cause story' : activeIdx === 1 ? 'Set up event details' : 'Continue';
-  const coachBtnPath = steps[activeIdx]?.path;
+  const activeStep = steps[activeIdx];
 
   const ACTIONS = [
     { label: 'AI Coach', native: '/coach' as const },
@@ -113,7 +113,7 @@ export default function DashboardScreen() {
   ];
 
   const JUMP = [
-    { label: 'Cause story', sub: causeStoryDone ? 'done' : 'not started', path: '/story' },
+    { label: 'Cause story', sub: causeStoryDone ? 'done' : 'not started', native: '/story' as const },
     { label: 'Event setup', sub: setupDone ? 'done' : 'not started', path: '/setup/format' },
     { label: 'Registration', sub: setupDone ? 'view registrations' : 'not started', native: '/registrations' as const },
     { label: 'Sponsors', sub: setupDone ? 'view sponsors' : 'not started', native: '/sponsors' as const },
@@ -165,8 +165,8 @@ export default function DashboardScreen() {
             <View style={s.coach}>
               <View style={s.coachEy}><Text style={s.coachLabel}>▸ FROM YOUR COACH</Text></View>
               <Text style={s.coachMsg}>{coachMsg}</Text>
-              {coachBtnPath && (
-                <Pressable style={s.btnGold} onPress={() => openWeb(coachBtnPath)}><Text style={s.btnGoldText}>{coachBtnLabel}</Text></Pressable>
+              {activeStep && (activeStep.native || activeStep.path) && (
+                <Pressable style={s.btnGold} onPress={() => activeStep.native ? router.push(activeStep.native) : openWeb(activeStep.path!)}><Text style={s.btnGoldText}>{coachBtnLabel}</Text></Pressable>
               )}
             </View>
 
