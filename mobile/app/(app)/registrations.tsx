@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import ScreenHeader from '../../components/ScreenHeader';
 import { useTournament } from '../../lib/useTournament';
 import { supabase } from '../../lib/supabase';
@@ -28,6 +29,7 @@ const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
 };
 
 export default function RegistrationsScreen() {
+  const router = useRouter();
   const { tournament, loading: tLoading } = useTournament();
   const [regs, setRegs] = useState<Reg[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,8 +70,12 @@ export default function RegistrationsScreen() {
           ListEmptyComponent={<Text style={s.empty}>No registrations yet.</Text>}
           renderItem={({ item }) => {
             const sc = STATUS_COLOR[item.payment_status] ?? STATUS_COLOR.refunded;
+            const scorable = item.registration_type !== 'sponsor';
             return (
-              <View style={s.row}>
+              <Pressable
+                onPress={scorable ? () => router.push({ pathname: '/scorecard', params: { reg: item.id } }) : undefined}
+                style={({ pressed }) => [s.row, pressed && scorable && { opacity: 0.6 }]}
+              >
                 <View style={{ flex: 1 }}>
                   <Text style={s.name}>{item.contact_name}</Text>
                   <Text style={s.meta}>
@@ -77,12 +83,13 @@ export default function RegistrationsScreen() {
                     {item.team_name ? ` · ${item.team_name}` : ''}
                     {item.starting_hole ? ` · Hole ${item.starting_hole}` : item.foursome_number ? ` · #${item.foursome_number}` : ''}
                   </Text>
+                  {scorable && <Text style={s.tapHint}>Tap to view scorecard</Text>}
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 4 }}>
                   <Text style={s.amount}>${(item.total_amount_cents / 100).toFixed(2)}</Text>
                   <View style={[s.badge, { backgroundColor: sc.bg }]}><Text style={[s.badgeText, { color: sc.fg }]}>{item.payment_status}</Text></View>
                 </View>
-              </View>
+              </Pressable>
             );
           }}
         />
@@ -97,6 +104,7 @@ const s = StyleSheet.create({
   summaryText: { fontFamily: font.sansMedium, fontSize: 13, color: MUTED },
   empty: { fontFamily: font.sans, fontSize: 14, color: MUTED, textAlign: 'center', marginTop: 40 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, marginBottom: 10 },
+  tapHint: { fontFamily: font.sans, fontSize: 11, color: colors.green, marginTop: 3 },
   name: { fontFamily: font.sansBold, fontSize: 15, color: colors.ink },
   meta: { fontFamily: font.sans, fontSize: 12.5, color: MUTED, marginTop: 2 },
   amount: { fontFamily: font.serif, fontSize: 15, color: colors.ink },
