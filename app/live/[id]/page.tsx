@@ -397,9 +397,9 @@ export default function LiveRoundPage() {
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 14 }}>
-          <button onClick={() => changeHole(currentHole <= 1 ? ctx.course!.totalHoles : currentHole - 1)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 16 }}>‹</button>
-          <p style={{ fontWeight: 700, fontSize: 14, margin: 0, minWidth: 90, textAlign: 'center' }}>Hole {currentHole} of {ctx.course.totalHoles}</p>
-          <button onClick={() => changeHole(currentHole >= ctx.course!.totalHoles ? 1 : currentHole + 1)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 16 }}>›</button>
+          <button aria-label="Previous hole" onClick={() => changeHole(currentHole <= 1 ? ctx.course!.totalHoles : currentHole - 1)} style={{ width: 44, height: 44, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 20, flexShrink: 0, touchAction: 'manipulation' }}>‹</button>
+          <p style={{ fontWeight: 700, fontSize: 15, margin: 0, minWidth: 96, textAlign: 'center' }}>Hole {currentHole} of {ctx.course.totalHoles}</p>
+          <button aria-label="Next hole" onClick={() => changeHole(currentHole >= ctx.course!.totalHoles ? 1 : currentHole + 1)} style={{ width: 44, height: 44, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 20, flexShrink: 0, touchAction: 'manipulation' }}>›</button>
         </div>
 
         {(contestsByHole[currentHole] ?? []).length > 0 && (
@@ -416,9 +416,9 @@ export default function LiveRoundPage() {
           <div style={{ background: '#fff', border: '1px solid #E5E0D5', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
             <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B7775', margin: '0 0 10px' }}>Score for hole {currentHole}</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button onClick={() => setStrokes((n) => Math.max(1, n - 1))} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 16 }}>−</button>
-              <p style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 700, margin: 0, minWidth: 28, textAlign: 'center' }}>{strokes}</p>
-              <button onClick={() => setStrokes((n) => Math.min(20, n + 1))} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 16 }}>+</button>
+              <button aria-label="Lower score" onClick={() => setStrokes((n) => Math.max(1, n - 1))} style={{ width: 48, height: 48, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 22, flexShrink: 0, touchAction: 'manipulation' }}>−</button>
+              <p style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, margin: 0, minWidth: 36, textAlign: 'center' }}>{strokes}</p>
+              <button aria-label="Raise score" onClick={() => setStrokes((n) => Math.min(20, n + 1))} style={{ width: 48, height: 48, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 22, flexShrink: 0, touchAction: 'manipulation' }}>+</button>
               <button
                 onClick={submitScore}
                 disabled={submittingScore}
