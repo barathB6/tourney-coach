@@ -100,6 +100,7 @@ export default function DashboardScreen() {
   const coachBtnPath = steps[activeIdx]?.path;
 
   const ACTIONS = [
+    { label: 'AI Coach', native: '/coach' as const },
     { label: 'Volunteers', native: '/volunteers' as const },
     { label: 'Registrations', native: '/registrations' as const },
     { label: 'Sponsors', native: '/sponsors' as const },
