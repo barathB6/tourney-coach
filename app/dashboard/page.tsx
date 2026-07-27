@@ -12,6 +12,7 @@ interface Tournament {
   max_players: number;
   cause_story: string | null;
   status: string;
+  course_id: string | null;
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -113,8 +114,8 @@ export default function Dashboard() {
       let selectedId: string | null = null;
       try { selectedId = localStorage.getItem(`tourney_selected_tournament_${u.id}`); } catch { /* ignore */ }
 
-      const fields = 'id, name, event_date, format, max_players, cause_story, status';
-      let picked = null as { id: string; name: string; event_date: string; format: string; max_players: number; cause_story: string | null; status: string } | null;
+      const fields = 'id, name, event_date, format, max_players, cause_story, status, course_id';
+      let picked = null as { id: string; name: string; event_date: string; format: string; max_players: number; cause_story: string | null; status: string; course_id: string | null } | null;
 
       if (selectedId) {
         const { data } = await supabase
@@ -196,6 +197,11 @@ export default function Dashboard() {
   const days = tournament ? daysUntil(tournament.event_date) : null;
   const foursomes = tournament ? Math.floor(tournament.max_players / 4) : 18;
   const foursomesFilled = registrationCount;
+  // This tournament's own course. Open its builder if it has one; otherwise
+  // start a new course and link it back to this tournament on save.
+  const courseHref = tournament?.course_id
+    ? `/course/${tournament.course_id}`
+    : `/course/new${tournament ? `?tournament=${tournament.id}` : ''}`;
 
   const coachMsg = activeIdx === 0
     ? `Welcome back, ${user?.name}. The heart of every great tournament is the story of why. Let's write yours first — it's what makes sponsors say yes and players show up.`
@@ -385,7 +391,7 @@ export default function Dashboard() {
                 Shotgun Start
               </button>
               <button
-                onClick={() => router.push(lastCourseId ? `/course/${lastCourseId}` : '/course/new')}
+                onClick={() => router.push(courseHref)}
                 style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -662,7 +668,7 @@ export default function Dashboard() {
                     { label: 'Registration', sub: setupDone ? 'view registrations' : 'not started', href: setupDone ? '/dashboard/registrations' : null },
                     { label: 'Sponsors', sub: setupDone ? 'view sponsors' : 'not started', href: setupDone ? '/sponsors' : null },
                     { label: 'Shotgun start', sub: setupDone ? 'assign holes' : 'not started', href: setupDone ? '/shotgun' : null },
-                    { label: 'Course profile', sub: lastCourseId ? 'resume building' : 'build a course', href: lastCourseId ? `/course/${lastCourseId}` : '/course/new' },
+                    { label: 'Course profile', sub: tournament?.course_id ? 'resume building' : 'build a course', href: courseHref },
                   ].map(({ label, sub, href }) => (
                     <button key={label} style={s.q} onClick={() => href && router.push(href)} disabled={!href}>
                       <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)' }}>{label}</div>

@@ -95,6 +95,10 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
     if (!userId) return;
     const { data, error } = await supabase.from('courses').insert({ ...fields, total_holes: 18, organizer_id: userId, profile_status: 'draft' }).select().single();
     if (error) { setMigrationMissing(true); return; }
+    // If we arrived from a tournament (/course/new?tournament=<id>), link the new
+    // course to it so each tournament owns its own course profile.
+    const tournamentParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tournament') : null;
+    if (tournamentParam) await supabase.from('tournaments').update({ course_id: data.id }).eq('id', tournamentParam);
     router.replace(`/course/${data.id}`);
   }
 
