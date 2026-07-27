@@ -649,8 +649,9 @@ export default function LiveRoundPage() {
             {!circleResult ? (
               <>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#C9A227', marginBottom: 16 }}>TourneyCircle</div>
-                <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 25, lineHeight: 1.2, margin: '0 0 12px' }}>Nice round! Want to hear about other charity golf tournaments near you?</h2>
-                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', margin: '0 0 22px', lineHeight: 1.5 }}>Only in your area. Your info never leaves TourneyCoach — organizers never see your name or email.</p>
+                <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', margin: '0 0 6px' }}>Nice round!</p>
+                <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 25, lineHeight: 1.25, margin: '0 0 12px' }}>Want us to tell you about other charity golf tournaments in your area?</h2>
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', margin: '0 0 22px', lineHeight: 1.5 }}>Tapping “Yes” opts you in and records your consent. Your info never leaves TourneyCoach — organizers never see your name or email, only aggregate counts.</p>
                 <div style={{ marginBottom: 22 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', marginBottom: 8 }}>Within</div>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
