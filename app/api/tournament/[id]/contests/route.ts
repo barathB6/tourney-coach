@@ -16,16 +16,23 @@ const getServiceSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-type Owned = { service: SupabaseClient; userId: string; fieldSize: number | null };
+type Owned = { service: SupabaseClient; userId: string; fieldSize: number | null; courseId: string | null };
 async function requireOwner(req: NextRequest, tournamentId: string): Promise<Owned | { error: NextResponse }> {
   const authed = getAuthedSupabase(req);
   const { data: { user } } = await authed.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   const service = getServiceSupabase();
-  const { data: t } = await service.from('tournaments').select('organizer_id, max_players').eq('id', tournamentId).maybeSingle();
+  const { data: t } = await service.from('tournaments').select('organizer_id, max_players, course_id').eq('id', tournamentId).maybeSingle();
   if (!t) return { error: NextResponse.json({ error: 'Tournament not found' }, { status: 404 }) };
   if (t.organizer_id !== user.id) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  return { service, userId: user.id, fieldSize: t.max_players ?? null };
+  return { service, userId: user.id, fieldSize: t.max_players ?? null, courseId: t.course_id ?? null };
+}
+
+// A single representative yardage from a hole's per-tee map (longest tee).
+function yardageFromTees(tees: unknown): number | null {
+  if (!tees || typeof tees !== 'object') return null;
+  const nums = Object.values(tees as Record<string, unknown>).map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  return nums.length ? Math.max(...nums) : null;
 }
 
 const MIGRATION_HINT = { error: 'Failed to save contest (has migration 031 been run?)' };
@@ -63,9 +70,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     byContest.get(k)!.push(e);
   }
 
+  // Par + yardage per hole from the tournament's course, for the card meta line.
+  const holeInfo = new Map<number, { par: number | null; yards: number | null }>();
+  if (gate.courseId) {
+    const { data: courseHoles } = await gate.service
+      .from('course_holes').select('hole_number, par, tee_yardages').eq('course_id', gate.courseId);
+    for (const h of courseHoles ?? []) {
+      holeInfo.set(h.hole_number, { par: h.par ?? null, yards: yardageFromTees(h.tee_yardages) });
+    }
+  }
+
   return NextResponse.json({
     fieldSize: gate.fieldSize,
-    contests: (contests ?? []).map((c) => ({ ...c, entries: byContest.get(c.id) ?? [] })),
+    contests: (contests ?? []).map((c) => ({
+      ...c,
+      par: c.hole_number ? holeInfo.get(c.hole_number)?.par ?? null : null,
+      yards: c.hole_number ? holeInfo.get(c.hole_number)?.yards ?? null : null,
+      entries: byContest.get(c.id) ?? [],
+    })),
   });
 }
 
