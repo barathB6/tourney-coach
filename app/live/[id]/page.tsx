@@ -666,6 +666,7 @@ export default function LiveRoundPage() {
               <>
                 <div style={{ fontSize: 44, marginBottom: 12 }}>⛳</div>
                 <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 25, margin: '0 0 10px' }}>{circleResult}</h2>
+                <a href={`/circle/preferences?reg=${regId}`} style={{ display: 'block', color: 'rgba(255,255,255,0.8)', fontSize: 13.5, marginTop: 8 }}>Choose your causes & how often →</a>
                 <button onClick={() => setCirclePrompt(false)} style={{ marginTop: 16, padding: '12px 26px', background: '#fff', color: '#0F4A26', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
               </>
             )}

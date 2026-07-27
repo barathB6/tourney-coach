@@ -128,6 +128,15 @@ function RegisterInner() {
     return () => clearTimeout(t);
   }, [contactEmail]);
 
+  // TourneyCircle behavioral suppression: if a player arrives from their
+  // notification link (?tc=<profile>), log the visit so we don't re-notify them
+  // about this event (and it counts as a click on the performance report).
+  useEffect(() => {
+    const tc = searchParams?.get('tc');
+    if (!tournamentId || !tc) return;
+    fetch('/api/circle/visit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tournamentId, playerProfileId: tc }) }).catch(() => {});
+  }, [tournamentId, searchParams]);
+
   const regType = REG_TYPES.find(r => r.id === selectedType) ?? REG_TYPES[0];
 
   // Keep players array sized to selected type

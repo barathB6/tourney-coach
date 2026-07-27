@@ -55,6 +55,7 @@ export default function CirclePage() {
       setNote(`Notification queued — TourneyCoach will deliver it to ~${total} matched players on your behalf. Clicks and registrations appear here as they come in.`);
       return;
     }
+    if (!confirm(`Send one notification to ${total} matched player${total === 1 ? '' : 's'} within ${radius} miles for $29? TourneyCoach delivers it on your behalf — you never see who they are.`)) return;
     setSending(true); setNote('');
     const res = await authedFetch(`/api/tournament/${tournamentId}/circle`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ radiusMiles: radius }),

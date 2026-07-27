@@ -4,6 +4,27 @@ import { centroidOf, countWithinRadius, isValidRadius, type Member } from '@/lib
 
 const getServiceSupabase = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
+// GET ?reg=<registrationId> — the player's own TourneyCircle preferences, for
+// the participant preferences dashboard. Identity is the registration link.
+export async function GET(req: NextRequest) {
+  const reg = new URL(req.url).searchParams.get('reg') ?? '';
+  if (!reg) return NextResponse.json({ error: 'reg required' }, { status: 400 });
+  const service = getServiceSupabase();
+  const { data: r } = await service.from('registrations').select('player_profile_id, contact_name').eq('id', reg).maybeSingle();
+  if (!r) return NextResponse.json({ error: 'Unknown registration' }, { status: 404 });
+  if (!r.player_profile_id) return NextResponse.json({ name: r.contact_name, optedIn: false, declined: false, radiusMiles: 25, causes: [], cadenceDays: 10 });
+  const { data: m } = await service.from('tourneycircle_members').select('radius_miles, cause_preferences, cadence_days').eq('player_profile_id', r.player_profile_id).maybeSingle();
+  const { data: d } = await service.from('tourneycircle_declines').select('id').eq('player_profile_id', r.player_profile_id).maybeSingle();
+  return NextResponse.json({
+    name: r.contact_name,
+    optedIn: !!m,
+    declined: !!d,
+    radiusMiles: m?.radius_miles ?? 25,
+    causes: m?.cause_preferences ?? [],
+    cadenceDays: m?.cadence_days ?? 10,
+  });
+}
+
 // Module 7 — the opt-in prompt at score-submission completion. Identity is the
 // player's own registration (they're on their round link; no login). Writes to
 // the private store; the response carries only an aggregate count, never names.
@@ -38,18 +59,21 @@ export async function POST(req: NextRequest) {
   const causes = Array.isArray(body?.causes) ? body.causes.filter((c: unknown) => typeof c === 'string').slice(0, 10) : [];
   const memberType = reg.registration_type === 'sponsor' ? 'corporate' : 'individual';
 
-  const { error } = await service.from('tourneycircle_members').upsert({
+  const payload: Record<string, unknown> = {
     player_profile_id: profileId,
     email: reg.contact_email ?? null,
     name: reg.contact_name ?? null,
-    home_lat: homeLat, home_lng: homeLng,
     radius_miles: radiusMiles,
     cause_preferences: causes,
     cadence_days: cadenceDays,
     member_type: memberType,
     source_tournament_id: reg.tournament_id ?? null,
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'player_profile_id' });
+  };
+  // Only touch location when a fresh fix is provided — a preferences edit (no
+  // geolocation) must never wipe the home location captured at opt-in.
+  if (homeLat != null && homeLng != null) { payload.home_lat = homeLat; payload.home_lng = homeLng; }
+  const { error } = await service.from('tourneycircle_members').upsert(payload, { onConflict: 'player_profile_id' });
   if (error) return NextResponse.json({ error: 'TourneyCircle tables missing — run migration 032' }, { status: 500 });
 
   // Aggregate-only confirmation: how many members are near this player.
