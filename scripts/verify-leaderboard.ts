@@ -7,6 +7,7 @@ import {
   countbackCompare,
   latestScores,
   maxScoreCap,
+  paceStatus,
   recentFormFromHoleRows,
   type HoleInfo,
   type ScoreRow,
@@ -197,6 +198,30 @@ section('9. Recent-form trend over the last N submitted holes');
   ok(recentFormFromHoleRows([], pars, 3) === null, 'no scores → null (UI shows a neutral dash, not a made-up number)');
   const noPar = recentFormFromHoleRows([{ registrationId: 'N', holeNumber: 1, strokes: 4, submittedAt: at(1) }], new Map(), 3);
   ok(noPar === null, 'no pars → null trend');
+}
+
+// ── Pace of play ────────────────────────────────────────────────────────────
+section('7. Pace of play (green/yellow/red, field-relative)');
+{
+  ok(paceStatus(9, 9) === 'green', 'leader → green');
+  ok(paceStatus(8, 9) === 'green', '1 back → green');
+  ok(paceStatus(7, 9) === 'yellow', '2 back → yellow');
+  ok(paceStatus(6, 9) === 'yellow', '3 back → yellow');
+  ok(paceStatus(5, 9) === 'red', '4 back → red');
+  ok(paceStatus(0, 9) === null, 'not started → null');
+
+  const teams = [team('P1', 'Front', 1), team('P2', 'Mid', 2), team('P3', 'Back', 3), team('P4', 'Waiting', 4)];
+  const scores: ScoreRow[] = [
+    ...cardAt('P1', range(1, 9), () => 0),
+    ...cardAt('P2', range(1, 7), () => 0, 20),
+    ...cardAt('P3', range(1, 4), () => 0, 40),
+  ];
+  const s = computeStandings({ format: 'stroke_play', maxScoreRule: 'none', teams, holes: HOLES, scores });
+  const byId = Object.fromEntries(s.map((r) => [r.registrationId, r]));
+  ok(byId['P1'].pace === 'green', 'front of field → green (thru 9)', `${byId['P1'].pace}`);
+  ok(byId['P2'].pace === 'yellow', 'mid 2 back → yellow (thru 7)', `${byId['P2'].pace}`);
+  ok(byId['P3'].pace === 'red', 'back 5 back → red (thru 4)', `${byId['P3'].pace}`);
+  ok(byId['P4'].pace === null, 'waiting team → null', `${byId['P4'].pace}`);
 }
 
 console.log(`\n${failures === 0 ? '✅ ALL CHECKS PASSED' : `❌ ${failures} CHECK(S) FAILED`}`);

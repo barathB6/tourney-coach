@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 type Trend = { toPar: number; holes: number; direction: 'up' | 'down' | 'flat' } | null;
 type Row = {
   rank: number; tied: boolean; registrationId: string; teamName: string; foursomeNumber: number | null;
-  holesCompleted: number; totalStrokes: number; toPar: number | null; players: string[]; trend: Trend;
+  holesCompleted: number; totalStrokes: number; toPar: number | null; players: string[]; trend: Trend; pace: 'green' | 'yellow' | 'red' | null;
 };
 type Board = {
   tournament: { id: string; name: string; format: string; status: string; parTotal: number | null; course: string | null };
@@ -21,6 +21,8 @@ const CONTEST: Record<string, string> = { hole_in_one: 'Hole-in-One', closest_to
 type SortKey = 'score' | 'team' | 'thru';
 
 const toPar = (v: number | null) => (v == null ? '—' : v === 0 ? 'E' : v > 0 ? `+${v}` : `${v}`);
+// Pace-of-play dot colors, tuned bright for the dark TV board.
+const PACE_TV: Record<string, string> = { green: '#5FC06B', yellow: '#F0C64A', red: '#F07272' };
 const money = (c: number) => `$${(c / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
 export default function TVBoard({ params }: { params: Promise<{ id: string }> }) {
@@ -135,6 +137,7 @@ export default function TVBoard({ params }: { params: Promise<{ id: string }> })
                     {s.players.length > 0 && <div style={{ color: '#8FB89A', fontSize: 'clamp(12px, 1.2vw, 17px)', marginTop: 3 }}>{s.players.join(' · ')}</div>}
                   </td>
                   <td style={{ padding: '16px 24px', textAlign: 'right', color: '#CDE0D2', fontSize: 'clamp(16px, 1.8vw, 26px)', fontVariantNumeric: 'tabular-nums' }}>
+                    {s.pace && <span title={`Pace: ${s.pace}`} style={{ display: 'inline-block', width: '0.5em', height: '0.5em', borderRadius: '50%', background: PACE_TV[s.pace], marginRight: '0.5em', verticalAlign: 'middle' }} />}
                     {s.holesCompleted === 0 ? '—' : s.holesCompleted === 18 ? 'F' : s.holesCompleted}
                   </td>
                   <td style={{ padding: '16px 24px', textAlign: 'right', fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 'clamp(22px, 2.6vw, 40px)', color: (s.toPar ?? 0) < 0 ? '#E4B94B' : '#fff', fontVariantNumeric: 'tabular-nums' }}>

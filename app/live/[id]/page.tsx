@@ -50,6 +50,10 @@ const scoreQueueKey = (regId: string) => `tc_score_queue_${regId}`;
 // reconnected.
 type QueuedScore = { holeNumber: number; strokes: number; enteredAt: string };
 
+// Score tiers relative to par (spec Module 6). Strokes = par + offset; the
+// event's max-score rule caps anything past its cutoff server-side.
+const SCORE_TIERS: [string, number][] = [['Eagle', -2], ['Birdie', -1], ['Par', 0], ['Bogey', 1], ['+2', 2], ['+3', 3]];
+
 export default function LiveRoundPage() {
   const params = useParams();
   const regId = params.id as string;
@@ -502,19 +506,37 @@ export default function LiveRoundPage() {
 
         {consent === 'granted' && (
           <div style={{ background: '#fff', border: '1px solid #E5E0D5', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B7775', margin: '0 0 10px' }}>Score for hole {currentHole}</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button aria-label="Lower score" onClick={() => setStrokes((n) => Math.max(1, n - 1))} style={{ width: 48, height: 48, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 22, flexShrink: 0, touchAction: 'manipulation' }}>−</button>
-              <p style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, margin: 0, minWidth: 36, textAlign: 'center' }}>{strokes}</p>
-              <button aria-label="Raise score" onClick={() => setStrokes((n) => Math.min(20, n + 1))} style={{ width: 48, height: 48, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 22, flexShrink: 0, touchAction: 'manipulation' }}>+</button>
-              <button
-                onClick={submitScore}
-                disabled={submittingScore}
-                style={{ flex: 1, padding: '11px', background: '#1B4425', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 13.5, cursor: submittingScore ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: submittingScore ? 0.7 : 1 }}
-              >
-                {submittingScore ? 'Submitting…' : 'Submit score'}
-              </button>
-            </div>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B7775', margin: '0 0 10px' }}>Score for hole {currentHole}{hole?.par ? ` · Par ${hole.par}` : ''}</p>
+            {hole?.par != null ? (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  {SCORE_TIERS.map(([label, off]) => {
+                    const val = Math.max(1, (hole.par as number) + off);
+                    const active = strokes === val;
+                    return (
+                      <button key={label} onClick={() => setStrokes(val)} style={{ padding: '10px 6px', borderRadius: 10, border: active ? '1.5px solid #1B4425' : '1px solid #E5E0D5', background: active ? '#EAF2ED' : '#fff', cursor: 'pointer', touchAction: 'manipulation', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: active ? '#1B4425' : '#1A1F1C' }}>{label}</span>
+                        <span style={{ fontSize: 11.5, color: '#6B7775', fontVariantNumeric: 'tabular-nums' }}>{val}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p style={{ fontSize: 11.5, color: '#6B7775', margin: '8px 0 0' }}>Par is your friend — pick up at your cap and keep pace; anything past it records as the cap.</p>
+              </>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button aria-label="Lower score" onClick={() => setStrokes((n) => Math.max(1, n - 1))} style={{ width: 48, height: 48, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 22, flexShrink: 0, touchAction: 'manipulation' }}>−</button>
+                <p style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, margin: 0, minWidth: 36, textAlign: 'center' }}>{strokes}</p>
+                <button aria-label="Raise score" onClick={() => setStrokes((n) => Math.min(20, n + 1))} style={{ width: 48, height: 48, borderRadius: '50%', border: '1px solid #E5E0D5', background: '#fff', cursor: 'pointer', fontSize: 22, flexShrink: 0, touchAction: 'manipulation' }}>+</button>
+              </div>
+            )}
+            <button
+              onClick={submitScore}
+              disabled={submittingScore}
+              style={{ width: '100%', marginTop: 12, padding: '12px', background: '#1B4425', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: submittingScore ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: submittingScore ? 0.7 : 1 }}
+            >
+              {submittingScore ? 'Submitting…' : `Submit${hole?.par != null ? ` ${strokes}` : ''}`}
+            </button>
             {scoreResult && <p style={{ fontSize: 12.5, color: scoreResult.startsWith('Score saved') ? '#1B6B3A' : scoreResult.startsWith('No signal') ? '#B08900' : '#B91C1C', margin: '10px 0 0' }} data-testid="score-result">{scoreResult}</p>}
             {pendingScores > 0 && (
               <p style={{ fontSize: 11.5, color: '#B08900', background: '#FFF7E0', border: '1px solid #F0E2B8', borderRadius: 8, padding: '6px 10px', margin: '8px 0 0' }} data-testid="pending-scores">

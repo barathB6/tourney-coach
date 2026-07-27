@@ -8,10 +8,12 @@ import { config } from '../../lib/config';
 import { colors, font } from '../../lib/theme';
 
 type Trend = { toPar: number; holes: number; direction: 'up' | 'down' | 'flat' } | null;
+type Pace = 'green' | 'yellow' | 'red' | null;
 type Row = {
   rank: number; tied: boolean; registrationId: string; teamName: string;
-  holesCompleted: number; totalStrokes: number; toPar: number | null; players: string[]; trend: Trend;
+  holesCompleted: number; totalStrokes: number; toPar: number | null; players: string[]; trend: Trend; pace: Pace;
 };
+const PACE_COLOR: Record<string, string> = { green: '#1B9E4B', yellow: '#E0A32E', red: '#D1495B' };
 type Board = {
   tournament: { name: string; format: string; status: string; parTotal: number | null };
   standings: Row[]; teamsTotal: number; contests: { holeNumber: number; type: string; winner: string | null; decided: boolean }[]; raisedCents: number;
@@ -110,7 +112,10 @@ export default function LeaderboardScreen() {
                     <Text style={s.team} numberOfLines={1}>{r.teamName}</Text>
                     {r.players.length > 0 && <Text style={s.players} numberOfLines={1}>{r.players.join(' · ')}</Text>}
                   </View>
-                  <Text style={[s.cell, s.num, { width: 46, color: colors.muted }]}>{r.holesCompleted === 0 ? '—' : r.holesCompleted === 18 ? 'F' : r.holesCompleted}</Text>
+                  <View style={{ width: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
+                    {r.pace && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: PACE_COLOR[r.pace] }} />}
+                    <Text style={[s.cell, s.num, { color: colors.muted }]}>{r.holesCompleted === 0 ? '—' : r.holesCompleted === 18 ? 'F' : r.holesCompleted}</Text>
+                  </View>
                   <Text style={[s.score, s.num, { width: 54, color: (r.toPar ?? 0) < 0 ? colors.alert : colors.ink }]}>{r.holesCompleted === 0 ? '—' : toParText(r.toPar)}</Text>
                   <Text style={[s.cell, s.num, { width: 46, color: !r.trend || r.trend.direction === 'flat' ? colors.faint : r.trend.direction === 'up' ? colors.green : colors.alert }]}>
                     {!r.trend || r.trend.direction === 'flat' ? '—' : `${r.trend.direction === 'up' ? '↑' : '↓'}${Math.abs(r.trend.toPar)}`}

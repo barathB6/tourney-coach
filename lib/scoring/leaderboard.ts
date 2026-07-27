@@ -41,6 +41,19 @@ export interface StandingRow {
   totalStrokes: number;
   toPar: number | null;       // null when any completed hole has no par set
   holeScores: Record<number, number>; // latest score per hole
+  // Pace of play relative to the leading group's progress (holes through):
+  // green = with the field, yellow = a couple holes back, red = well behind.
+  // null until a team has started.
+  pace: 'green' | 'yellow' | 'red' | null;
+}
+
+// Pace status from how many holes a team is behind the front of the field.
+// Field-relative (needs no per-team start clock): green ≤1 back, yellow 2–3,
+// red ≥4. A team that hasn't teed off yet has no pace.
+export function paceStatus(holesCompleted: number, fieldMaxThru: number): 'green' | 'yellow' | 'red' | null {
+  if (holesCompleted <= 0) return null;
+  const behind = fieldMaxThru - holesCompleted;
+  return behind <= 1 ? 'green' : behind <= 3 ? 'yellow' : 'red';
 }
 
 // ── Max score rule ──────────────────────────────────────────────────────────
@@ -223,6 +236,9 @@ export function computeStandings(params: {
     return a.teamName.localeCompare(b.teamName); // stable display order for true ties
   });
 
+  // Pace is measured against the front of the field (most holes through).
+  const fieldMaxThru = started.reduce((m, r) => Math.max(m, r.holesCompleted), 0);
+
   // Assign ranks: countback breaks the rank; identical primary AND no
   // countback separation means a shared (T) rank.
   const standings: StandingRow[] = [];
@@ -239,11 +255,11 @@ export function computeStandings(params: {
         standings[i - 1].tied = true;
       }
     }
-    standings.push({ rank, tied, ...r });
+    standings.push({ rank, tied, ...r, pace: paceStatus(r.holesCompleted, fieldMaxThru) });
   }
   let nextRank = started.length + 1;
   for (const w of waiting) {
-    standings.push({ rank: nextRank++, tied: false, ...w });
+    standings.push({ rank: nextRank++, tied: false, ...w, pace: null });
   }
   return standings;
 }

@@ -19,6 +19,9 @@ type Registration = { id: string; contact_name: string; registration_type: strin
 // collection with offline caching and batch upload, and the patent trigger:
 // submitting a score labels the contemporaneous GPS points as that hole's
 // green. All against the production API.
+// Score tiers relative to par (spec Module 6); strokes = par + offset.
+const SCORE_TIERS: [string, number][] = [['Eagle', -2], ['Birdie', -1], ['Par', 0], ['Bogey', 1], ['+2', 2], ['+3', 3]];
+
 export default function LiveRoundScreen() {
   const { session } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -273,6 +276,8 @@ export default function LiveRoundScreen() {
     return <SafeAreaView style={s.page}><ActivityIndicator style={{ marginTop: 60 }} color={colors.primary} /></SafeAreaView>;
   }
 
+  const holePar = ctx?.holes.find((h) => h.hole_number === currentHole)?.par ?? null;
+
   return (
     <SafeAreaView style={s.page} edges={['top']}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
@@ -331,15 +336,36 @@ export default function LiveRoundScreen() {
             </View>
 
             <View style={s.card}>
-              <Text style={s.scoreKicker}>Score for hole {currentHole}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Pressable onPress={() => setStrokes((n) => Math.max(1, n - 1))} style={s.stepBtn}><Text style={s.stepText}>−</Text></Pressable>
-                <Text style={s.strokes}>{strokes}</Text>
-                <Pressable onPress={() => setStrokes((n) => Math.min(20, n + 1))} style={s.stepBtn}><Text style={s.stepText}>+</Text></Pressable>
-                <Pressable onPress={onSubmitScore} disabled={busy} style={[s.primaryBtn, { flex: 1 }, busy && { opacity: 0.7 }]}>
-                  <Text style={s.primaryBtnText}>{busy ? 'Submitting…' : 'Submit score'}</Text>
-                </Pressable>
-              </View>
+              <Text style={s.scoreKicker}>Score for hole {currentHole}{holePar ? ` · Par ${holePar}` : ''}</Text>
+              {holePar != null ? (
+                <>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {SCORE_TIERS.map(([label, off]) => {
+                      const val = Math.max(1, holePar + off);
+                      const active = strokes === val;
+                      return (
+                        <Pressable key={label} onPress={() => setStrokes(val)} style={{ width: '31%', paddingVertical: 10, borderRadius: 10, borderWidth: active ? 1.5 : 1, borderColor: active ? colors.primary : colors.line, backgroundColor: active ? colors.greenSoft : '#fff', alignItems: 'center' }}>
+                          <Text style={{ fontFamily: font.sansBold, fontSize: 14, color: active ? colors.primary : colors.ink }}>{label}</Text>
+                          <Text style={{ fontFamily: font.sans, fontSize: 11.5, color: colors.muted }}>{val}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={{ fontFamily: font.sans, fontSize: 11.5, color: colors.muted, marginTop: 8 }}>Par is your friend — pick up at your cap and keep pace.</Text>
+                  <Pressable onPress={onSubmitScore} disabled={busy} style={[s.primaryBtn, { marginTop: 12 }, busy && { opacity: 0.7 }]}>
+                    <Text style={s.primaryBtnText}>{busy ? 'Submitting…' : `Submit ${strokes}`}</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Pressable onPress={() => setStrokes((n) => Math.max(1, n - 1))} style={s.stepBtn}><Text style={s.stepText}>−</Text></Pressable>
+                  <Text style={s.strokes}>{strokes}</Text>
+                  <Pressable onPress={() => setStrokes((n) => Math.min(20, n + 1))} style={s.stepBtn}><Text style={s.stepText}>+</Text></Pressable>
+                  <Pressable onPress={onSubmitScore} disabled={busy} style={[s.primaryBtn, { flex: 1 }, busy && { opacity: 0.7 }]}>
+                    <Text style={s.primaryBtnText}>{busy ? 'Submitting…' : 'Submit score'}</Text>
+                  </Pressable>
+                </View>
+              )}
               {!!scoreResult && (
                 <Text style={[s.body, { marginTop: 10, color: scoreResult.startsWith('Score saved') ? colors.green : scoreResult.startsWith('No signal') ? '#B08900' : colors.alert }]}>
                   {scoreResult}

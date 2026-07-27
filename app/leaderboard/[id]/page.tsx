@@ -12,6 +12,7 @@ type Standing = {
   holesCompleted: number;
   totalStrokes: number;
   toPar: number | null;
+  pace: 'green' | 'yellow' | 'red' | null;
 };
 type Payload = {
   tournament: { id: string; name: string; format: string; maxScoreRule: string; status: string; parTotal: number | null };
@@ -25,6 +26,7 @@ const FORMAT_LABEL: Record<string, string> = {
 };
 const toParText = (v: number | null) => (v == null ? '—' : v === 0 ? 'E' : v > 0 ? `+${v}` : `${v}`);
 const toParColor = (v: number | null) => (v == null ? '#6B7775' : v < 0 ? '#B91C1C' : v > 0 ? '#1A1F1C' : '#1B6B3A');
+const PACE_COLOR: Record<string, string> = { green: '#1B9E4B', yellow: '#E0A32E', red: '#D1495B' };
 
 export default function LeaderboardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = usePromise(params);
@@ -114,6 +116,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
                       {s.foursomeNumber != null && s.teamName !== `Foursome #${s.foursomeNumber}` && <div style={{ fontSize: 11.5, color: '#9AA39D' }}>Foursome #{s.foursomeNumber}</div>}
                     </td>
                     <td style={{ padding: '13px 16px', textAlign: 'right', fontSize: 14, color: '#6B7775', fontVariantNumeric: 'tabular-nums' }}>
+                      {s.pace && <span title={`Pace: ${s.pace}`} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: PACE_COLOR[s.pace], marginRight: 6, verticalAlign: 'middle' }} />}
                       {s.holesCompleted === 0 ? '—' : s.holesCompleted === 18 ? 'F' : s.holesCompleted}
                     </td>
                     <td style={{ padding: '13px 16px', textAlign: 'right', fontWeight: 700, fontSize: 15, color: toParColor(s.toPar), fontVariantNumeric: 'tabular-nums' }}>
