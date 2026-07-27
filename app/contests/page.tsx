@@ -137,17 +137,23 @@ export default function ContestsPage() {
     await fetchContests(tournamentId);
   }, [tournamentId, fetchContests]);
 
+  // Apply the standard set: patch the example config onto a matching existing
+  // contest (so the four you already seeded fill in), or create it if missing.
   const addDefaults = useCallback(async () => {
     if (!tournamentId || seeding) return;
     setSeeding(true);
+    const url = `/api/tournament/${tournamentId}/contests`;
     for (const d of DEFAULT_CONTESTS) {
-      await authedFetch(`/api/tournament/${tournamentId}/contests`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d),
-      });
+      const existing = contests.find((c) => c.contest_type === d.contestType && (d.contestType === 'putting' || c.hole_number === d.holeNumber));
+      if (existing) {
+        await authedFetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: existing.id, ...d }) });
+      } else {
+        await authedFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+      }
     }
     await fetchContests(tournamentId);
     setSeeding(false);
-  }, [tournamentId, seeding, fetchContests]);
+  }, [tournamentId, seeding, contests, fetchContests]);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
@@ -178,7 +184,12 @@ export default function ContestsPage() {
                   <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: 'var(--ink)', margin: 0 }}>
                     Contest holes — {contests.length} active
                   </h2>
-                  <button style={S.addBtn} onClick={() => setAdding(true)}>+ Add contest</button>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button style={{ ...S.ghostBtn, opacity: seeding ? 0.6 : 1 }} onClick={addDefaults} disabled={seeding} title="Fill the four standard contests with example prize & sponsor">
+                      {seeding ? 'Applying…' : '↺ Standard set'}
+                    </button>
+                    <button style={S.addBtn} onClick={() => setAdding(true)}>+ Add contest</button>
+                  </div>
                 </div>
 
                 {error && <p style={{ color: 'var(--alert)', fontSize: 13 }}>{error}</p>}
