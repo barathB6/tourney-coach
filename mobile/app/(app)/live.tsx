@@ -235,10 +235,12 @@ export default function LiveRoundScreen() {
     const enteredAt = new Date().toISOString();
     const holeAtEntry = currentHole;
     try {
-      await flush(); // contemporaneous points must be server-side before labeling
+      // Flush buffered points and take a fresh contemporaneous fix in parallel;
+      // both feed the green-labeling for this hole (the mandatory patent step).
+      const [, fix] = await Promise.all([flush(), getCurrentFix()]);
       let res;
       try {
-        res = await submitScoreApi({ deviceToken, holeNumber: holeAtEntry, strokes, enteredAt });
+        res = await submitScoreApi({ deviceToken, holeNumber: holeAtEntry, strokes, enteredAt, currentLat: fix?.lat, currentLng: fix?.lng, currentAccuracy: fix?.accuracy });
       } catch {
         // Network failure (offline) — queue the score so it's not lost and
         // syncs automatically when the connection comes back.

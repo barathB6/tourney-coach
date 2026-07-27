@@ -242,15 +242,35 @@ export default function LiveRoundPage() {
   // Persist + push one score. Throws on network/HTTP failure so the caller can
   // queue it. enteredAt (when the player actually entered it) is honored by the
   // server as submitted_at so offline scores keep correct latest-wins ordering.
-  const postScore = useCallback(async (deviceToken: string, holeNumber: number, strokes: number, enteredAt: string) => {
+  const postScore = useCallback(async (deviceToken: string, holeNumber: number, strokes: number, enteredAt: string, fix?: { lat: number; lng: number; accuracy: number | null } | null) => {
     const res = await fetch('/api/gps/score', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceToken, holeNumber, strokes, enteredAt }),
+      body: JSON.stringify({
+        deviceToken, holeNumber, strokes, enteredAt,
+        ...(fix ? { currentLat: fix.lat, currentLng: fix.lng, currentAccuracy: fix.accuracy } : {}),
+      }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Score submission failed');
     return data as { scoreStored: boolean; capped?: boolean; strokesRecorded?: number; labeledPoints: number };
+  }, []);
+
+  // The patent's mandatory step: a FRESH high-accuracy fix taken at the instant
+  // of submission — the player is standing on the green — attached to the score
+  // so it's labeled as this hole's green even if the throttled watch buffer is
+  // stale. Never throws: a denied/failed fix yields null and the score still
+  // posts (GPS may legitimately be null).
+  const currentFix = useCallback(async (): Promise<{ lat: number; lng: number; accuracy: number | null } | null> => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }),
+      );
+      return { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy ?? null };
+    } catch {
+      return null;
+    }
   }, []);
 
   // Drain the offline score queue — called on reconnect, on a timer, and on
@@ -293,8 +313,10 @@ export default function LiveRoundPage() {
     const enteredAt = new Date().toISOString();
     const holeAtEntry = currentHole;
     try {
-      await flush();
-      const data = await postScore(deviceToken, holeAtEntry, strokes, enteredAt);
+      // Flush buffered points and grab a fresh contemporaneous fix in parallel;
+      // both feed the green-labeling for this hole.
+      const [, fix] = await Promise.all([flush(), currentFix()]);
+      const data = await postScore(deviceToken, holeAtEntry, strokes, enteredAt, fix);
       const labelPart = data.labeledPoints > 0
         ? `green location for hole ${holeAtEntry} labeled from ${data.labeledPoints} GPS point${data.labeledPoints === 1 ? '' : 's'}`
         : 'no recent GPS points were available to label';

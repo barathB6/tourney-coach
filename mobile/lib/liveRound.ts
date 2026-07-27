@@ -103,18 +103,21 @@ export const uploadBatch = (params: {
   deviceToken: string; tournamentId: string; courseId: string; holeNumber: number; points: QueuedPoint[];
 }) => api('/api/gps/track', params);
 
-export const submitScore = (params: { deviceToken: string; holeNumber: number; strokes: number; enteredAt?: string }) =>
-  api('/api/gps/score', params);
+export const submitScore = (params: {
+  deviceToken: string; holeNumber: number; strokes: number; enteredAt?: string;
+  currentLat?: number; currentLng?: number; currentAccuracy?: number | null;
+}) => api('/api/gps/score', params);
 
 export const markTee = (params: { deviceToken: string; holeNumber: number; lat: number; lng: number }) =>
   api('/api/gps/mark-tee', params);
 
-// A fresh high-accuracy single fix for "mark tee here" — the player's spot
-// at tap time, not the throttled watch cache.
-export async function getCurrentFix(): Promise<{ lat: number; lng: number } | null> {
+// A fresh high-accuracy single fix — the player's spot at tap/submit time, not
+// the throttled watch cache. Used for "mark tee here" and, per the patent, for
+// the contemporaneous fix attached to every score submission.
+export async function getCurrentFix(): Promise<{ lat: number; lng: number; accuracy: number | null } | null> {
   try {
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    return { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy ?? null };
   } catch {
     return null;
   }
