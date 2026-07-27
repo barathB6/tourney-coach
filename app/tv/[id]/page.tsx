@@ -12,7 +12,7 @@ type Board = {
   tournament: { id: string; name: string; format: string; status: string; parTotal: number | null; course: string | null };
   standings: Row[]; teamsTotal: number;
   sponsors: { company: string; logoUrl: string }[];
-  contests: { holeNumber: number; type: string; prize: string | null; winner: string | null; detail: string | null; decided: boolean }[];
+  contests: { holeNumber: number | null; type: string; prize: string | null; winner: string | null; detail: string | null; decided: boolean }[];
   raisedCents: number;
 };
 
@@ -74,10 +74,12 @@ export default function TVBoard({ params }: { params: Promise<{ id: string }> })
   // decided_at with no winner would otherwise print "… · null · Hole 5".
   const decidedContest = contests.find((c) => c.decided && c.winner);
   const openContest = contests.find((c) => !c.decided || !c.winner);
+  // Putting has no hole (null) — omit the "· Hole N" suffix for it.
+  const hole = (n: number | null) => (n ? ` · Hole ${n}` : '');
   const contestLine = decidedContest
-    ? `${contestName(decidedContest.type)} · ${decidedContest.winner}${decidedContest.detail ? ` (${decidedContest.detail})` : ''} · Hole ${decidedContest.holeNumber}`
+    ? `${contestName(decidedContest.type)} · ${decidedContest.winner}${decidedContest.detail ? ` (${decidedContest.detail})` : ''}${hole(decidedContest.holeNumber)}`
     : openContest
-      ? `${contestName(openContest.type)} · open · Hole ${openContest.holeNumber}`
+      ? `${contestName(openContest.type)} · open${hole(openContest.holeNumber)}`
       : null;
 
   return (

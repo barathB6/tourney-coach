@@ -115,7 +115,7 @@ export default function LiveRoundPage() {
           .then((b) => {
             if (!Array.isArray(b?.contests)) return;
             const map: Record<number, string[]> = {};
-            for (const c of b.contests) { (map[c.holeNumber] ??= []).push(c.type); }
+            for (const c of b.contests) { if (c.holeNumber != null) (map[c.holeNumber] ??= []).push(c.type); }
             setContestsByHole(map);
           })
           .catch(() => { /* contests are optional */ });

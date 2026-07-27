@@ -394,6 +394,16 @@ export default function Dashboard() {
                 Course Builder
               </button>
               <button
+                onClick={() => router.push('/contests')}
+                title="Hole-in-one, closest-to-pin, longest drive, putting contest"
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v7" /><circle cx="12" cy="14" r="6" /><path d="M9 20h6" />
+                </svg>
+                Contest Holes
+              </button>
+              <button
                 onClick={() => router.push('/preview/hole-map')}
                 title="See how the GPS hole map renders as tournament data accumulates"
                 style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}

@@ -6,7 +6,7 @@
 // with the anon key, and every score write POSTs one message here. Fire and
 // forget by design — delivery is best-effort push on top of the client's
 // poll fallback, so a broadcast hiccup must never fail a score submission.
-export async function broadcastScoreUpdate(tournamentId: string, payload: Record<string, unknown> = {}): Promise<void> {
+async function broadcast(topic: string, event: string, payload: Record<string, unknown>): Promise<void> {
   try {
     await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/realtime/v1/api/broadcast`, {
       method: 'POST',
@@ -16,12 +16,20 @@ export async function broadcastScoreUpdate(tournamentId: string, payload: Record
         Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
       },
       body: JSON.stringify({
-        messages: [
-          { topic: `leaderboard:${tournamentId}`, event: 'score', payload: { at: new Date().toISOString(), ...payload } },
-        ],
+        messages: [{ topic, event, payload: { at: new Date().toISOString(), ...payload } }],
       }),
     });
   } catch {
-    // best-effort: the leaderboard's poll fallback covers missed pushes
+    // best-effort: the client's poll fallback covers missed pushes
   }
+}
+
+export async function broadcastScoreUpdate(tournamentId: string, payload: Record<string, unknown> = {}): Promise<void> {
+  await broadcast(`leaderboard:${tournamentId}`, 'score', payload);
+}
+
+// Contest leaderboards (closest-to-pin, long-drive) and winner announcements
+// push here; the /contests manager subscribes to contests:<tournamentId>.
+export async function broadcastContestUpdate(tournamentId: string, payload: Record<string, unknown> = {}): Promise<void> {
+  await broadcast(`contests:${tournamentId}`, 'contest', payload);
 }
