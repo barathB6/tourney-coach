@@ -563,7 +563,7 @@ export default function CoachPage() {
 
         {/* ═══ TOP TABS ═══ */}
         <nav style={{ display: 'flex', gap: 0, padding: '0 24px', borderBottom: '0.5px solid rgba(0,0,0,0.09)', flexShrink: 0 }}>
-          {([['coach', 'AI Coach'], ['circle', 'TourneyCircle']] as const).map(([id, label]) => (
+          {([['coach', 'AI Coach']] as const).map(([id, label]) => (
             <button key={id} onClick={() => setScreen(id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', background: 'transparent', fontFamily: 'inherit', padding: '11px 4px', marginRight: 26, borderBottom: screen === id ? '2px solid #1B6B3A' : '2px solid transparent' }}>
               <span style={{ fontSize: 13, color: screen === id ? '#1B6B3A' : '#9b9b96', fontWeight: 600, letterSpacing: '0.01em' }}>{label}</span>
             </button>

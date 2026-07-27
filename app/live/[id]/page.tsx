@@ -87,6 +87,11 @@ export default function LiveRoundPage() {
   // Offline score queue: scores entered without a connection, synced later.
   const scoreQueueRef = useRef<QueuedScore[]>([]);
   const [pendingScores, setPendingScores] = useState(0);
+  // Module 7 — TourneyCircle opt-in, fired after the final hole is submitted.
+  const [circlePrompt, setCirclePrompt] = useState(false);
+  const [circleRadius, setCircleRadius] = useState(25);
+  const [circleResult, setCircleResult] = useState('');
+  const [circleBusy, setCircleBusy] = useState(false);
   const flushScoresRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -329,6 +334,9 @@ export default function LiveRoundPage() {
       if (data.capped && data.strokesRecorded) setStrokes(data.strokesRecorded);
       // Don't claim the score was saved when the server said it wasn't.
       setScoreResult(data.scoreStored ? `Score saved —${capPart} ${labelPart}.` : `Score NOT stored (database not ready) — ${labelPart}.`);
+      // The inventive timing (Patent Concept B): ask at the peak-engagement
+      // moment — right after the final hole is in.
+      if (holeAtEntry === 18 && data.scoreStored) setCirclePrompt(true);
     } catch (err) {
       // Offline or the request failed — queue the score so it's not lost, and
       // sync it automatically when the connection comes back.
@@ -342,6 +350,35 @@ export default function LiveRoundPage() {
       }
     } finally {
       setSubmittingScore(false);
+    }
+  }
+
+  // TourneyCircle opt-in / decline. Takes a one-time location fix (if allowed)
+  // so the player can be matched to nearby tournaments; the organizer never
+  // sees it — only aggregate counts. A decline is recorded so we never re-ask.
+  async function circleOptIn(decline: boolean) {
+    setCircleBusy(true); setCircleResult('');
+    let homeLat: number | null = null, homeLng: number | null = null;
+    if (!decline && typeof navigator !== 'undefined' && navigator.geolocation) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 }));
+        homeLat = pos.coords.latitude; homeLng = pos.coords.longitude;
+      } catch { /* no location — opt-in still recorded, just not matchable yet */ }
+    }
+    try {
+      const res = await fetch('/api/circle/opt-in', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationId: regId, decline, radiusMiles: circleRadius, homeLat, homeLng }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (decline) { setCirclePrompt(false); return; }
+      setCircleResult(res.ok
+        ? `You're in.${d.memberCountNearby ? ` ${d.memberCountNearby} TourneyCircle golfer${d.memberCountNearby === 1 ? '' : 's'} near you.` : ''}`
+        : (d.error || 'Could not save — try again.'));
+    } catch {
+      setCircleResult('Could not save — check your connection.');
+    } finally {
+      setCircleBusy(false);
     }
   }
 
@@ -602,6 +639,36 @@ export default function LiveRoundPage() {
               ✕
             </button>
             <HoleSchematic hole={schematicHole} maxWidth={360} />
+          </div>
+        </div>
+      )}
+
+      {circlePrompt && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,74,38,0.97)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 22, zIndex: 100 }}>
+          <div style={{ maxWidth: 380, width: '100%', textAlign: 'center', color: '#fff', fontFamily: "'DM Sans', sans-serif" }}>
+            {!circleResult ? (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#C9A227', marginBottom: 16 }}>TourneyCircle</div>
+                <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 25, lineHeight: 1.2, margin: '0 0 12px' }}>Nice round! Want to hear about other charity golf tournaments near you?</h2>
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', margin: '0 0 22px', lineHeight: 1.5 }}>Only in your area. Your info never leaves TourneyCoach — organizers never see your name or email.</p>
+                <div style={{ marginBottom: 22 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', marginBottom: 8 }}>Within</div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                    {[15, 25, 35, 50].map((r) => (
+                      <button key={r} onClick={() => setCircleRadius(r)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)', background: circleRadius === r ? '#C9A227' : 'transparent', color: circleRadius === r ? '#2E1F04' : '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{r} mi</button>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={() => circleOptIn(false)} disabled={circleBusy} style={{ width: '100%', padding: '14px', background: '#C9A227', color: '#2E1F04', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10, fontFamily: 'inherit' }}>{circleBusy ? 'Saving…' : 'Yes, keep me posted'}</button>
+                <button onClick={() => circleOptIn(true)} disabled={circleBusy} style={{ width: '100%', padding: '12px', background: 'transparent', color: 'rgba(255,255,255,0.7)', border: 'none', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>No thanks</button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 44, marginBottom: 12 }}>⛳</div>
+                <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 25, margin: '0 0 10px' }}>{circleResult}</h2>
+                <button onClick={() => setCirclePrompt(false)} style={{ marginTop: 16, padding: '12px 26px', background: '#fff', color: '#0F4A26', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
+              </>
+            )}
           </div>
         </div>
       )}
