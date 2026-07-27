@@ -142,17 +142,8 @@ export default function ContestsPage() {
           </p>
         </div>
 
-        {/* Framed panel */}
-        <div style={S.frame}>
-          <div style={S.chrome}>
-            <div style={{ display: 'flex', gap: 7 }}>
-              {['#E6675E', '#E7B24A', '#5FB85A'].map((c) => <span key={c} style={{ width: 12, height: 12, borderRadius: 999, background: c, opacity: 0.85 }} />)}
-            </div>
-            <div style={S.urlBar}>app.tourneycoach.com <span style={{ color: '#B7BDB6' }}>/ contests</span></div>
-            <span style={S.dayOf}>DAY-OF</span>
-          </div>
-
-          <div style={{ padding: '26px 26px 30px', background: '#fff', borderRadius: '0 0 15px 15px' }}>
+        {/* Content */}
+        <div>
             {loading ? (
               <p style={{ color: '#8A9089' }}>Loading contests…</p>
             ) : !tournamentId ? (
@@ -183,7 +174,6 @@ export default function ContestsPage() {
                 )}
               </>
             )}
-          </div>
         </div>
 
         <WinnersSummary contests={contests} />
@@ -587,10 +577,6 @@ function Money({ value, onChange, placeholder }: { value: string; onChange: (v: 
 const S: Record<string, React.CSSProperties> = {
   back: { background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: 0 },
   moduleTag: { fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#8A6D1F', background: '#F3E6C4', borderRadius: 6, padding: '3px 8px' },
-  frame: { borderRadius: 16, border: '1px solid var(--line)', background: '#fff', overflow: 'hidden', boxShadow: '0 20px 50px -30px rgba(15,74,38,0.35)' },
-  chrome: { display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: '#F1ECE1', borderBottom: '1px solid var(--line)' },
-  urlBar: { flex: 1, background: '#fff', border: '1px solid #E9E3D6', borderRadius: 8, padding: '7px 14px', fontSize: 13, color: '#5C6B62', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  dayOf: { fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: 'var(--primary)', background: '#E1F0E7', borderRadius: 6, padding: '5px 10px' },
   addBtn: { background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' },
   ghostBtn: { background: '#fff', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: 9, padding: '10px 16px', fontSize: 14, fontWeight: 500, cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(258px, 1fr))', gap: 16 },
