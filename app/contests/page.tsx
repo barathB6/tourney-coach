@@ -56,6 +56,17 @@ function splitLabel(split: string | null): string | null {
   return p.length ? `${p.map((n) => `${n}%`).join(' / ')} of pot` : null;
 }
 
+// The four standard contests, offered as a one-click starter set. Structural
+// defaults only (type, a sensible hole, setup notes, putting economics) — prizes,
+// sponsors, and any live counts stay empty for the organizer to fill with real
+// values, so the manager never ships fabricated operational data.
+const DEFAULT_CONTESTS: Record<string, unknown>[] = [
+  { contestType: 'hole_in_one', holeNumber: 12, notes: 'Insured ace on a par 3. Confirm the insurance and line up two witnesses on the tee.' },
+  { contestType: 'closest_to_pin', holeNumber: 5, notes: 'Standard closest-to-pin. Marker on each tee, witnessed by the group.' },
+  { contestType: 'long_drive', holeNumber: 7, categoryMode: 'open', notes: 'Marker placed in the fairway. Players move it as they out-drive.' },
+  { contestType: 'putting', locationLabel: 'Practice green · pre-round', entryFeeCents: 1000, payoutSplit: '60/30/10', notes: '$10 add-on at registration. Single-putt at 30 ft. Top 3 split the pot.' },
+];
+
 export default function ContestsPage() {
   const router = useRouter();
   const [tournamentId, setTournamentId] = useState<string | null>(null);
@@ -65,6 +76,7 @@ export default function ContestsPage() {
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
   const [manageId, setManageId] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
 
   const fetchContests = useCallback(async (tid: string) => {
     const res = await authedFetch(`/api/tournament/${tid}/contests`);
@@ -125,6 +137,18 @@ export default function ContestsPage() {
     await fetchContests(tournamentId);
   }, [tournamentId, fetchContests]);
 
+  const addDefaults = useCallback(async () => {
+    if (!tournamentId || seeding) return;
+    setSeeding(true);
+    for (const d of DEFAULT_CONTESTS) {
+      await authedFetch(`/api/tournament/${tournamentId}/contests`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d),
+      });
+    }
+    await fetchContests(tournamentId);
+    setSeeding(false);
+  }, [tournamentId, seeding, fetchContests]);
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '26px 20px 64px' }}>
@@ -160,9 +184,12 @@ export default function ContestsPage() {
                 {error && <p style={{ color: 'var(--alert)', fontSize: 13 }}>{error}</p>}
 
                 {contests.length === 0 ? (
-                  <div style={{ padding: '32px 0', textAlign: 'center', color: '#8A9089' }}>
-                    <p style={{ margin: '0 0 14px' }}>No contest holes yet. Add hole-in-one, closest-to-pin, longest drive, or a putting contest.</p>
-                    <button style={S.addBtn} onClick={() => setAdding(true)}>+ Add your first contest</button>
+                  <div style={{ padding: '32px 0', textAlign: 'center' }}>
+                    <p style={{ color: '#8A9089', margin: '0 0 16px' }}>No contest holes yet. Start with the four standard contests, then fill in your prizes and sponsors.</p>
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <button style={{ ...S.addBtn, opacity: seeding ? 0.6 : 1 }} onClick={addDefaults} disabled={seeding}>{seeding ? 'Adding…' : '+ Add the four standard contests'}</button>
+                      <button style={S.ghostBtn} onClick={() => setAdding(true)}>Add one manually</button>
+                    </div>
                   </div>
                 ) : (
                   <div style={S.grid}>
