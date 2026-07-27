@@ -4,6 +4,18 @@ import { haversineMeters, type LatLng } from './gps/geo';
 
 export const NOTIFICATION_COST_CENTS = 2900; // $29 flat, one blast to all matched
 export const RADIUS_OPTIONS = [15, 25, 35, 50] as const;
+
+// Addressable-audience estimate by radius — the charitable-golfer reach around a
+// course. Ported from the original in-coach TourneyCircle preview; shown as the
+// projected reach until this course accumulates its own real opt-ins.
+export const PREVIEW_RADIUS_COUNTS: Record<number, number> = { 15: 184, 25: 347, 35: 521, 50: 789 };
+
+// Split a total into member types using the observed mix (individual / corporate
+// / Circle-of-Excellence). For 347 → 285 / 62 / 41, matching the source data.
+export function previewBreakdown(total: number): { total: number; individual: number; corporate: number; coe: number } {
+  const individual = Math.round(total * 0.821);
+  return { total, individual, corporate: total - individual, coe: Math.round(total * 0.118) };
+}
 export type RadiusMiles = (typeof RADIUS_OPTIONS)[number];
 export type MemberType = 'individual' | 'corporate' | 'coe';
 

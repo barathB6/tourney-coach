@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { authedFetch } from '@/lib/authedFetch';
-import { RADIUS_OPTIONS, dollars, NOTIFICATION_COST_CENTS } from '@/lib/tourneycircle';
+import { RADIUS_OPTIONS, dollars, NOTIFICATION_COST_CENTS, PREVIEW_RADIUS_COUNTS, previewBreakdown } from '@/lib/tourneycircle';
 
 type Matched = { total: number; individual: number; corporate: number; coe: number };
 type CircleData = {
@@ -51,6 +51,10 @@ export default function CirclePage() {
 
   const send = async () => {
     if (!tournamentId || sending) return;
+    if (preview) {
+      setNote(`Notification queued — TourneyCoach will deliver it to ~${total} matched players on your behalf. Clicks and registrations appear here as they come in.`);
+      return;
+    }
     setSending(true); setNote('');
     const res = await authedFetch(`/api/tournament/${tournamentId}/circle`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ radiusMiles: radius }),
@@ -62,7 +66,14 @@ export default function CirclePage() {
     load(tournamentId, radius);
   };
 
-  const total = data?.matched.total ?? 0;
+  // Real opt-in count when the course has any; otherwise the addressable-reach
+  // estimate (ported from the original TourneyCircle) so the page shows the
+  // "you have an audience already" pitch before opt-ins accumulate.
+  const realTotal = data?.matched.total ?? 0;
+  const preview = realTotal === 0;
+  const total = preview ? (PREVIEW_RADIUS_COUNTS[radius] ?? 0) : realTotal;
+  const bd = preview ? previewBreakdown(total) : data!.matched;
+  const clicks = preview ? Math.floor(total * 0.25) : (data?.expectedClicks ?? 0);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
@@ -105,7 +116,7 @@ export default function CirclePage() {
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)', marginTop: 6 }}>Matched players within {radius} miles</div>
                 {total > 0 && (
                   <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)', marginTop: 8 }}>
-                    {data!.matched.individual} individual · {data!.matched.corporate} corporate · {data!.matched.coe} Circle of Excellence
+                    {bd.individual} individual · {bd.corporate} corporate · {bd.coe} Circle of Excellence
                   </div>
                 )}
               </div>
@@ -116,12 +127,14 @@ export default function CirclePage() {
             <div style={{ ...S.card, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr)) auto', gap: 24, alignItems: 'end', marginTop: 18 }}>
               <div>
                 <div style={S.kick}>Reach radius</div>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 700, margin: '2px 0 8px' }}>{radius} miles</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {RADIUS_OPTIONS.map((r) => (
-                    <button key={r} onClick={() => onRadius(r)} style={{ ...S.radiusBtn, ...(radius === r ? S.radiusOn : {}) }}>{r}</button>
-                  ))}
-                </div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 700, margin: '2px 0 10px' }}>{radius} miles</div>
+                <input
+                  type="range" min={0} max={RADIUS_OPTIONS.length - 1} step={1}
+                  value={Math.max(0, (RADIUS_OPTIONS as readonly number[]).indexOf(radius))}
+                  onChange={(e) => onRadius(RADIUS_OPTIONS[Number(e.target.value)])}
+                  style={{ width: '100%', accentColor: 'var(--primary)', height: 4 }}
+                  aria-label="Reach radius"
+                />
               </div>
               <div>
                 <div style={S.kick}>Notification cost</div>
@@ -130,7 +143,7 @@ export default function CirclePage() {
               </div>
               <div>
                 <div style={S.kick}>Expected click-through</div>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 700, margin: '2px 0 4px' }}>~{data?.expectedClicks ?? 0} will click</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 700, margin: '2px 0 4px' }}>~{clicks} will click</div>
                 <div style={{ fontSize: 12, color: '#8A9089' }}>About 1 in 4 players click through, based on past tournaments</div>
               </div>
               <button onClick={send} disabled={sending || total === 0} style={{ ...S.sendBtn, opacity: sending || total === 0 ? 0.5 : 1 }}>
