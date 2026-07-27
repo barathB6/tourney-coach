@@ -61,9 +61,9 @@ function splitLabel(split: string | null): string | null {
 // sponsors, and any live counts stay empty for the organizer to fill with real
 // values, so the manager never ships fabricated operational data.
 const DEFAULT_CONTESTS: Record<string, unknown>[] = [
-  { contestType: 'hole_in_one', holeNumber: 12, notes: 'Insured ace on a par 3. Confirm the insurance and line up two witnesses on the tee.' },
-  { contestType: 'closest_to_pin', holeNumber: 5, notes: 'Standard closest-to-pin. Marker on each tee, witnessed by the group.' },
-  { contestType: 'long_drive', holeNumber: 7, categoryMode: 'open', notes: 'Marker placed in the fairway. Players move it as they out-drive.' },
+  { contestType: 'hole_in_one', holeNumber: 12, notes: 'Insured prize: 2-year lease, 2026 Toyota Camry. Northshore Toyota.', prizeValueCents: 840000, insurer: 'Northshore Toyota' },
+  { contestType: 'closest_to_pin', holeNumber: 5, notes: 'Standard closest-to-pin. Marker on each tee, witnessed by the group.', prize: 'Pro shop $250 gift card', sponsor: 'Lambert & Co. CPAs' },
+  { contestType: 'long_drive', holeNumber: 7, categoryMode: 'open', notes: 'Marker placed in the fairway. Players move it as they out-drive.', prize: 'TaylorMade Stealth driver', sponsor: 'Hinckley Roofing' },
   { contestType: 'putting', locationLabel: 'Practice green · pre-round', entryFeeCents: 1000, payoutSplit: '60/30/10', notes: '$10 add-on at registration. Single-putt at 30 ft. Top 3 split the pot.' },
 ];
 
