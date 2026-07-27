@@ -573,11 +573,11 @@ export default function LiveRoundPage() {
       </div>
 
       <a
-        href={`/leaderboard/${ctx.tournament.id}`}
+        href={`/tv/${ctx.tournament.id}`}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', maxWidth: 460, margin: '14px auto 0', padding: '13px', background: '#1B4425', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 14.5, textDecoration: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif" }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16M7 20V10M12 20V4M17 20v-7" /></svg>
-        Live leaderboard
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+        TV Leaderboard
       </a>
 
       <a

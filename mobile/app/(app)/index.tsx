@@ -101,7 +101,7 @@ export default function DashboardScreen() {
 
   const ACTIONS = [
     { label: 'AI Coach', native: '/coach' as const },
-    { label: 'Leaderboard', native: '/leaderboard' as const },
+    { label: 'TV Leaderboard', native: '/leaderboard' as const },
     { label: 'Volunteers', native: '/volunteers' as const },
     { label: 'Registrations', native: '/registrations' as const },
     { label: 'Sponsors', native: '/sponsors' as const },

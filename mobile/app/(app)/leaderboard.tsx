@@ -66,7 +66,7 @@ export default function LeaderboardScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
-      <ScreenHeader title="Leaderboard" subtitle={tournament?.name ?? 'Your tournament'} />
+      <ScreenHeader title="TV Leaderboard" subtitle={tournament?.name ?? 'Your tournament'} />
 
       {status === 'loading' && <View style={s.center}><ActivityIndicator color={colors.green} /></View>}
       {status === 'notlive' && <View style={s.center}><Text style={s.emptyTitle}>Not live yet</Text><Text style={s.emptyBody}>The leaderboard opens once you publish the event and teams start submitting scores.</Text></View>}

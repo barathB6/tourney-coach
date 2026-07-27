@@ -415,18 +415,6 @@ export default function Dashboard() {
               </button>
               {tournament && (
                 <button
-                  onClick={() => router.push(`/leaderboard/${tournament.id}`)}
-                  title="Open the public live leaderboard for this tournament"
-                  style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 20h16M7 20V10M12 20V4M17 20v-7" />
-                  </svg>
-                  Leaderboard
-                </button>
-              )}
-              {tournament && (
-                <button
                   onClick={() => window.open(`/tv/${tournament.id}`, '_blank', 'noopener')}
                   title="Open the clubhouse TV leaderboard (full-screen, auto-updating)"
                   style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
@@ -434,7 +422,7 @@ export default function Dashboard() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
                   </svg>
-                  TV Board
+                  TV Leaderboard
                 </button>
               )}
               {isAdmin && (
