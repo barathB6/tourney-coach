@@ -64,6 +64,7 @@ export default function ContestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
+  const [manageId, setManageId] = useState<string | null>(null);
 
   const fetchContests = useCallback(async (tid: string) => {
     const res = await authedFetch(`/api/tournament/${tid}/contests`);
@@ -174,9 +175,9 @@ export default function ContestsPage() {
                   </div>
                 ) : (
                   <div style={S.grid}>
-                    {contests.map((c) => (
+                    {contests.map((c, i) => (
                       <ContestCard key={c.id} contest={c} fieldSize={fieldSize}
-                        onPatch={patch} onDelete={() => removeContest(c.id)} onAddEntry={addEntry} onRemoveEntry={removeEntry} />
+                        featured={i === 0 || isDecided(c)} onOpen={() => setManageId(c.id)} />
                     ))}
                   </div>
                 )}
@@ -203,6 +204,14 @@ export default function ContestsPage() {
           }}
         />
       )}
+
+      {manageId && (() => {
+        const c = contests.find((x) => x.id === manageId);
+        return c ? (
+          <ManageModal contest={c} fieldSize={fieldSize} onPatch={patch} onAddEntry={addEntry} onRemoveEntry={removeEntry}
+            onDelete={async () => { await removeContest(c.id); setManageId(null); }} onClose={() => setManageId(null)} />
+        ) : null;
+      })()}
     </div>
   );
 }
@@ -217,24 +226,17 @@ function EmptyState({ onSetup }: { onSetup: () => void }) {
   );
 }
 
-// ── Card ──
-function ContestCard({ contest: c, fieldSize, onPatch, onDelete, onAddEntry, onRemoveEntry }: {
-  contest: Contest; fieldSize: number | null;
-  onPatch: (b: Record<string, unknown>) => Promise<void>;
-  onDelete: () => void;
-  onAddEntry: (b: Record<string, unknown>) => Promise<void>;
-  onRemoveEntry: (id: string) => Promise<void>;
+// ── Card (clean face; click to manage) ──
+function ContestCard({ contest: c, fieldSize, featured, onOpen }: {
+  contest: Contest; fieldSize: number | null; featured: boolean; onOpen: () => void;
 }) {
   const meta = CONTEST_META[c.contest_type];
   const decided = isDecided(c);
-  const [manage, setManage] = useState(false);
 
   return (
-    <div style={{ ...S.card, ...(decided ? S.cardFeatured : {}) }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div style={{ ...S.iconTile, background: decided ? 'var(--primary)' : '#EFEADE' }}><span style={{ fontSize: 22 }}>{meta.icon}</span></div>
-        <button title="Delete contest" onClick={onDelete} style={S.del}>✕</button>
-      </div>
+    <div role="button" tabIndex={0} onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpen(); }}
+      style={{ ...S.card, ...(featured ? S.cardFeatured : {}), cursor: 'pointer' }}>
+      <div style={{ ...S.iconTile, background: featured ? 'var(--primary)' : '#E9F0EA' }}><span style={{ fontSize: 22 }}>{meta.icon}</span></div>
 
       <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 21, color: 'var(--ink)', margin: '14px 0 4px' }}>{meta.label}</h3>
       <p style={S.meta}>{metaLine(c)}</p>
@@ -263,15 +265,41 @@ function ContestCard({ contest: c, fieldSize, onPatch, onDelete, onAddEntry, onR
           ✓ {c.contest_type === 'putting' ? `${c.winners.length} placed` : `${c.winner_name}${c.winner_detail ? ` · ${c.winner_detail}` : ''}`}
         </div>
       )}
+    </div>
+  );
+}
 
-      <button onClick={() => setManage((m) => !m)} style={S.manage}>{manage ? 'Hide controls ▴' : 'Manage ▾'}</button>
-      {manage && (
-        <div style={{ marginTop: 10, borderTop: '1px dashed var(--line)', paddingTop: 12 }}>
-          {c.contest_type === 'hole_in_one' && <HoleInOnePanel c={c} onPatch={onPatch} />}
-          {(c.contest_type === 'closest_to_pin' || c.contest_type === 'long_drive') && <LeaderboardPanel c={c} onAddEntry={onAddEntry} onRemoveEntry={onRemoveEntry} onPatch={onPatch} />}
-          {c.contest_type === 'putting' && <PuttingPanel c={c} fieldSize={fieldSize} onAddEntry={onAddEntry} onRemoveEntry={onRemoveEntry} onPatch={onPatch} />}
+// ── Manage modal (opened by clicking a card) ──
+function ManageModal({ contest: c, fieldSize, onPatch, onDelete, onAddEntry, onRemoveEntry, onClose }: {
+  contest: Contest; fieldSize: number | null;
+  onPatch: (b: Record<string, unknown>) => Promise<void>;
+  onDelete: () => void;
+  onAddEntry: (b: Record<string, unknown>) => Promise<void>;
+  onRemoveEntry: (id: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const meta = CONTEST_META[c.contest_type];
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+          <div style={{ ...S.iconTile, background: 'var(--primary)' }}><span style={{ fontSize: 20 }}>{meta.icon}</span></div>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 21, color: 'var(--ink)', margin: 0 }}>{meta.label}</h2>
+            <p style={{ ...S.meta, marginTop: 2 }}>{metaLine(c)}</p>
+          </div>
+          <button onClick={onClose} style={S.del}>✕</button>
         </div>
-      )}
+
+        {c.contest_type === 'hole_in_one' && <HoleInOnePanel c={c} onPatch={onPatch} />}
+        {(c.contest_type === 'closest_to_pin' || c.contest_type === 'long_drive') && <LeaderboardPanel c={c} onAddEntry={onAddEntry} onRemoveEntry={onRemoveEntry} onPatch={onPatch} />}
+        {c.contest_type === 'putting' && <PuttingPanel c={c} fieldSize={fieldSize} onAddEntry={onAddEntry} onRemoveEntry={onRemoveEntry} onPatch={onPatch} />}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+          <button onClick={onDelete} style={{ ...S.ghostBtn, color: 'var(--alert)', borderColor: '#E7C3BA' }}>Delete contest</button>
+          <button onClick={onClose} style={S.addBtn}>Done</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -563,7 +591,7 @@ const S: Record<string, React.CSSProperties> = {
   chrome: { display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: '#F1ECE1', borderBottom: '1px solid var(--line)' },
   urlBar: { flex: 1, background: '#fff', border: '1px solid #E9E3D6', borderRadius: 8, padding: '7px 14px', fontSize: 13, color: '#5C6B62', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   dayOf: { fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: 'var(--primary)', background: '#E1F0E7', borderRadius: 6, padding: '5px 10px' },
-  addBtn: { background: 'var(--deep-green)', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' },
+  addBtn: { background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' },
   ghostBtn: { background: '#fff', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: 9, padding: '10px 16px', fontSize: 14, fontWeight: 500, cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(258px, 1fr))', gap: 16 },
   card: { background: '#fff', border: '1px solid var(--line)', borderRadius: 14, padding: 18 },
@@ -572,7 +600,6 @@ const S: Record<string, React.CSSProperties> = {
   del: { background: 'none', border: 'none', color: '#C5CAC2', cursor: 'pointer', fontSize: 12, padding: 2, lineHeight: 1 },
   meta: { fontSize: 11.5, fontWeight: 700, letterSpacing: 0.7, color: '#8A9089', margin: 0 },
   decidedTag: { marginTop: 12, background: '#EAF2ED', color: 'var(--primary)', borderRadius: 8, padding: '7px 10px', fontSize: 12.5, fontWeight: 600 },
-  manage: { marginTop: 12, background: 'none', border: 'none', color: 'var(--primary)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, textAlign: 'left' },
   pill: { fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '2px 8px' },
   miniBtn: { background: '#fff', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: 'var(--ink)', cursor: 'pointer' },
   miniBtnOn: { background: 'var(--primary)', borderColor: 'var(--primary)', color: '#fff' },
