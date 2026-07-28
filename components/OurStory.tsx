@@ -55,9 +55,6 @@ export default function OurStory() {
       */}
       <div className="tc-story-sticky">
         <div className="tc-story" style={{ maxWidth: 720, margin: '0 auto', width: '100%', padding: '0 24px' }}>
-          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.4, textTransform: 'uppercase', color: 'var(--primary)', margin: '0 0 10px', fontFamily: "'DM Sans', sans-serif" }}>
-            The origin story
-          </p>
           <h2
             id="our-story-heading"
             style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 'clamp(32px, 5vw, 46px)', lineHeight: 1.08, color: 'var(--deep-green)', margin: '0 0 28px' }}
