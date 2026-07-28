@@ -121,32 +121,56 @@ body {
 }
 
 /* ── "Our Story" scroll-driven word reveal ──────────────────────────────
-   The Apple effect: words sit faint and blurred, then light up one after the
-   next as the block travels through the viewport — driven by scroll POSITION,
-   not by a timer, so it tracks the wheel/finger exactly and reverses when you
-   scroll back up.
+   The Apple effect: text sits pinned in place on screen while words light up
+   one after the next as you scroll the wheel — driven by scroll POSITION,
+   not by a timer, so it tracks the wheel/finger exactly and reverses when
+   you scroll back up.
 
-   No JavaScript. The container publishes a `view-timeline` (its own progress
-   through the scrollport) and every word animates against that SHARED
-   timeline, each over a slightly later slice of it (--s/--e, set per word).
-   Sharing one timeline is what makes the sweep read as a single sentence
-   lighting up; if each word used its own view() timeline, words on the same
-   line would animate in lockstep and every line would restart the effect.
+   This needs a real, GUARANTEED scroll distance to play out over — a block
+   only as tall as its own text transits the viewport in a fraction of a
+   scroll, which makes the reveal blow through its whole range almost
+   instantly and reads as frozen/broken rather than something you scroll
+   through. So .tc-story-wrap reserves an explicit tall run (independent of
+   how much text it holds or how tall the viewport is) and .tc-story-sticky
+   pins the actual content in place — it holds still on screen — while the
+   wrapper scrolls behind it. The wrapper publishes a `view-timeline` (its
+   own progress through the scrollport) and every word animates against that
+   SHARED timeline, each over a slightly later slice of it (--s/--e, set per
+   word). Sharing one timeline is what makes the sweep read as a single
+   sentence lighting up; if each word used its own view() timeline, words on
+   the same line would animate in lockstep and every line would restart the
+   effect.
 
-   Progressive enhancement, deliberately: the default state below is the
-   FINISHED, fully-legible text. Browsers without scroll-driven animation
-   (Firefox, older Safari) simply render the story — never a blank block of
-   invisible words. Reduced-motion gets the same static text. */
+   Progressive enhancement, deliberately: the default state below is a plain,
+   normal-flow, fully-legible block — no reserved height, no pinning. Browsers
+   without scroll-driven animation (Firefox, older Safari) and
+   prefers-reduced-motion both get exactly that: the story, readable, with no
+   extra scroll distance to fight through. Only when scroll-driven animation
+   is actually supported AND motion is allowed does the tall-wrapper +
+   pinned-text structure switch on. */
 @keyframes tc-word-in {
   from { opacity: 0.14; filter: blur(3px); }
   to   { opacity: 1;    filter: blur(0); }
 }
 
+.tc-story-sticky { padding: 96px 0 120px; }
 .tc-story-word { opacity: 1; }
 
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
-    .tc-story { view-timeline-name: --tc-story; view-timeline-axis: block; }
+    .tc-story-wrap {
+      view-timeline-name: --tc-story;
+      view-timeline-axis: block;
+      min-height: 240vh;
+    }
+    .tc-story-sticky {
+      position: sticky;
+      top: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 40px 0;
+    }
     .tc-story-word {
       opacity: 0.14;
       animation: tc-word-in linear both;
