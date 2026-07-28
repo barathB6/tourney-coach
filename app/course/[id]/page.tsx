@@ -328,12 +328,15 @@ function HoleEditor({ hole, tees, onSave }: { hole: CourseHole; tees: Tee[]; onS
           <div style={{ display: 'flex', gap: 6 }}>
             {[3, 4, 5].map((p) => (
               <button key={p} onClick={() => {
-                // Prefill with the most common yardages for this par, tee by
-                // tee — only when nothing's been entered yet, so switching
-                // par never clobbers yardages the pro already typed in.
-                const teeYardages = Object.keys(local.teeYardages).length === 0
-                  ? Object.fromEntries(tees.map((t) => [t, AVG_PAR_YARDAGES[p as 3 | 4 | 5][t]]))
-                  : local.teeYardages;
+                // Prefill each still-blank tee with the most common yardage
+                // for this par — per tee, not "any yardage entered anywhere",
+                // so it never clobbers a distance the pro already typed in,
+                // and a field that was typed into then cleared (which leaves
+                // an explicit undefined, not a missing key) still gets filled.
+                const teeYardages = { ...local.teeYardages };
+                for (const t of tees) {
+                  if (teeYardages[t] == null) teeYardages[t] = AVG_PAR_YARDAGES[p as 3 | 4 | 5][t];
+                }
                 commit({ ...local, par: p, teeYardages });
               }} style={{
                 width: 40, height: 36, borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14, fontFamily: 'inherit',

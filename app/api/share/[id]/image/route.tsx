@@ -46,8 +46,16 @@ export async function GET(
           background: `linear-gradient(135deg, ${primaryColor} 0%, #0F2A18 100%)`,
           padding: '72px',
           fontFamily: 'Georgia, serif',
+          position: 'relative',
         }}
       >
+        <div style={{
+          display: 'flex', position: 'absolute', top: 72, right: 72,
+          color: '#D9C58A', fontSize: 28, fontWeight: 700, fontFamily: 'Arial, sans-serif',
+        }}>
+          TourneyCoach
+        </div>
+
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{
             display: 'flex', alignSelf: 'flex-start', color: '#D9C58A', fontSize: 24,
@@ -69,22 +77,17 @@ export async function GET(
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 56 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 56 }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', color: '#ffffff', fontSize: 48, fontWeight: 700 }}>{foursomes} foursomes</div>
+            <div style={{ display: 'flex', color: 'rgba(255,255,255,0.6)', fontSize: 20, fontFamily: 'Arial, sans-serif', textTransform: 'uppercase', letterSpacing: 2 }}>spots limited but still available</div>
+          </div>
+          {t.location_name && (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', color: '#ffffff', fontSize: 48, fontWeight: 700 }}>{foursomes} foursomes</div>
-              <div style={{ display: 'flex', color: 'rgba(255,255,255,0.6)', fontSize: 20, fontFamily: 'Arial, sans-serif', textTransform: 'uppercase', letterSpacing: 2 }}>spots limited but still available</div>
+              <div style={{ display: 'flex', color: '#ffffff', fontSize: 32, fontWeight: 700 }}>{t.location_name}</div>
+              <div style={{ display: 'flex', color: 'rgba(255,255,255,0.6)', fontSize: 20, fontFamily: 'Arial, sans-serif', textTransform: 'uppercase', letterSpacing: 2 }}>course</div>
             </div>
-            {t.location_name && (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', color: '#ffffff', fontSize: 32, fontWeight: 700 }}>{t.location_name}</div>
-                <div style={{ display: 'flex', color: 'rgba(255,255,255,0.6)', fontSize: 20, fontFamily: 'Arial, sans-serif', textTransform: 'uppercase', letterSpacing: 2 }}>course</div>
-              </div>
-            )}
-          </div>
-          <div style={{ display: 'flex', color: '#D9C58A', fontSize: 28, fontWeight: 700, fontFamily: 'Arial, sans-serif' }}>
-            TourneyCoach
-          </div>
+          )}
         </div>
       </div>
     ),
