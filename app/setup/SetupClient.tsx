@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import supabase from '@/lib/supabaseClient';
 import { authedFetch } from '@/lib/authedFetch';
 import type { TournamentInput } from '@/lib/tournaments';
@@ -40,6 +39,10 @@ interface Course {
 
 const TEE_LABELS: Record<string, string> = { black: 'Black', blue: 'Blue', white: 'White', gold: 'Gold', red: 'Red' };
 
+// Per-user draft key, same convention as the cause-story builder's
+// `tourney_story_${userId}` — one in-progress setup draft at a time.
+const draftKey = (userId: string) => `tourney_setup_draft_${userId}`;
+
 export default function SetupClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -49,6 +52,11 @@ export default function SetupClient() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [useCustomCourse, setUseCustomCourse] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  // Guards the autosave effect until the draft (if any) has actually been
+  // restored — otherwise the very first render would immediately overwrite a
+  // real saved draft with the pristine default formData.
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -84,6 +92,20 @@ export default function SetupClient() {
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.replace(`/sign-in?next=/setup/format`); return; }
+      setUserId(user.id);
+
+      // Resume an in-progress setup — restores every field AND which step
+      // they were on, so leaving mid-wizard (closed tab, lost signal,
+      // whatever) never means re-typing everything.
+      try {
+        const saved = localStorage.getItem(draftKey(user.id));
+        if (saved) {
+          const draft = JSON.parse(saved) as { formData?: Partial<typeof formData>; step?: number; useCustomCourse?: boolean };
+          if (draft.formData) setFormData((prev) => ({ ...prev, ...draft.formData }));
+          if (typeof draft.step === 'number' && draft.step >= 1 && draft.step <= TOTAL_STEPS) setStep(draft.step);
+          if (typeof draft.useCustomCourse === 'boolean') setUseCustomCourse(draft.useCustomCourse);
+        }
+      } catch { /* corrupt or missing draft — start fresh */ }
 
       const updates: Record<string, string> = {};
 
@@ -118,10 +140,24 @@ export default function SetupClient() {
           name: prev.name.trim() ? prev.name : (updates.name ?? prev.name),
         }));
       }
+
+      setDraftLoaded(true);
     });
 
     fetchCourses();
   }, [searchParams, router]);
+
+  // Autosave: every change to the form, current step, or the custom-course
+  // toggle is persisted immediately, so refreshing or coming back later drops
+  // the organizer right back where they left off. Skipped until the initial
+  // draft (if any) has finished loading, so this can't stomp a saved draft
+  // with the pristine default state on first render.
+  useEffect(() => {
+    if (!userId || !draftLoaded) return;
+    try {
+      localStorage.setItem(draftKey(userId), JSON.stringify({ formData, step, useCustomCourse }));
+    } catch { /* storage unavailable/full — non-fatal, just no autosave this time */ }
+  }, [userId, draftLoaded, formData, step, useCustomCourse]);
 
   const fetchCourses = async () => {
     try {
@@ -188,6 +224,9 @@ export default function SetupClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.errors?.[0]?.message || data.error || 'Something went wrong');
       setSuccess('Tournament created!');
+      // The draft's job is done — clear it so a future "new tournament" run
+      // doesn't reopen this one's now-published data.
+      if (userId) { try { localStorage.removeItem(draftKey(userId)); } catch { /* ignore */ } }
       setTimeout(() => router.push('/dashboard'), 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -364,13 +403,9 @@ export default function SetupClient() {
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <button type="button" onClick={() => setUseCustomCourse(true)}
                       className="text-sm text-green-800 font-medium hover:underline">+ Enter a course manually</button>
-                    <Link href="/course/new"
-                      className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-800 border border-green-800 rounded-lg px-3 py-1.5 hover:bg-green-50 transition-colors">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
-                      </svg>
-                      Course profile
-                    </Link>
+                    {/* Building a full 18-hole profile is a bigger job than picking
+                        a course for this event — that lives as its own "Course
+                        Builder" entry point on the dashboard, not mid-wizard. */}
                   </div>
                 </>
               ) : (

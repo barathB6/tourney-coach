@@ -14,6 +14,7 @@ interface Tournament {
   entry_fee_cents: number | null;
   cause_story: string | null;
   cause_story_one_liner: string | null;
+  cause_story_short: string | null;
   // Course Builder + Shotgun Start Manager fields surfaced in the hero header.
   location_name: string | null;
   course_id: string | null;
@@ -74,6 +75,21 @@ function fmtMoney(n: number) {
 }
 function fmtMoneyFromCents(cents: number) {
   return `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+// The organizer's own words for "why this matters," not a made-up number.
+// Prefers the purpose-built short/one-liner cause-story fields (from the
+// cause story builder); for tournaments that only have the older single
+// free-text `cause_story` blob, falls back to its first paragraph — usually
+// the hook line, not a wall of concatenated answers. Returns null when the
+// tournament has no cause story configured at all, so the caller can fall
+// back to the generic estimate instead of showing an empty box.
+function impactBlurb(t: Pick<Tournament, 'cause_story_short' | 'cause_story_one_liner' | 'cause_story'> | null): string | null {
+  if (!t) return null;
+  if (t.cause_story_short?.trim()) return t.cause_story_short.trim();
+  if (t.cause_story_one_liner?.trim()) return t.cause_story_one_liner.trim();
+  const firstPara = t.cause_story?.split(/\n\s*\n/).map((p) => p.trim()).find(Boolean);
+  return firstPara ?? null;
 }
 
 function emptyPlayers(n: number): Player[] {
@@ -182,7 +198,7 @@ function RegisterInner() {
     async function load() {
       if (!tournamentId) { setLoading(false); return; }
       const [{ data: t }, { count }] = await Promise.all([
-        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_one_liner, location_name, course_id, shotgun_type, shotgun_time, slug').eq('id', tournamentId).single(),
+        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_one_liner, cause_story_short, location_name, course_id, shotgun_type, shotgun_time, slug').eq('id', tournamentId).single(),
         supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('tournament_id', tournamentId).in('payment_status', ['pending', 'paid']),
       ]);
       if (t) {
@@ -210,6 +226,7 @@ function RegisterInner() {
   const subtotal = regType.price + addOnTotal;
   const platformFee = isReturningMember ? 0 : Math.round(subtotal * 0.025);
   const total = subtotal + platformFee;
+  const impactText = impactBlurb(tournament);
   const spotsTotal = tournament?.max_players ?? 96;
   const foursomesTotal = Math.floor(spotsTotal / 4);
   const foursomesFilled = registrationCount;
@@ -765,11 +782,17 @@ function RegisterInner() {
               </div>
 
               <div style={s.impact}>
-                <strong>Your impact:</strong> roughly{' '}
-                <strong style={{ color: '#7A4A00' }}>
-                  {Math.max(1, Math.floor(subtotal / 340))} student{Math.floor(subtotal / 340) !== 1 ? 's' : ''}
-                </strong>{' '}
-                will have their tuition gap covered by your team&rsquo;s registration. Thank you.
+                {impactText ? (
+                  <><strong>Your impact:</strong> {impactText}</>
+                ) : (
+                  <>
+                    <strong>Your impact:</strong> roughly{' '}
+                    <strong style={{ color: '#7A4A00' }}>
+                      {Math.max(1, Math.floor(subtotal / 340))} student{Math.floor(subtotal / 340) !== 1 ? 's' : ''}
+                    </strong>{' '}
+                    will have their tuition gap covered by your team&rsquo;s registration. Thank you.
+                  </>
+                )}
               </div>
 
               {submitError && <div style={s.errorBox}>{submitError}</div>}
