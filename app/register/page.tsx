@@ -19,6 +19,21 @@ interface Tournament {
   course_id: string | null;
   shotgun_type: string | null;
   shotgun_time: string | null;
+  // Needed to deep-link to the full sponsor marketplace (/microsite/[slug]/sponsor).
+  slug: string | null;
+}
+
+// One of the organizer's real sponsorship packages — Title/Birdie/Hole/Contest,
+// whatever they set up on their Sponsorships page. Fetched from the same public
+// endpoint the sponsor marketplace microsite uses, so this list is always the
+// organizer's actual current tiers, never hardcoded.
+interface SponsorTier {
+  id: string;
+  name: string;
+  label: string | null;
+  price_cents: number;
+  quantity: number | null;
+  sold: number;
 }
 
 // Shotgun start method → the phrase shown in the event header.
@@ -57,6 +72,9 @@ function fmtDate(d: string) {
 function fmtMoney(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 }
+function fmtMoneyFromCents(cents: number) {
+  return `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
 
 function emptyPlayers(n: number): Player[] {
   return Array.from({ length: n }, () => ({ name: '', email: '' }));
@@ -83,6 +101,9 @@ function RegisterInner() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   // Course profile (from the Golf Pro Course Builder) for the venue + location line.
   const [course, setCourse] = useState<{ name: string | null; city: string | null; state: string | null } | null>(null);
+  // The organizer's real sponsorship packages, so people who don't want to play
+  // can still see every level they set up — not just the one hardcoded bundle.
+  const [sponsorTiers, setSponsorTiers] = useState<SponsorTier[]>([]);
   const [registrationCount, setRegistrationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -161,7 +182,7 @@ function RegisterInner() {
     async function load() {
       if (!tournamentId) { setLoading(false); return; }
       const [{ data: t }, { count }] = await Promise.all([
-        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_one_liner, location_name, course_id, shotgun_type, shotgun_time').eq('id', tournamentId).single(),
+        supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_one_liner, location_name, course_id, shotgun_type, shotgun_time, slug').eq('id', tournamentId).single(),
         supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('tournament_id', tournamentId).in('payment_status', ['pending', 'paid']),
       ]);
       if (t) {
@@ -174,6 +195,12 @@ function RegisterInner() {
         }
       }
       setRegistrationCount(count ?? 0);
+      // Real sponsorship packages the organizer configured, with live sold
+      // counts — same public endpoint the sponsor marketplace microsite uses.
+      fetch(`/api/sponsors/purchase?tournament_id=${tournamentId}`)
+        .then(r => (r.ok ? r.json() : []))
+        .then((tiers: SponsorTier[]) => setSponsorTiers(Array.isArray(tiers) ? tiers : []))
+        .catch(() => setSponsorTiers([]));
       setLoading(false);
     }
     load();
@@ -503,6 +530,43 @@ function RegisterInner() {
                 </div>
               );
             })}
+
+            {/* Every sponsorship package the organizer set up (Title, Birdie, Hole,
+                Contest, ...) — not just the one bundled Title-Sponsor-and-play
+                option above. Sponsoring without playing is a different flow
+                (company info, no players, invoice/logo instead of a tee time),
+                so it hands off to the dedicated sponsor marketplace rather than
+                bolting a second submit path onto this form. */}
+            {tournament?.slug && sponsorTiers.length > 0 && (
+              <div style={{ border: '1px solid var(--line)', borderRadius: 12, padding: '16px 18px', background: '#F7F5EE', marginTop: 4, marginBottom: 4 }}>
+                <p style={s.blockH}>Just want to sponsor?</p>
+                <p style={{ fontSize: 12.5, color: '#5C6B62', margin: '0 0 12px', lineHeight: 1.4 }}>
+                  Your organizer set up {sponsorTiers.length} sponsorship level{sponsorTiers.length === 1 ? '' : 's'} — no need to register a team.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {sponsorTiers.map((t) => {
+                    const soldOut = t.quantity != null && t.sold >= t.quantity;
+                    return (
+                      <a
+                        key={t.id}
+                        href={soldOut ? undefined : `/microsite/${tournament.slug}/sponsor?tier=${t.id}`}
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+                          padding: '9px 12px', borderRadius: 8, background: '#fff', border: '1px solid var(--line)',
+                          textDecoration: 'none', color: 'inherit', opacity: soldOut ? 0.55 : 1,
+                          pointerEvents: soldOut ? 'none' : 'auto', cursor: soldOut ? 'default' : 'pointer',
+                        }}
+                      >
+                        <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{t.label ?? t.name}</span>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: soldOut ? '#5C6B62' : 'var(--primary)', whiteSpace: 'nowrap' }}>
+                          {soldOut ? 'Sold out' : fmtMoneyFromCents(t.price_cents)}
+                        </span>
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* ── Player & contact form ── */}
             <div style={s.formSection}>

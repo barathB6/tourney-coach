@@ -2,8 +2,8 @@
 
 import '@adyen/adyen-web/styles/adyen.css';
 import { supabase } from '@/lib/supabaseClient';
-import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 type Tournament = {
@@ -33,9 +33,13 @@ function money(cents: number) {
   return '$' + (cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-export default function SponsorPage() {
+function SponsorPageInner() {
   const params = useParams();
   const slug = params.slug as string;
+  // Deep link from /register's "Just want to sponsor?" panel — jump straight
+  // to a specific package instead of making them pick again.
+  const searchParams = useSearchParams();
+  const preselectTierId = searchParams?.get('tier') ?? null;
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [tiers, setTiers] = useState<Tier[]>([]);
@@ -63,8 +67,16 @@ export default function SponsorPage() {
       if (!t) return;
       setTournament(t);
       const res = await fetch(`/api/sponsors/purchase?tournament_id=${t.id}`);
-      if (res.ok) setTiers(await res.json());
+      if (res.ok) {
+        const list: Tier[] = await res.json();
+        setTiers(list);
+        if (preselectTierId) {
+          const match = list.find(x => x.id === preselectTierId);
+          if (match && !(match.quantity != null && match.sold >= match.quantity)) setSelected(match);
+        }
+      }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   const primaryColor = tournament?.microsite_color ?? '#1B6B3A';
@@ -291,5 +303,17 @@ export default function SponsorPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SponsorPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: '#FAF8F3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", color: '#1A1F1C', fontSize: 14 }}>Loading…</p>
+      </div>
+    }>
+      <SponsorPageInner />
+    </Suspense>
   );
 }
