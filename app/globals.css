@@ -120,6 +120,42 @@ body {
   .auth-hero h1 { font-size: 24px; }
 }
 
+/* ── "Our Story" scroll-driven word reveal ──────────────────────────────
+   The Apple effect: words sit faint and blurred, then light up one after the
+   next as the block travels through the viewport — driven by scroll POSITION,
+   not by a timer, so it tracks the wheel/finger exactly and reverses when you
+   scroll back up.
+
+   No JavaScript. The container publishes a `view-timeline` (its own progress
+   through the scrollport) and every word animates against that SHARED
+   timeline, each over a slightly later slice of it (--s/--e, set per word).
+   Sharing one timeline is what makes the sweep read as a single sentence
+   lighting up; if each word used its own view() timeline, words on the same
+   line would animate in lockstep and every line would restart the effect.
+
+   Progressive enhancement, deliberately: the default state below is the
+   FINISHED, fully-legible text. Browsers without scroll-driven animation
+   (Firefox, older Safari) simply render the story — never a blank block of
+   invisible words. Reduced-motion gets the same static text. */
+@keyframes tc-word-in {
+  from { opacity: 0.14; filter: blur(3px); }
+  to   { opacity: 1;    filter: blur(0); }
+}
+
+.tc-story-word { opacity: 1; }
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .tc-story { view-timeline-name: --tc-story; view-timeline-axis: block; }
+    .tc-story-word {
+      opacity: 0.14;
+      animation: tc-word-in linear both;
+      animation-timeline: --tc-story;
+      animation-range: cover var(--s) cover var(--e);
+    }
+  }
+}
+
 /* ── Responsive layout helpers ──────────────────────────────────────────
    These override inline grid/flex styles on small screens. !important is
    required to beat the element's inline style attribute. Keyed on the CSS

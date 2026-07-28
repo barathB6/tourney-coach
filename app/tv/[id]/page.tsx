@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, use as usePromise } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 type Trend = { toPar: number; holes: number; direction: 'up' | 'down' | 'flat' } | null;
@@ -25,8 +26,12 @@ const toPar = (v: number | null) => (v == null ? '—' : v === 0 ? 'E' : v > 0 ?
 const PACE_TV: Record<string, string> = { green: '#5FC06B', yellow: '#F0C64A', red: '#F07272' };
 const money = (c: number) => `$${(c / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
-export default function TVBoard({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = usePromise(params);
+// The live board for a known tournament id. Shared by the public /tv/[id] cast
+// URL and the organizer's /tv/leaderboard shortcut. showBackButton is only
+// passed from the organizer's own /tv/leaderboard route — the public cast URL
+// has no dashboard to send anonymous viewers back to.
+export function TVBoardView({ id, showBackButton = false }: { id: string; showBackButton?: boolean }) {
+  const router = useRouter();
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState('');
   const [live, setLive] = useState(false);
@@ -66,8 +71,24 @@ export default function TVBoard({ params }: { params: Promise<{ id: string }> })
     return rows;
   }, [board, sort]);
 
-  if (error) return <TVShell><p style={{ color: '#F4C871', fontSize: 28, textAlign: 'center', marginTop: 120 }}>{error}</p></TVShell>;
-  if (!board) return <TVShell><p style={{ color: '#9FBFA6', fontSize: 28, textAlign: 'center', marginTop: 120 }}>Loading leaderboard…</p></TVShell>;
+  const backButton = showBackButton ? (
+    <button
+      onClick={() => router.push('/dashboard')}
+      style={{
+        position: 'fixed', top: 'clamp(16px, 2vw, 28px)', left: 'clamp(16px, 2vw, 28px)', zIndex: 20,
+        display: 'flex', alignItems: 'center', gap: 7,
+        background: 'rgba(0,0,0,0.28)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 10,
+        padding: '9px 16px', color: '#CDE0D2', fontSize: 13.5, fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+        cursor: 'pointer', backdropFilter: 'blur(4px)',
+      }}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+      Dashboard
+    </button>
+  ) : null;
+
+  if (error) return <TVShell>{backButton}<p style={{ color: '#F4C871', fontSize: 28, textAlign: 'center', marginTop: 120 }}>{error}</p></TVShell>;
+  if (!board) return <TVShell>{backButton}<p style={{ color: '#9FBFA6', fontSize: 28, textAlign: 'center', marginTop: 120 }}>Loading leaderboard…</p></TVShell>;
 
   const { tournament, teamsTotal, contests, raisedCents } = board;
   const anyScores = board.standings.some((s) => s.holesCompleted > 0);
@@ -86,6 +107,7 @@ export default function TVBoard({ params }: { params: Promise<{ id: string }> })
 
   return (
     <TVShell>
+      {backButton}
       {/* header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, marginBottom: 28 }}>
         <div>
@@ -179,7 +201,13 @@ function SponsorLogo({ sponsor }: { sponsor: { company: string; logoUrl: string 
   );
 }
 
-function TVShell({ children }: { children: React.ReactNode }) {
+// Route entry: resolve the id from the URL and render the shared board.
+export default function TVBoardPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = usePromise(params);
+  return <TVBoardView id={id} />;
+}
+
+export function TVShell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg, #0F3D24 0%, #124A2B 55%, #0C3520 100%)', padding: 'clamp(20px, 3vw, 48px)', fontFamily: "'DM Sans', sans-serif" }}>
       <div style={{ maxWidth: 1600, margin: '0 auto' }}>{children}</div>

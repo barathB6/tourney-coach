@@ -429,10 +429,10 @@ export default function Dashboard() {
                 </svg>
                 Hole Map
               </button>
-              {tournament && (
+              {(
                 <button
-                  onClick={() => window.open(`/tv/${tournament.id}`, '_blank', 'noopener')}
-                  title="Open the clubhouse TV leaderboard (full-screen, auto-updating)"
+                  onClick={() => router.push('/tv/leaderboard')}
+                  title="Open your clubhouse TV leaderboard (full-screen, auto-updating)"
                   style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

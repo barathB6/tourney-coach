@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import SignInClient from "./SignInClient";
+import OurStory from "../../components/OurStory";
 
 export const metadata: Metadata = {
   title: "TourneyCoach — Sign in",
@@ -9,5 +10,10 @@ export const metadata: Metadata = {
 };
 
 export default function SignInPage() {
-  return <SignInClient />;
+  return (
+    <>
+      <SignInClient />
+      <OurStory />
+    </>
+  );
 }
