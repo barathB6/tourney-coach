@@ -86,6 +86,7 @@ export default function SponsorsPage() {
   const router = useRouter();
   const [tournamentId, setTournamentId] = useState<string | null>(null);
   const [tournamentName, setTournamentName] = useState('');
+  const [tournamentSlug, setTournamentSlug] = useState<string | null>(null);
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +113,7 @@ export default function SponsorsPage() {
 
       const { data: all } = await supabase
         .from('tournaments')
-        .select('id, name')
+        .select('id, name, slug')
         .eq('organizer_id', user.id)
         .order('created_at', { ascending: false });
       const picked = (all ?? []).find(t => t.id === selectedId) ?? (all ?? [])[0] ?? null;
@@ -120,6 +121,7 @@ export default function SponsorsPage() {
 
       setTournamentId(picked.id);
       setTournamentName(picked.name);
+      setTournamentSlug(picked.slug ?? null);
       await Promise.all([loadTiers(picked.id), loadSponsors(picked.id)]);
       setLoading(false);
     });
@@ -381,6 +383,43 @@ export default function SponsorsPage() {
           </div>
         ) : (
           <>
+            {/* Same "Just want to sponsor?" panel shown to players on /register —
+                mirrored here so the organizer sees exactly what prospects see,
+                with the same deep links into the sponsor marketplace. */}
+            {tournamentSlug && tiers.length > 0 && (
+              <div style={{ border: '1px solid #E5E0D5', borderRadius: 12, padding: '16px 18px', background: '#F7F5EE', marginBottom: 24 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#6B7775', margin: '0 0 6px' }}>Just want to sponsor?</p>
+                <p style={{ fontSize: 12.5, color: '#5C6B62', margin: '0 0 12px', lineHeight: 1.4 }}>
+                  Your organizer set up {tiers.length} sponsorship level{tiers.length === 1 ? '' : 's'} — no need to register a team.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {tiers.map((t) => {
+                    const sold = soldCount(t);
+                    const soldOut = t.quantity != null && sold >= t.quantity;
+                    return (
+                      <a
+                        key={t.id}
+                        href={soldOut ? undefined : `/microsite/${tournamentSlug}/sponsor?tier=${t.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+                          padding: '9px 12px', borderRadius: 8, background: '#fff', border: '1px solid #E5E0D5',
+                          textDecoration: 'none', color: 'inherit', opacity: soldOut ? 0.55 : 1,
+                          pointerEvents: soldOut ? 'none' : 'auto', cursor: soldOut ? 'default' : 'pointer',
+                        }}
+                      >
+                        <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1A1F1C' }}>{t.label ?? t.name}</span>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: soldOut ? '#5C6B62' : '#1B6B3A', whiteSpace: 'nowrap' }}>
+                          {soldOut ? 'Sold out' : money(t.price_cents)}
+                        </span>
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* ── Tier builder ── */}
             {tiers.length === 0 ? (
               <div style={{ ...s.card, padding: '48px 32px', textAlign: 'center', marginBottom: 32 }}>
