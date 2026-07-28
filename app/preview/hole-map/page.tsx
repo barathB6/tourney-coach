@@ -70,6 +70,7 @@ export default function HoleMapPreview() {
   return (
     <div style={{ minHeight: '100vh', background: '#F7F5EF', padding: '28px 20px 64px', fontFamily: "'DM Sans', sans-serif" }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+        <a href="/dashboard" style={{ display: 'inline-block', color: '#1B6B3A', fontWeight: 600, fontSize: 13, textDecoration: 'none', marginBottom: 14 }}>← Dashboard</a>
         <p style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 700, color: '#1A1F1C', margin: '0 0 6px' }}>Hole map — rendering preview</p>
         <p style={{ color: '#6B7775', fontSize: 14, margin: '0 0 14px', maxWidth: 640 }}>
           How a hole draws as GPS data accumulates from live play. Real maps appear on the player Live Round view (<code>/live/&lt;registration-id&gt;</code>).

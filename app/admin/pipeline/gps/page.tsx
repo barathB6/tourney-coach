@@ -128,7 +128,8 @@ export default function GpsPipelinePage() {
   return (
     <div style={s.page}>
       <div style={s.wrap}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <a href="/dashboard" style={{ color: '#1B6B3A', fontWeight: 600, fontSize: 13, textDecoration: 'none' }}>← Dashboard</a>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', color: '#1B6B3A', background: '#E4F0E8', padding: '5px 11px', borderRadius: 6 }}>INTERNAL</span>
         </div>
 

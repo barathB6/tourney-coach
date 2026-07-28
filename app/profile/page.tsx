@@ -33,6 +33,7 @@ export default function ProfilePage() {
 
   return (
     <div style={{ maxWidth: 640, margin: "2rem auto" }}>
+      <a href="/dashboard" style={{ display: "inline-block", color: "#1B6B3A", fontWeight: 600, fontSize: 13, textDecoration: "none", marginBottom: 12 }}>← Dashboard</a>
       <h1>Profile</h1>
       <p><strong>Name:</strong> {profile?.name ?? user.user_metadata?.full_name ?? "—"}</p>
       <p><strong>Email:</strong> {user.email}</p>
