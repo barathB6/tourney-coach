@@ -278,6 +278,14 @@ function SchematicSvg({ entries, highlightTee, maxWidth, shapeTags }: { entries:
           </g>
         );
       })()}
+      {shapeTags.includes('sand_trap') && (() => {
+        const p = pointOnCenterline(centerline, 0.82);
+        return <ellipse cx={p.x + 30} cy={p.y} rx={17} ry={10} fill="#F2E1B0" stroke="#B8A05A" strokeWidth={1} />;
+      })()}
+      {shapeTags.includes('water_hazard') && (() => {
+        const p = pointOnCenterline(centerline, 0.46);
+        return <path d={`M${p.x - 44},${p.y - 8} Q${p.x - 20},${p.y + 14} ${p.x + 6},${p.y - 4} Q${p.x + 30},${p.y - 20} ${p.x + 44},${p.y} L${p.x + 44},${p.y + 16} Q${p.x - 10},${p.y + 26} ${p.x - 44},${p.y + 10} Z`} fill="#A9CFE8" stroke="#4A7BA6" strokeWidth={1} opacity={0.9} />;
+      })()}
 
       {/* green */}
       {elevated && <ellipse cx={greenPt.x} cy={greenPt.y + 4} rx={34} ry={24} fill="none" stroke="#B7CFC0" strokeWidth={1.5} />}

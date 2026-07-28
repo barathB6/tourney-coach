@@ -3,7 +3,10 @@
 import { supabase } from '@/lib/supabaseClient';
 import { authedFetch } from '@/lib/authedFetch';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
+import HoleSchematic from '@/components/gps/HoleSchematic';
+import { HOLE_SHAPE_TAGS, HOLE_SHAPE_TAG_LABELS, describeShapeTags, emptyHoles, type CourseHole } from '@/lib/course';
 
 type Registration = {
   id: string;
@@ -35,7 +38,7 @@ function fmtMoney(cents: number) {
   return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
-type TournamentOption = { id: string; name: string };
+type TournamentOption = { id: string; name: string; course_id: string | null };
 
 export default function RegistrationsPage() {
   const router = useRouter();
@@ -64,6 +67,14 @@ export default function RegistrationsPage() {
   const [correctForm, setCorrectForm] = useState({ hole: '1', strokes: '4', reason: '' });
   const [correctSaving, setCorrectSaving] = useState(false);
   const [correctMsg, setCorrectMsg] = useState('');
+
+  // Hole map: chip-select the layout/feature tags for each hole of the
+  // selected tournament's course, right from the Registrations tab — the
+  // Course Builder edits the same course_holes rows.
+  const [holes, setHoles] = useState<CourseHole[]>(emptyHoles());
+  const [holesCourseId, setHolesCourseId] = useState<string | null>(null);
+  const [selectedHole, setSelectedHole] = useState(1);
+  const [holeSaveNote, setHoleSaveNote] = useState('');
 
   async function submitCorrection(reg: Registration) {
     setCorrectSaving(true);
@@ -100,7 +111,7 @@ export default function RegistrationsPage() {
 
       const { data } = await supabase
         .from('tournaments')
-        .select('id, name')
+        .select('id, name, course_id')
         .eq('organizer_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -147,6 +158,38 @@ export default function RegistrationsPage() {
     const interval = setInterval(() => fetchRegs(false), 10_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [selectedTournament]);
+
+  const courseId = tournaments.find(t => t.id === selectedTournament)?.course_id ?? null;
+  const holesLoading = !!courseId && holesCourseId !== courseId;
+
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    supabase.from('course_holes').select('*').eq('course_id', courseId).order('hole_number').then(({ data }) => {
+      if (cancelled) return;
+      const next = emptyHoles();
+      for (const row of data ?? []) {
+        next[row.hole_number - 1] = { holeNumber: row.hole_number, par: row.par, handicap: row.handicap, description: row.description, shapeTags: row.shape_tags ?? [], teeYardages: row.tee_yardages ?? {} };
+      }
+      setHoles(next);
+      setSelectedHole(1);
+      setHolesCourseId(courseId);
+    });
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  async function toggleShapeTag(tag: string) {
+    if (!courseId) return;
+    const hole = holes[selectedHole - 1];
+    const shapeTags = hole.shapeTags.includes(tag) ? hole.shapeTags.filter(t => t !== tag) : [...hole.shapeTags, tag];
+    const next = { ...hole, shapeTags, description: describeShapeTags(shapeTags) };
+    setHoles(prev => prev.map(h => (h.holeNumber === next.holeNumber ? next : h)));
+    await supabase.from('course_holes').upsert(
+      { course_id: courseId, hole_number: next.holeNumber, par: next.par, handicap: next.handicap, description: next.description, shape_tags: next.shapeTags, tee_yardages: next.teeYardages },
+      { onConflict: 'course_id,hole_number' },
+    );
+    setHoleSaveNote('Saved'); setTimeout(() => setHoleSaveNote(''), 1200);
+  }
 
   async function handleManualAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -321,6 +364,67 @@ export default function RegistrationsPage() {
             )}
           </div>
         </div>
+
+        {selectedTournament && (
+          <div style={{ ...s.card, padding: '20px 24px', marginBottom: 20 }}>
+            <p style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, margin: '0 0 4px' }}>Hole map</p>
+            {!courseId ? (
+              <p style={{ color: '#6B7775', fontSize: 13.5, margin: 0 }}>
+                This tournament has no course profile yet. <Link href={`/course/new?tournament=${selectedTournament}`} style={{ color: '#1B6B3A', fontWeight: 600 }}>Set one up</Link> to start tagging hole layouts.
+              </p>
+            ) : holesLoading ? (
+              <p style={{ color: '#6B7775', fontSize: 13.5, margin: 0 }}>Loading…</p>
+            ) : (
+              <>
+                <p style={{ color: '#6B7775', fontSize: 13, margin: '0 0 14px' }}>Tag each hole&apos;s layout and features — the hole map players see is generated from these chips.</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                  {holes.map((h) => (
+                    <button
+                      key={h.holeNumber}
+                      onClick={() => setSelectedHole(h.holeNumber)}
+                      style={{
+                        width: 34, height: 34, borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 12.5, fontFamily: 'inherit',
+                        border: selectedHole === h.holeNumber ? '1px solid #1B6B3A' : '1px solid #E5E0D5',
+                        background: selectedHole === h.holeNumber ? '#1B6B3A' : h.shapeTags.length ? '#E7F1EA' : '#fff',
+                        color: selectedHole === h.holeNumber ? '#fff' : '#1A1F1C',
+                      }}
+                    >
+                      {h.holeNumber}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }} className="tc-two-col">
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', color: '#6B7775', textTransform: 'uppercase' }}>Hole {selectedHole} — layout &amp; shape</label>
+                      {holeSaveNote && <span style={{ fontSize: 12, color: '#1B6B3A', fontWeight: 600 }}>{holeSaveNote}</span>}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {HOLE_SHAPE_TAGS.map((tag) => {
+                        const active = holes[selectedHole - 1].shapeTags.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => toggleShapeTag(tag)}
+                            style={{
+                              borderRadius: 20, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                              border: active ? '1px solid #1B6B3A' : '1px solid #E5E0D5',
+                              background: active ? '#E7F1EA' : '#fff', color: active ? '#1B6B3A' : '#1A1F1C',
+                            }}
+                          >
+                            {HOLE_SHAPE_TAG_LABELS[tag]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <HoleSchematic hole={holes[selectedHole - 1]} maxWidth={220} />
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {error && (
           <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B91C1C', marginBottom: 16 }}>

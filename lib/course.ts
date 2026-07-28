@@ -27,6 +27,8 @@ export const HOLE_SHAPE_TAGS = [
   'waste_areas',
   'pot_bunkers',
   'fairway_bunkers',
+  'sand_trap',
+  'water_hazard',
 ] as const;
 export type HoleShapeTag = (typeof HOLE_SHAPE_TAGS)[number];
 
@@ -40,6 +42,8 @@ export const HOLE_SHAPE_TAG_LABELS: Record<HoleShapeTag, string> = {
   waste_areas: 'Waste areas',
   pot_bunkers: 'Pot bunkers',
   fairway_bunkers: 'Fairway bunkers',
+  sand_trap: 'Sand trap',
+  water_hazard: 'Water hazard',
 };
 
 // The description shown to players is auto-generated from the selected
