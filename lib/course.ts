@@ -13,11 +13,50 @@ export const TEE_LABELS: Record<Tee, string> = {
   red: 'Forward',
 };
 
+// Canonical hole shape/feature vocabulary — replaces free-text hole
+// descriptions with a fixed set of chips so both the pro's input and the
+// illustrative hole-map schematic can be driven off the same structured
+// data. Order here is the display order in the Course Builder.
+export const HOLE_SHAPE_TAGS = [
+  'straightaway',
+  'dogleg_left',
+  'dogleg_right',
+  'double_dogleg',
+  'blind_shot',
+  'elevated_green',
+  'waste_areas',
+  'pot_bunkers',
+  'fairway_bunkers',
+] as const;
+export type HoleShapeTag = (typeof HOLE_SHAPE_TAGS)[number];
+
+export const HOLE_SHAPE_TAG_LABELS: Record<HoleShapeTag, string> = {
+  straightaway: 'Straightaway',
+  dogleg_left: 'Dogleg left',
+  dogleg_right: 'Dogleg right',
+  double_dogleg: 'Double dogleg',
+  blind_shot: 'Blind shot',
+  elevated_green: 'Elevated green',
+  waste_areas: 'Waste areas',
+  pot_bunkers: 'Pot bunkers',
+  fairway_bunkers: 'Fairway bunkers',
+};
+
+// The description shown to players is auto-generated from the selected
+// tags — a plain, consistent caption instead of pro-authored free text.
+export function describeShapeTags(tags: string[]): string | null {
+  const labels = tags
+    .filter((t): t is HoleShapeTag => (HOLE_SHAPE_TAGS as readonly string[]).includes(t))
+    .map((t) => HOLE_SHAPE_TAG_LABELS[t]);
+  return labels.length ? labels.join(' · ') : null;
+}
+
 export interface CourseHole {
   holeNumber: number; // 1-based
   par: number | null;
   handicap: number | null;
   description: string | null;
+  shapeTags: string[];
   teeYardages: Partial<Record<Tee, number>>;
 }
 
@@ -27,6 +66,7 @@ export function emptyHoles(): CourseHole[] {
     par: null,
     handicap: null,
     description: null,
+    shapeTags: [],
     teeYardages: {},
   }));
 }

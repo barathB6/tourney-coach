@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const [{ data: course }, { data: holes }, { data: hazards }] = await Promise.all([
     supabase.from('courses').select('id, name, city, state, total_holes, par_total, tees').eq('id', id).maybeSingle(),
-    supabase.from('course_holes').select('hole_number, par, handicap, description, tee_yardages, gps_status').eq('course_id', id).order('hole_number'),
+    supabase.from('course_holes').select('hole_number, par, handicap, description, shape_tags, tee_yardages, gps_status').eq('course_id', id).order('hole_number'),
     supabase.from('course_gps_features').select('hole_number, lat, lng, confidence, sample_count, derived_at').eq('course_id', id).eq('feature_type', 'hazard'),
   ]);
 
@@ -40,6 +40,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         par: h.par,
         handicap: h.handicap,
         description: h.description,
+        shapeTags: h.shape_tags ?? [],
         teeYardages: h.tee_yardages,
       },
       // GPS-derived (aggregation pipeline), null until real data exists

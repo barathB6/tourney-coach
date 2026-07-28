@@ -3,7 +3,7 @@
 import React, { useEffect, useState, use as usePromise } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { TEES, TEE_LABELS, emptyHoles, isHoleComplete, completionCount, type CourseHole, type Tee } from '@/lib/course';
+import { TEES, TEE_LABELS, HOLE_SHAPE_TAGS, HOLE_SHAPE_TAG_LABELS, describeShapeTags, emptyHoles, isHoleComplete, completionCount, type CourseHole, type Tee } from '@/lib/course';
 
 type Course = {
   id: string;
@@ -77,7 +77,7 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
         const next = emptyHoles();
         const gps: Record<number, boolean> = {};
         for (const row of h) {
-          next[row.hole_number - 1] = { holeNumber: row.hole_number, par: row.par, handicap: row.handicap, description: row.description, teeYardages: row.tee_yardages ?? {} };
+          next[row.hole_number - 1] = { holeNumber: row.hole_number, par: row.par, handicap: row.handicap, description: row.description, shapeTags: row.shape_tags ?? [], teeYardages: row.tee_yardages ?? {} };
           const status = row.gps_status as { tee?: unknown; green?: unknown } | null;
           if (status?.tee || status?.green) gps[row.hole_number] = true;
         }
@@ -119,7 +119,7 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
     if (!course) return;
     setHoles((prev) => prev.map((h) => (h.holeNumber === hole.holeNumber ? hole : h)));
     await supabase.from('course_holes').upsert(
-      { course_id: course.id, hole_number: hole.holeNumber, par: hole.par, handicap: hole.handicap, description: hole.description, tee_yardages: hole.teeYardages },
+      { course_id: course.id, hole_number: hole.holeNumber, par: hole.par, handicap: hole.handicap, description: hole.description, shape_tags: hole.shapeTags, tee_yardages: hole.teeYardages },
       { onConflict: 'course_id,hole_number' },
     );
     const nextHoles = holes.map((h) => (h.holeNumber === hole.holeNumber ? hole : h));
@@ -356,8 +356,29 @@ function HoleEditor({ hole, tees, onSave }: { hole: CourseHole; tees: Tee[]; onS
         ))}
       </div>
 
-      <label style={s.label}>Hole description (optional)</label>
-      <textarea rows={2} style={{ ...s.input, resize: 'vertical' }} defaultValue={local.description ?? ''} onBlur={(e) => commit({ ...local, description: e.target.value })} />
+      <label style={s.label}>Hole layout & shape (optional)</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {HOLE_SHAPE_TAGS.map((tag) => {
+          const active = local.shapeTags.includes(tag);
+          return (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => {
+                const shapeTags = active ? local.shapeTags.filter((t) => t !== tag) : [...local.shapeTags, tag];
+                commit({ ...local, shapeTags, description: describeShapeTags(shapeTags) });
+              }}
+              style={{
+                borderRadius: 20, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                border: active ? '1px solid #1B6B3A' : '1px solid #E5E0D5',
+                background: active ? '#E7F1EA' : '#fff', color: active ? '#1B6B3A' : '#1A1F1C',
+              }}
+            >
+              {HOLE_SHAPE_TAG_LABELS[tag]}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

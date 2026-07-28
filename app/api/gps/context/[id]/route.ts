@@ -34,7 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const [{ data: course }, { data: holes }] = await Promise.all([
     supabase.from('courses').select('id, name, total_holes, tees').eq('id', tournament.course_id).single(),
-    supabase.from('course_holes').select('hole_number, par, description, tee_yardages, gps_status').eq('course_id', tournament.course_id).order('hole_number'),
+    supabase.from('course_holes').select('hole_number, par, description, shape_tags, tee_yardages, gps_status').eq('course_id', tournament.course_id).order('hole_number'),
   ]);
 
   let hasConsent: boolean | null = null;

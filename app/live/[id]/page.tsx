@@ -9,6 +9,7 @@ type Hole = {
   hole_number: number;
   par: number | null;
   description: string | null;
+  shape_tags: string[] | null;
   tee_yardages: Partial<Record<Tee, number>>;
   gps_status: { tee?: unknown; fairway?: unknown; green?: unknown } | null;
 };
@@ -467,7 +468,7 @@ export default function LiveRoundPage() {
 
   const hole = ctx.holes.find((h) => h.hole_number === currentHole);
   const schematicHole: SchematicHole | null = hole
-    ? { holeNumber: hole.hole_number, par: hole.par, description: hole.description, teeYardages: hole.tee_yardages, gpsStatus: hole.gps_status, hazards: hazardsByHole[hole.hole_number] }
+    ? { holeNumber: hole.hole_number, par: hole.par, description: hole.description, shapeTags: hole.shape_tags, teeYardages: hole.tee_yardages, gpsStatus: hole.gps_status, hazards: hazardsByHole[hole.hole_number] }
     : null;
 
   return (

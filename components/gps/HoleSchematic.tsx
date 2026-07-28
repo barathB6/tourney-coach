@@ -20,6 +20,7 @@ export interface SchematicHole {
   holeNumber: number;
   par: number | null;
   description: string | null;
+  shapeTags?: string[] | null;
   teeYardages: Partial<Record<Tee, number>>;
   gpsStatus?: { tee?: unknown; fairway?: unknown; green?: unknown } | null;
   hazards?: GpsHazard[] | null;
@@ -76,7 +77,7 @@ export default function HoleSchematic({ hole, highlightTee, maxWidth = 220 }: { 
       {realMap ? (
         <RealMap map={realMap} tee={tee!} green={green!} fairway={fairway} maxWidth={maxWidth} />
       ) : (
-        <SchematicSvg entries={entries} highlightTee={highlightTee} maxWidth={maxWidth} />
+        <SchematicSvg entries={entries} highlightTee={highlightTee} maxWidth={maxWidth} shapeTags={hole.shapeTags ?? []} />
       )}
 
       {realMap ? (
@@ -196,27 +197,106 @@ function RealMap({ map, fairway, maxWidth }: { map: BuiltMap; tee: GpsPoint; gre
   );
 }
 
-function SchematicSvg({ entries, highlightTee, maxWidth }: { entries: { tee: Tee; yards: number }[]; highlightTee?: Tee | null; maxWidth: number }) {
+// ── Illustrative fallback shapes ─────────────────────────────────────────
+// Drawn from the pro's shape/feature tags — never from real GPS data (that's
+// RealMap's job). Purely a stylized guide until the course has real
+// aggregated tee/green points.
+interface CenterPt { t: number; x: number; y: number }
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+function buildCenterline(shapeTags: string[]): CenterPt[] {
+  const teeX = WIDTH / 2, teeY = BOTTOM - 6;
+  const greenX = WIDTH / 2, greenY = TOP + 4;
+  const BEND = 52;
+  const pts: CenterPt[] = [{ t: 0, x: teeX, y: teeY }];
+  if (shapeTags.includes('double_dogleg')) {
+    pts.push({ t: 0.35, x: teeX - BEND, y: lerp(teeY, greenY, 0.35) });
+    pts.push({ t: 0.65, x: teeX + BEND, y: lerp(teeY, greenY, 0.65) });
+  } else if (shapeTags.includes('dogleg_left')) {
+    pts.push({ t: 0.5, x: teeX - BEND, y: lerp(teeY, greenY, 0.5) });
+  } else if (shapeTags.includes('dogleg_right')) {
+    pts.push({ t: 0.5, x: teeX + BEND, y: lerp(teeY, greenY, 0.5) });
+  }
+  pts.push({ t: 1, x: greenX, y: greenY });
+  return pts;
+}
+
+function pointOnCenterline(pts: CenterPt[], t: number): { x: number; y: number } {
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    if (t >= a.t && t <= b.t) {
+      const local = (t - a.t) / (b.t - a.t || 1);
+      return { x: lerp(a.x, b.x, local), y: lerp(a.y, b.y, local) };
+    }
+  }
+  return pts[pts.length - 1];
+}
+
+const pathD = (pts: CenterPt[]) => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+function SchematicSvg({ entries, highlightTee, maxWidth, shapeTags }: { entries: { tee: Tee; yards: number }[]; highlightTee?: Tee | null; maxWidth: number; shapeTags: string[] }) {
   const maxYards = entries.length ? Math.max(...entries.map((e) => e.yards)) : 0;
-  const yFor = (yards: number) => (maxYards > 0 ? TOP + (yards / maxYards) * (BOTTOM - TOP) : BOTTOM);
+  const centerline = buildCenterline(shapeTags);
+  const greenPt = centerline[centerline.length - 1];
+  const teePt = centerline[0];
+  const elevated = shapeTags.includes('elevated_green');
+
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', maxWidth, display: 'block', margin: '0 auto' }}>
-      <polygon
-        points={`${WIDTH / 2 - 10},${TOP + 20} ${WIDTH / 2 + 10},${TOP + 20} ${WIDTH / 2 + 46},${BOTTOM} ${WIDTH / 2 - 46},${BOTTOM}`}
-        fill="#EAF2ED"
-        stroke="#C8DDD1"
-        strokeWidth={1}
-      />
-      <ellipse cx={WIDTH / 2} cy={TOP} rx={26} ry={18} fill="#8FBF9F" stroke="#1B6B3A" strokeWidth={1.5} />
-      <line x1={WIDTH / 2} y1={TOP - 18} x2={WIDTH / 2} y2={TOP + 4} stroke="#1A1F1C" strokeWidth={1.5} />
-      <polygon points={`${WIDTH / 2},${TOP - 18} ${WIDTH / 2 + 12},${TOP - 13} ${WIDTH / 2},${TOP - 8}`} fill="#B91C1C" />
+      {/* fairway corridor, bent per dogleg tags */}
+      <path d={pathD(centerline)} fill="none" stroke="#EAF2ED" strokeWidth={64} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={pathD(centerline)} fill="none" stroke="#C8DDD1" strokeWidth={2} strokeDasharray="5 6" strokeLinejoin="round" opacity={0.8} />
+
+      {shapeTags.includes('waste_areas') && (() => {
+        const p = pointOnCenterline(centerline, 0.42);
+        return <ellipse cx={p.x - 40} cy={p.y} rx={30} ry={16} fill="#E8D7A8" stroke="#B8A05A" strokeWidth={1} opacity={0.85} />;
+      })()}
+      {shapeTags.includes('fairway_bunkers') && (() => {
+        const p = pointOnCenterline(centerline, 0.55);
+        return (
+          <>
+            <ellipse cx={p.x - 40} cy={p.y} rx={15} ry={9} fill="#F2E1B0" stroke="#B8A05A" strokeWidth={1} />
+            <ellipse cx={p.x + 40} cy={p.y} rx={15} ry={9} fill="#F2E1B0" stroke="#B8A05A" strokeWidth={1} />
+          </>
+        );
+      })()}
+      {shapeTags.includes('pot_bunkers') && (() => {
+        const p = pointOnCenterline(centerline, 0.62);
+        return (
+          <>
+            <circle cx={p.x - 22} cy={p.y} r={7} fill="#F2E1B0" stroke="#8A7433" strokeWidth={1} />
+            <circle cx={p.x + 22} cy={p.y - 10} r={7} fill="#F2E1B0" stroke="#8A7433" strokeWidth={1} />
+          </>
+        );
+      })()}
+      {shapeTags.includes('blind_shot') && (() => {
+        const p = pointOnCenterline(centerline, 0.32);
+        return (
+          <g>
+            <path d={`M${p.x - 46},${p.y + 10} Q${p.x},${p.y - 22} ${p.x + 46},${p.y + 10} Z`} fill="#DDE3D6" stroke="#AEB8A5" strokeWidth={1} />
+            <text x={p.x} y={p.y + 2} fontSize={11} textAnchor="middle" fill="#6B7775" fontFamily="'DM Sans', sans-serif">rise</text>
+          </g>
+        );
+      })()}
+
+      {/* green */}
+      {elevated && <ellipse cx={greenPt.x} cy={greenPt.y + 4} rx={34} ry={24} fill="none" stroke="#B7CFC0" strokeWidth={1.5} />}
+      <ellipse cx={greenPt.x} cy={greenPt.y} rx={26} ry={18} fill="#8FBF9F" stroke="#1B6B3A" strokeWidth={1.5} />
+      {elevated && <text x={greenPt.x} y={greenPt.y - 26} fontSize={11} textAnchor="middle" fill="#6B7775" fontFamily="'DM Sans', sans-serif">▲ elevated</text>}
+      <line x1={greenPt.x} y1={greenPt.y - 18} x2={greenPt.x} y2={greenPt.y + 4} stroke="#1A1F1C" strokeWidth={1.5} />
+      <polygon points={`${greenPt.x},${greenPt.y - 18} ${greenPt.x + 12},${greenPt.y - 13} ${greenPt.x},${greenPt.y - 8}`} fill="#B91C1C" />
+
+      {/* tee */}
+      <rect x={teePt.x - 7} y={teePt.y - 7} width={14} height={14} rx={3} fill="#1A1F1C" />
+
       {entries.map(({ tee, yards }) => {
-        const y = yFor(yards);
+        const t = maxYards > 0 ? yards / maxYards : 0;
+        const p = pointOnCenterline(centerline, Math.min(1, Math.max(0, t)));
         const active = highlightTee === tee;
         return (
           <g key={tee}>
-            <rect x={WIDTH / 2 - 7} y={y - 7} width={14} height={14} fill={TEE_COLORS[tee]} stroke={active ? '#1B4425' : 'none'} strokeWidth={active ? 3 : 0} rx={3} />
-            <text x={WIDTH / 2 + 16} y={y + 4} fontSize={11} fill="#1A1F1C" fontFamily="'DM Sans', sans-serif">{yards}y</text>
+            <rect x={p.x - 7} y={p.y - 7} width={14} height={14} fill={TEE_COLORS[tee]} stroke={active ? '#1B4425' : 'none'} strokeWidth={active ? 3 : 0} rx={3} />
+            <text x={p.x + 16} y={p.y + 4} fontSize={11} fill="#1A1F1C" fontFamily="'DM Sans', sans-serif">{yards}y</text>
           </g>
         );
       })}
