@@ -8,7 +8,7 @@ import React from 'react';
 // way — this section's whole value is that it is true.
 const PARAGRAPHS = [
   "Our founder co-organized the founding charity golf tournament for St. Michael's Catholic School in Mandeville, Louisiana. His son was one of 36 founding students.",
-  "He isn't building for a market he studied from a distance. He's building for the job he actually did — every feature in this platform comes from that lived experience.",
+  "Every feature in this platform comes from that lived experience.",
 ];
 
 // Stagger geometry, in percent of the wrapper's trip through the viewport
@@ -62,7 +62,7 @@ export default function OurStory() {
             id="our-story-heading"
             style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 'clamp(32px, 5vw, 46px)', lineHeight: 1.08, color: 'var(--deep-green)', margin: '0 0 28px' }}
           >
-            Our Story
+            Origin Story
           </h2>
 
           {words.map((paragraph, pi) => (
@@ -85,10 +85,6 @@ export default function OurStory() {
               })}
             </p>
           ))}
-
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, lineHeight: 1.6, color: 'var(--ink)', opacity: 0.6, margin: '30px 0 0' }}>
-            St. Michael&rsquo;s Catholic School &middot; Mandeville, Louisiana
-          </p>
         </div>
       </div>
     </section>
