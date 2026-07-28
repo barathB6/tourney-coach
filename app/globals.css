@@ -22,11 +22,15 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* TourneyCoach is a single light theme on a cream canvas — the surfaces
+   (white cards, cream page) are fixed, so there is no dark palette to flip to.
+   The scaffold's prefers-color-scheme block used to swap --foreground to
+   #ededed, which rendered near-white body text on those still-light surfaces
+   (the setup wizard and other Tailwind text-gray-* screens became unreadable
+   for anyone whose OS is in dark mode). color-scheme pins form controls —
+   selects, date inputs, checkboxes — to their light rendering too. */
+:root {
+  color-scheme: light;
 }
 
 body {
