@@ -3,7 +3,7 @@
 import React, { useEffect, useState, use as usePromise } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { TEES, TEE_LABELS, HOLE_SHAPE_TAGS, HOLE_SHAPE_TAG_LABELS, describeShapeTags, emptyHoles, isHoleComplete, completionCount, type CourseHole, type Tee } from '@/lib/course';
+import { TEES, TEE_LABELS, HOLE_SHAPE_TAGS, HOLE_SHAPE_TAG_LABELS, describeShapeTags, emptyHoles, isHoleComplete, completionCount, AVG_PAR_YARDAGES, type CourseHole, type Tee } from '@/lib/course';
 
 type Course = {
   id: string;
@@ -327,7 +327,15 @@ function HoleEditor({ hole, tees, onSave }: { hole: CourseHole; tees: Tee[]; onS
           <label style={s.label}>Par</label>
           <div style={{ display: 'flex', gap: 6 }}>
             {[3, 4, 5].map((p) => (
-              <button key={p} onClick={() => commit({ ...local, par: p })} style={{
+              <button key={p} onClick={() => {
+                // Prefill with the most common yardages for this par, tee by
+                // tee — only when nothing's been entered yet, so switching
+                // par never clobbers yardages the pro already typed in.
+                const teeYardages = Object.keys(local.teeYardages).length === 0
+                  ? Object.fromEntries(tees.map((t) => [t, AVG_PAR_YARDAGES[p as 3 | 4 | 5][t]]))
+                  : local.teeYardages;
+                commit({ ...local, par: p, teeYardages });
+              }} style={{
                 width: 40, height: 36, borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14, fontFamily: 'inherit',
                 border: local.par === p ? '1px solid #1B6B3A' : '1px solid #E5E0D5',
                 background: local.par === p ? '#1B6B3A' : '#fff', color: local.par === p ? '#fff' : '#1A1F1C',

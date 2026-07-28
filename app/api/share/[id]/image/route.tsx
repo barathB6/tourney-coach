@@ -28,13 +28,7 @@ export async function GET(
     return new Response('Tournament not found', { status: 404 });
   }
 
-  const { count } = await supabase
-    .from('registrations')
-    .select('id', { count: 'exact', head: true })
-    .eq('tournament_id', id);
-
   const foursomes = Math.floor((t.max_players ?? 0) / 4);
-  const claimed = count ?? 0;
   const primaryColor = t.microsite_color ?? '#1B6B3A';
   const dateStr = new Date(t.event_date).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
@@ -78,8 +72,8 @@ export async function GET(
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: 56 }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', color: '#ffffff', fontSize: 48, fontWeight: 700 }}>{claimed} / {foursomes}</div>
-              <div style={{ display: 'flex', color: 'rgba(255,255,255,0.6)', fontSize: 20, fontFamily: 'Arial, sans-serif', textTransform: 'uppercase', letterSpacing: 2 }}>foursomes claimed</div>
+              <div style={{ display: 'flex', color: '#ffffff', fontSize: 48, fontWeight: 700 }}>{foursomes} foursomes</div>
+              <div style={{ display: 'flex', color: 'rgba(255,255,255,0.6)', fontSize: 20, fontFamily: 'Arial, sans-serif', textTransform: 'uppercase', letterSpacing: 2 }}>spots limited but still available</div>
             </div>
             {t.location_name && (
               <div style={{ display: 'flex', flexDirection: 'column' }}>

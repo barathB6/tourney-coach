@@ -13,6 +13,15 @@ export const TEE_LABELS: Record<Tee, string> = {
   red: 'Forward',
 };
 
+// Most common tee yardages for a hole of a given par, by tee — lets the
+// Course Builder prefill sensible defaults the moment a pro sets a hole's
+// par, instead of a blank yardage row for every tee.
+export const AVG_PAR_YARDAGES: Record<3 | 4 | 5, Record<Tee, number>> = {
+  3: { black: 185, blue: 165, white: 145, gold: 125, red: 105 },
+  4: { black: 420, blue: 385, white: 355, gold: 320, red: 280 },
+  5: { black: 560, blue: 520, white: 480, gold: 440, red: 400 },
+};
+
 // Canonical hole shape/feature vocabulary — replaces free-text hole
 // descriptions with a fixed set of chips so both the pro's input and the
 // illustrative hole-map schematic can be driven off the same structured
