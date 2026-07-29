@@ -19,10 +19,21 @@ export default function TVLeaderboardShortcut() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.replace('/sign-in?next=/tv/leaderboard'); return; }
-      const { data: t } = await supabase
+
+      // Show the tournament the organizer currently has open on the dashboard
+      // — same key every other tournament-scoped page reads. Falls back to the
+      // newest only when there's no selection (or it's been deleted), so the
+      // board never silently belongs to a different event than the dashboard.
+      let selectedId: string | null = null;
+      try { selectedId = localStorage.getItem(`tourney_selected_tournament_${user.id}`); } catch { /* ignore */ }
+
+      const { data: all } = await supabase
         .from('tournaments').select('id').eq('organizer_id', user.id)
-        .order('created_at', { ascending: false }).limit(1).maybeSingle();
-      setState(t ? { kind: 'board', id: t.id } : { kind: 'none' });
+        .order('created_at', { ascending: false });
+
+      const list = all ?? [];
+      const picked = list.find((t) => t.id === selectedId) ?? list[0] ?? null;
+      setState(picked ? { kind: 'board', id: picked.id } : { kind: 'none' });
     });
   }, [router]);
 
