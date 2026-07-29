@@ -78,24 +78,29 @@ export async function POST(req: NextRequest) {
 
   // Aggregate-only confirmation: how many members are near this player.
   //
-  // This count is derived from the location now STORED on their own row, never
-  // from coordinates passed in on this request. Echoing a count back for
-  // caller-chosen coordinates turned this into a global geographic oracle:
-  // sweep a lat/lng grid, difference the overlapping circles, and a region that
-  // returns 1 pins an individual member's home. It also goes through the
-  // disclosure threshold, so a small neighbourhood can't be resolved to a
-  // person either.
-  const { data: self } = await service.from('tourneycircle_members')
-    .select('home_lat, home_lng').eq('player_profile_id', profileId).maybeSingle();
+  // The reference point is the COURSE they just played, resolved server-side
+  // from their registration — not any coordinate in this request, and not the
+  // location this request just wrote.
+  //
+  // Anchoring it to the player's stored home was NOT enough, and the Phase E
+  // integration test caught that: this same call writes that home location, so
+  // anyone holding a registration id could move the anchor and read the count
+  // back — sweeping a lat/lng grid to localize members, and corrupting the
+  // victim's saved location on the way. Deriving the anchor from the
+  // registration removes the caller's influence entirely. The count still
+  // passes the disclosure threshold, so a sparse area reports nothing rather
+  // than a number small enough to describe a person.
   let nearby: DisclosedCount = { value: 0, suppressed: true };
-  if (self?.home_lat != null && self?.home_lng != null) {
-    const { data: members } = await service.from('tourneycircle_members').select('home_lat, home_lng, member_type');
-    const total = countWithinRadius(
-      (members ?? []) as Member[],
-      centroidOf([{ lat: Number(self.home_lat), lng: Number(self.home_lng) }]),
-      radiusMiles,
-    ).total;
-    nearby = disclose(total);
+  const { data: tournament } = await service.from('tournaments')
+    .select('course_id').eq('id', reg.tournament_id as string).maybeSingle();
+  if (tournament?.course_id) {
+    const { data: tracks } = await service.from('gps_tracks')
+      .select('lat, lng').eq('course_id', tournament.course_id).limit(5000);
+    const reference = centroidOf((tracks ?? []).map((t) => ({ lat: Number(t.lat), lng: Number(t.lng) })));
+    if (reference) {
+      const { data: members } = await service.from('tourneycircle_members').select('home_lat, home_lng, member_type');
+      nearby = disclose(countWithinRadius((members ?? []) as Member[], reference, radiusMiles).total);
+    }
   }
   return NextResponse.json({
     ok: true,

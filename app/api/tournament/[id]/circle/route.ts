@@ -64,21 +64,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const eligible = notSuppressed((members ?? []) as RawMember[], await suppressedProfileIds(gate.service, id));
   const rawMatched = countWithinRadius(eligible, ref, radiusMiles);
 
-  // Every count leaving this route passes the disclosure threshold. The headline
-  // `matched` needs it as much as the breakdowns do: the radius is a query
-  // param, so an organizer can walk all four radii and difference the totals —
-  // and a difference of one is a person. Thresholding only the breakdowns would
-  // have left that bypass wide open.
-  const matchedTotal = disclose(rawMatched.total);
-  const matched = matchedTotal.suppressed
-    ? { total: 0, individual: 0, corporate: 0, coe: 0 }
-    : rawMatched;
-
   // Nested radii need the laddered rule, not a per-bucket floor: two totals that
   // each clear the threshold can still be subtracted to expose the ring between
   // them.
   const rawByRadius = RADIUS_OPTIONS.map((r) => countWithinRadius(eligible, ref, r).total);
   const byRadius = discloseLadder(rawByRadius).map((d, i) => ({ radiusMiles: RADIUS_OPTIONS[i], ...d }));
+
+  // The headline `matched` is governed by that SAME ladder, not by a standalone
+  // floor. radius is a query param, so an organizer can request each radius in
+  // turn and read `matched.total` every time — which reconstructs the exact
+  // ladder the breakdown withholds, and a difference of one is a person. A
+  // per-bucket floor doesn't catch it (7, 8 and 9 all clear the floor). Reusing
+  // the ladder entry for the requested radius keeps the two views consistent by
+  // construction, so neither can be played off against the other.
+  const rung = byRadius.find((r) => r.radiusMiles === radiusMiles);
+  const matchedSuppressed = rung ? rung.suppressed : disclose(rawMatched.total).suppressed;
+  const matched = matchedSuppressed
+    ? { total: 0, individual: 0, corporate: 0, coe: 0 }
+    : rawMatched;
 
   const byCause = causeBreakdown(membersWithinRadius(eligible, ref, radiusMiles))
     .map((row) => ({ cause: row.cause, ...disclose(row.count) }))
@@ -92,7 +95,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     courseLocated: ref != null,
     radiusMiles,
     matched,
-    matchedSuppressed: matchedTotal.suppressed,
+    matchedSuppressed,
     byRadius,
     byCause,
     minDisclosableCount: MIN_DISCLOSABLE_COUNT,
