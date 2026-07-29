@@ -315,9 +315,31 @@ function Field({ label, value, onCommit }: { label: string; value: string; onCom
   );
 }
 
+// Fills every still-blank tee in `hole.teeYardages` with the most common
+// yardage for `hole.par`, per tee — never touches a tee that already has a
+// value. Returns the same object (no-op) when there's no par yet or nothing
+// is missing, so callers can cheaply check for a change with !==.
+function withPrefilledYardages(hole: CourseHole, tees: Tee[]): CourseHole {
+  if (!hole.par) return hole;
+  const teeYardages = { ...hole.teeYardages };
+  let changed = false;
+  for (const t of tees) {
+    if (teeYardages[t] == null) { teeYardages[t] = AVG_PAR_YARDAGES[hole.par as 3 | 4 | 5][t]; changed = true; }
+  }
+  return changed ? { ...hole, teeYardages } : hole;
+}
+
 function HoleEditor({ hole, tees, onSave }: { hole: CourseHole; tees: Tee[]; onSave: (h: CourseHole) => void }) {
-  const [local, setLocal] = useState<CourseHole>(hole);
+  // A hole that already has a par saved (however it got one — a prior par
+  // click, or data loaded from the course) but blank yardages opens
+  // pre-filled immediately, not just after the pro re-clicks its par button.
+  const [local, setLocal] = useState<CourseHole>(() => withPrefilledYardages(hole, tees));
   function commit(next: CourseHole) { setLocal(next); onSave(next); }
+
+  useEffect(() => {
+    if (local !== hole) onSave(local); // persist the auto-prefill from initial state, once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={s.card}>
@@ -327,18 +349,7 @@ function HoleEditor({ hole, tees, onSave }: { hole: CourseHole; tees: Tee[]; onS
           <label style={s.label}>Par</label>
           <div style={{ display: 'flex', gap: 6 }}>
             {[3, 4, 5].map((p) => (
-              <button key={p} onClick={() => {
-                // Prefill each still-blank tee with the most common yardage
-                // for this par — per tee, not "any yardage entered anywhere",
-                // so it never clobbers a distance the pro already typed in,
-                // and a field that was typed into then cleared (which leaves
-                // an explicit undefined, not a missing key) still gets filled.
-                const teeYardages = { ...local.teeYardages };
-                for (const t of tees) {
-                  if (teeYardages[t] == null) teeYardages[t] = AVG_PAR_YARDAGES[p as 3 | 4 | 5][t];
-                }
-                commit({ ...local, par: p, teeYardages });
-              }} style={{
+              <button key={p} onClick={() => commit(withPrefilledYardages({ ...local, par: p }, tees))} style={{
                 width: 40, height: 36, borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14, fontFamily: 'inherit',
                 border: local.par === p ? '1px solid #1B6B3A' : '1px solid #E5E0D5',
                 background: local.par === p ? '#1B6B3A' : '#fff', color: local.par === p ? '#fff' : '#1A1F1C',
