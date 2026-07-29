@@ -160,12 +160,8 @@ export default function ContestsPage() {
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '26px 20px 64px' }}>
         <button onClick={() => router.push('/dashboard')} style={S.back}>← Dashboard</button>
 
-        {/* Header — eyebrow + title + subtitle */}
+        {/* Header — title + subtitle */}
         <div style={{ margin: '14px 0 22px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--primary)' }}>Module 13</span>
-            <span style={S.moduleTag}>PO · MVP</span>
-          </div>
           <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 40, lineHeight: 1.05, color: 'var(--ink)', margin: '0 0 12px' }}>Contest Hole Manager</h1>
           <p style={{ fontSize: 16, lineHeight: 1.5, color: '#5C6B62', maxWidth: 620, margin: 0 }}>
             Hole-in-one insurance, closest to pin, longest drive, putting contest. One card per contest. Each card knows which hole it lives on, what the prize is, who the witnesses are, and how it gets photographed.
@@ -614,7 +610,6 @@ function Money({ value, onChange, placeholder }: { value: string; onChange: (v: 
 
 const S: Record<string, React.CSSProperties> = {
   back: { background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: 0 },
-  moduleTag: { fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#8A6D1F', background: '#F3E6C4', borderRadius: 6, padding: '3px 8px' },
   addBtn: { background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' },
   ghostBtn: { background: '#fff', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: 9, padding: '10px 16px', fontSize: 14, fontWeight: 500, cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(258px, 1fr))', gap: 16 },

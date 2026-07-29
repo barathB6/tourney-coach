@@ -42,7 +42,6 @@ const s = {
   btn: { background: '#1B6B3A', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
   btnGhost: { background: '#fff', color: '#1A1F1C', border: '1px solid #E5E0D5', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
   pill: { fontSize: 12.5, fontWeight: 700, background: '#E7F1EA', color: '#1B6B3A', borderRadius: 20, padding: '7px 14px', whiteSpace: 'nowrap' as const },
-  moduleTag: { fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' as const, color: '#8A6D1F', background: '#F3E6C4', borderRadius: 6, padding: '3px 8px' },
 };
 
 export default function CourseBuilderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -227,12 +226,7 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#5C6B62', background: '#EFEAD9', border: '1px solid #E5E0D5', borderRadius: 20, padding: '5px 12px' }}>PRO PORTAL</span>
         </div>
 
-        {/* Module header */}
         <div style={{ marginBottom: 22 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', color: '#1B6B3A' }}>Module 12</span>
-            <span style={s.moduleTag}>P0 · MVP</span>
-          </div>
           <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 38, lineHeight: 1.05, margin: '0 0 10px' }}>Golf Pro Course Builder</h1>
           <p style={{ fontSize: 15.5, lineHeight: 1.5, color: '#5C6B62', maxWidth: 680, margin: 0 }}>
             Where the head pro spends 30–45 minutes once and never again. 18 hole cards with par, yardage, handicap. The GPS schema lives behind the scenes — invisible to the pro, but it&apos;s the patent-priority data structure.

@@ -98,10 +98,6 @@ export default function CirclePage() {
         <button onClick={() => router.push('/dashboard')} style={S.back}>← Dashboard</button>
 
         <div style={{ margin: '14px 0 22px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--primary)' }}>Module 22</span>
-            <span style={S.moduleTag}>P0 · MVP</span>
-          </div>
           <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 38, lineHeight: 1.05, color: 'var(--ink)', margin: '0 0 10px' }}>TourneyCircle Discovery &amp; Opt-in</h1>
           <p style={{ fontSize: 15.5, lineHeight: 1.5, color: '#5C6B62', maxWidth: 640, margin: 0 }}>
             The “you have an audience already” moment. Your course and date reveal how many opted-in charitable golfers live within reach — privacy-protected: TourneyCoach sees the players, you see only the count.
@@ -265,7 +261,6 @@ function Radar() {
 
 const S: Record<string, React.CSSProperties> = {
   back: { background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: 0 },
-  moduleTag: { fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#8A6D1F', background: '#F3E6C4', borderRadius: 6, padding: '3px 8px' },
   card: { background: '#fff', border: '1px solid var(--line)', borderRadius: 16, padding: 22 },
   hero: { position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #0F4A26, #17632F)', borderRadius: 20, padding: '34px 34px 30px' },
   heroP: { fontSize: 15, lineHeight: 1.55, color: 'rgba(255,255,255,0.85)', margin: 0 },
