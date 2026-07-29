@@ -57,7 +57,13 @@ export const MIN_DISCLOSABLE_COUNT = 5;
 
 export type DisclosedCount = { value: number; suppressed: boolean };
 
+// Exactly zero is disclosable: "nobody has opted in near this course yet"
+// names no one — there is no one to name — and withholding it would be a lie
+// of omission that leaves an organizer staring at "—" forever on an empty
+// network. It's the 1–4 range that has to stay hidden, because a count that
+// small IS a description of specific people.
 export function disclose(count: number): DisclosedCount {
+  if (count === 0) return { value: 0, suppressed: false };
   return count < MIN_DISCLOSABLE_COUNT
     ? { value: 0, suppressed: true }
     : { value: count, suppressed: false };
@@ -72,6 +78,7 @@ export function disclose(count: number): DisclosedCount {
 export function discloseLadder(counts: number[]): DisclosedCount[] {
   let lastDisclosed = 0;
   return counts.map((raw) => {
+    if (raw === 0) return { value: 0, suppressed: false }; // empty ring names nobody
     const increment = raw - lastDisclosed;
     const safe = raw >= MIN_DISCLOSABLE_COUNT && (increment === 0 || increment >= MIN_DISCLOSABLE_COUNT);
     if (!safe) return { value: 0, suppressed: true };

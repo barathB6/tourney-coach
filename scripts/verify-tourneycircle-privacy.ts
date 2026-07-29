@@ -28,7 +28,11 @@ check('a bucket of 1 is suppressed', disclose(1).suppressed);
 check(`a bucket of ${MIN_DISCLOSABLE_COUNT - 1} is suppressed`, disclose(MIN_DISCLOSABLE_COUNT - 1).suppressed);
 check(`a bucket of ${MIN_DISCLOSABLE_COUNT} is disclosed`, !disclose(MIN_DISCLOSABLE_COUNT).suppressed);
 check('a suppressed bucket carries no residual value', disclose(3).value === 0, 'value must be 0, not the real count');
-check('zero is suppressed too', disclose(0).suppressed, 'so "nobody here" and "one person here" look identical');
+// Deliberate policy: 0 is reportable, 1–4 is not. An empty network describes
+// nobody, and hiding it strands the organizer on "—" forever. The sensitive
+// range is 1–4, where a count IS a description of specific people.
+check('exactly zero is reportable', !disclose(0).suppressed, 'names nobody — there is nobody to name');
+check('one is still hidden', disclose(1).suppressed, 'the 1–4 range is what must stay hidden');
 
 console.log('\n== differencing attack: isolate one person by narrowing radius ==');
 // 6 players inside 15mi, plus exactly ONE between 15 and 25mi. An organizer who
@@ -77,6 +81,9 @@ check('randomised sweep: 500 populations, no differencing leak', sweepLeaks === 
 
 console.log('\n== ladder rule specifics ==');
 check('a lone rung below the floor is suppressed', discloseLadder([3])[0].suppressed);
+check('an empty rung reports zero rather than "—"', !discloseLadder([0])[0].suppressed);
+check('zero rungs do not raise the baseline for later rungs',
+  !discloseLadder([0, 0, 7])[2].suppressed, '7-0=7 clears the floor');
 check('equal consecutive rungs both disclose (they add nobody new)',
   discloseLadder([8, 8]).every((d) => !d.suppressed));
 check('a +1 increment over a disclosed rung is suppressed',
