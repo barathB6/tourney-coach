@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { applyMaxScore, type MaxScoreRule } from '@/lib/scoring/leaderboard';
-import { broadcastScoreUpdate } from '@/lib/realtime';
+import { type MaxScoreRule } from '@/lib/scoring/leaderboard';
+import { applyScoreCorrection } from '@/lib/scoring/correct';
 
 // RLS-respecting client carrying the caller's token — used to prove the
 // caller owns the tournament before any correction is written.
@@ -55,70 +55,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden — you do not own this tournament' }, { status: 403 });
   }
 
-  // Prior recorded score for this hole (the latest existing submission), for
-  // the audit trail's old→new record.
-  const { data: prior } = await service
-    .from('score_submissions')
-    .select('strokes')
-    .eq('registration_id', registrationId)
-    .eq('hole_number', holeNumber)
-    .order('submitted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  // Apply the same max-score rule a player submission would.
-  let finalStrokes = strokes;
-  let capped = false;
-  if (t.max_score_rule && t.course_id) {
-    const { data: hole } = await service
-      .from('course_holes')
-      .select('par')
-      .eq('course_id', t.course_id)
-      .eq('hole_number', holeNumber)
-      .maybeSingle();
-    const res = applyMaxScore(t.max_score_rule, hole?.par ?? null, strokes);
-    finalStrokes = res.strokes;
-    capped = res.capped;
-  }
-
-  const submittedAt = new Date().toISOString();
-  const { data: inserted, error: insertErr } = await service
-    .from('score_submissions')
-    .insert({
-      registration_id: registrationId,
-      tournament_id: reg.tournament_id,
-      course_id: t.course_id,
-      device_id: null, // organizer correction, not a device submission
-      hole_number: holeNumber,
-      strokes: finalStrokes,
-      green_labeled_points: 0, // corrections don't label GPS
-      submitted_at: submittedAt,
-    })
-    .select('id')
-    .single();
-  if (insertErr || !inserted) {
-    return NextResponse.json({ error: 'Failed to record correction' }, { status: 500 });
-  }
-
-  const { error: auditErr } = await service.from('score_corrections').insert({
-    score_submission_id: inserted.id,
-    tournament_id: reg.tournament_id,
-    registration_id: registrationId,
-    hole_number: holeNumber,
-    old_strokes: prior?.strokes ?? null,
-    new_strokes: finalStrokes,
-    reason: typeof reason === 'string' ? reason.slice(0, 500) : null,
-    corrected_by: user.id,
+  const result = await applyScoreCorrection({
+    service,
+    registrationId,
+    tournamentId: reg.tournament_id,
+    courseId: t.course_id,
+    maxScoreRule: t.max_score_rule as MaxScoreRule | null,
+    holeNumber,
+    strokes,
+    reason,
+    correctedBy: user.id,
   });
-
-  await broadcastScoreUpdate(reg.tournament_id, { holeNumber, registrationId, correction: true });
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
 
   return NextResponse.json({
     ok: true,
-    strokesRecorded: finalStrokes,
-    capped,
-    previousStrokes: prior?.strokes ?? null,
-    auditLogged: !auditErr,
-    ...(auditErr ? { auditError: 'score_corrections table unavailable — run db/migrations/028_live_scoring.sql' } : {}),
+    strokesRecorded: result.strokesRecorded,
+    capped: result.capped,
+    previousStrokes: result.previousStrokes ?? null,
+    auditLogged: result.auditLogged,
+    ...(result.auditLogged ? {} : { auditError: 'score_corrections table unavailable — run db/migrations/028_live_scoring.sql' }),
   });
 }
