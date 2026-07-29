@@ -3,7 +3,9 @@
 import React, { useEffect, useState, use as usePromise } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { TEES, TEE_LABELS, HOLE_SHAPE_TAGS, HOLE_SHAPE_TAG_LABELS, describeShapeTags, emptyHoles, isHoleComplete, completionCount, AVG_PAR_YARDAGES, type CourseHole, type Tee } from '@/lib/course';
+import { TEES, emptyHoles, isHoleComplete, completionCount, type CourseHole, type Tee } from '@/lib/course';
+import { HoleEditor, TeeDistances, TeeDot } from '@/components/course/HoleEditor';
+import { authedFetch } from '@/lib/authedFetch';
 
 type Course = {
   id: string;
@@ -24,6 +26,14 @@ type Course = {
   profile_status: 'draft' | 'complete' | null;
 };
 
+type ProAccess = {
+  active: boolean;
+  email: string | null;
+  loginUrl: string | null;
+  createdAt: string | null;
+  lastLoginAt: string | null;
+};
+
 const s = {
   page: { fontFamily: "'DM Sans', sans-serif", background: '#FAF8F3', minHeight: '100vh', padding: '28px 24px 64px', color: '#1A1F1C' },
   card: { background: '#fff', border: '1px solid #E5E0D5', borderRadius: 14, padding: 20 },
@@ -34,12 +44,6 @@ const s = {
   pill: { fontSize: 12.5, fontWeight: 700, background: '#E7F1EA', color: '#1B6B3A', borderRadius: 20, padding: '7px 14px', whiteSpace: 'nowrap' as const },
   moduleTag: { fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' as const, color: '#8A6D1F', background: '#F3E6C4', borderRadius: 6, padding: '3px 8px' },
 };
-
-const TEE_DOT_COLOR: Record<Tee, string> = { black: '#1A1F1C', blue: '#2C6E3F', white: '#fff', gold: '#C08A1E', red: '#B33A2E' };
-
-function TeeDot({ tee }: { tee: Tee }) {
-  return <span style={{ width: 11, height: 11, borderRadius: '50%', background: TEE_DOT_COLOR[tee], border: tee === 'white' ? '1px solid #D8D2C2' : 'none', display: 'inline-block', flexShrink: 0 }} />;
-}
 
 export default function CourseBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = usePromise(params);
@@ -53,6 +57,17 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [migrationMissing, setMigrationMissing] = useState(false);
   const [saveNote, setSaveNote] = useState('');
+
+  // Delegated head-pro access. While a grant is active the course's hole data
+  // belongs to the pro — the organizer keeps full visibility but drops to
+  // read-only, so there's exactly one authoritative editor.
+  const [proAccess, setProAccess] = useState<ProAccess | null>(null);
+  const [proPanelOpen, setProPanelOpen] = useState(false);
+  const [proEmail, setProEmail] = useState('');
+  const [proBusy, setProBusy] = useState(false);
+  const [proError, setProError] = useState('');
+  const [issued, setIssued] = useState<{ loginUrl: string; password: string; emailed: boolean } | null>(null);
+  const [copied, setCopied] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -90,6 +105,56 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
       setLoading(false);
     });
   }, [id, router]);
+
+  // Load the pro grant once we know the course exists and who's viewing.
+  useEffect(() => {
+    if (id === 'new' || !userId || course?.organizer_id !== userId) return;
+    let cancelled = false;
+    authedFetch(`/api/course/${id}/pro-access`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (!cancelled && data) setProAccess(data); })
+      .catch(() => { /* the panel just stays closed */ });
+    return () => { cancelled = true; };
+  }, [id, userId, course?.organizer_id]);
+
+  async function issueProAccess() {
+    setProBusy(true); setProError(''); setIssued(null);
+    try {
+      const res = await authedFetch(`/api/course/${id}/pro-access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: proEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not create the link');
+      setProAccess({ active: true, email: data.email, loginUrl: data.loginUrl, createdAt: new Date().toISOString(), lastLoginAt: null });
+      setIssued({ loginUrl: data.loginUrl, password: data.password, emailed: data.emailed });
+    } catch (e) {
+      setProError(e instanceof Error ? e.message : 'Could not create the link');
+    } finally {
+      setProBusy(false);
+    }
+  }
+
+  async function revokeProAccess() {
+    if (!window.confirm('Revoke the pro’s access? Their link and password stop working, and you get editing back.')) return;
+    setProBusy(true); setProError('');
+    try {
+      const res = await authedFetch(`/api/course/${id}/pro-access`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Could not revoke access');
+      setProAccess({ active: false, email: null, loginUrl: null, createdAt: null, lastLoginAt: null });
+      setIssued(null);
+    } catch (e) {
+      setProError(e instanceof Error ? e.message : 'Could not revoke access');
+    } finally {
+      setProBusy(false);
+    }
+  }
+
+  async function copy(text: string, what: string) {
+    await navigator.clipboard.writeText(text);
+    setCopied(what); setTimeout(() => setCopied(''), 1500);
+  }
 
   async function createCourse(fields: { name: string; address: string; city: string; state: string; zip: string }) {
     if (!userId) return;
@@ -140,6 +205,11 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
   if (!course) return <div style={s.page}><div style={{ maxWidth: 640, margin: '80px auto', ...s.card }}>Course not found.</div></div>;
 
   const isOwner = course.organizer_id === userId;
+  // Handing the course to a pro hands over editing with it: the organizer
+  // keeps full visibility, but the pro is the single source of truth for
+  // hole data while their grant is live.
+  const delegatedToPro = !!proAccess?.active;
+  const canEdit = isOwner && !delegatedToPro;
   const done = completionCount(holes);
   const activeTees: Tee[] = (course.tees as Tee[] | null) ?? TEES.slice();
   const selected = holes[selectedHole - 1];
@@ -179,12 +249,81 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
               {course.slope ? ` · slope ${course.slope}` : ''}
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={s.pill}>{done} / 18 holes complete</span>
-            {isOwner ? <button style={s.btn} onClick={() => { setSaveNote('Saved'); setTimeout(() => setSaveNote(''), 1200); }}>{saveNote || 'Save course'}</button>
+            {isOwner && (
+              <button style={s.btnGhost} onClick={() => setProPanelOpen((v) => !v)}>
+                {delegatedToPro ? 'Pro access · active' : 'Send to golf pro'}
+              </button>
+            )}
+            {canEdit ? <button style={s.btn} onClick={() => { setSaveNote('Saved'); setTimeout(() => setSaveNote(''), 1200); }}>{saveNote || 'Save course'}</button>
+              : isOwner ? <span style={{ fontSize: 12, color: '#B08900', background: '#FFF7E0', padding: '5px 11px', borderRadius: 20 }}>View only — the golf pro is editing</span>
               : <span style={{ fontSize: 12, color: '#B08900', background: '#FFF7E0', padding: '5px 11px', borderRadius: 20 }}>Read-only — you didn&apos;t create this profile</span>}
           </div>
         </div>
+
+        {isOwner && proPanelOpen && (
+          <div style={{ ...s.card, marginBottom: 18 }}>
+            <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, margin: '0 0 4px' }}>Send this course to the golf pro</h3>
+            <p style={{ fontSize: 13.5, color: '#6B7775', lineHeight: 1.55, margin: '0 0 16px', maxWidth: 620 }}>
+              The pro gets their own link and a password — no account, no signup. Every hole arrives pre-filled with typical distances, so it&apos;s a review-and-correct pass of about 25 minutes. While their access is active you keep watching every change here, but they hold the pen.
+            </p>
+
+            {proAccess?.active ? (
+              <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start', marginBottom: 14 }}>
+                  <div>
+                    <label style={s.label}>Issued to</label>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{proAccess.email}</p>
+                  </div>
+                  <div>
+                    <label style={s.label}>Status</label>
+                    <p style={{ margin: 0, fontSize: 14 }}>
+                      {proAccess.lastLoginAt
+                        ? `Signed in ${new Date(proAccess.lastLoginAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                        : 'Invitation sent — not opened yet'}
+                    </p>
+                  </div>
+                </div>
+                {proAccess.loginUrl && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+                    <code style={{ fontSize: 12.5, background: '#F7F5EE', border: '1px solid #E5E0D5', borderRadius: 8, padding: '8px 11px', wordBreak: 'break-all' }}>{proAccess.loginUrl}</code>
+                    <button style={s.btnGhost} onClick={() => copy(proAccess.loginUrl!, 'link')}>{copied === 'link' ? 'Copied ✓' : 'Copy link'}</button>
+                  </div>
+                )}
+                {issued && (
+                  <div style={{ background: '#EEF5F0', border: '1px solid #CDE3D5', borderRadius: 10, padding: '13px 15px', marginBottom: 14 }}>
+                    <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#1B4425' }}>
+                      Password {issued.emailed ? '· also emailed to the pro' : '· email not sent, share this yourself'}
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <code style={{ fontSize: 17, fontWeight: 700, color: '#1B6B3A' }}>{issued.password}</code>
+                      <button style={s.btnGhost} onClick={() => copy(issued.password, 'pw')}>{copied === 'pw' ? 'Copied ✓' : 'Copy'}</button>
+                    </div>
+                    <p style={{ margin: '8px 0 0', fontSize: 12, color: '#5C6B62' }}>Shown once. Re-send below if the pro needs it again.</p>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button style={s.btnGhost} disabled={proBusy} onClick={() => { setProEmail(proAccess.email ?? ''); issueProAccess(); }}>
+                    {proBusy ? 'Working…' : 'Re-send invitation'}
+                  </button>
+                  <button style={{ ...s.btnGhost, color: '#B91C1C' }} disabled={proBusy} onClick={revokeProAccess}>Revoke access</button>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', maxWidth: 560 }}>
+                <div style={{ flex: '1 1 260px' }}>
+                  <label style={s.label}>Golf pro&apos;s email</label>
+                  <input type="email" style={s.input} placeholder="pro@beauchene.com" value={proEmail} onChange={(e) => setProEmail(e.target.value)} />
+                </div>
+                <button style={s.btn} disabled={proBusy || !proEmail.trim()} onClick={issueProAccess}>
+                  {proBusy ? 'Creating…' : 'Create pro login link'}
+                </button>
+              </div>
+            )}
+            {proError && <p style={{ margin: '12px 0 0', fontSize: 13, color: '#B91C1C' }}>{proError}</p>}
+          </div>
+        )}
 
         {/* Hole cards — two rows of nine */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, minmax(0, 1fr))', gap: 10, marginBottom: 22 }}>
@@ -217,7 +356,7 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
 
         {/* Selected hole + GPS status */}
         <div className="tc-course-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-          {isOwner
+          {canEdit
             ? <HoleEditor key={selected.holeNumber} hole={selected} tees={activeTees} onSave={saveHole} />
             : <TeeDistances hole={selected} tees={activeTees} />}
 
@@ -290,131 +429,11 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
   );
 }
 
-// Read-only tee list (non-owners viewing a shared course profile).
-function TeeDistances({ hole, tees }: { hole: CourseHole; tees: Tee[] }) {
-  // Read-only view (a course you don't own) can't write yardages, but a
-  // hole with a par set and nothing entered yet can still show the common
-  // distance for that par as a labeled estimate, instead of a bare dash.
-  const display = withPrefilledYardages(hole, tees);
-  return (
-    <div style={s.card}>
-      <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, margin: '0 0 14px' }}>Hole {hole.holeNumber} — tee distances</h3>
-      {tees.map((tee) => {
-        const real = hole.teeYardages[tee];
-        const estimated = display.teeYardages[tee];
-        return (
-          <div key={tee} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #F1ECDD' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, width: 120 }}><TeeDot tee={tee} />{tee[0].toUpperCase() + tee.slice(1)}</span>
-            <span style={{ fontSize: 13, color: '#6B7775', flex: 1 }}>{TEE_LABELS[tee]}</span>
-            {real != null ? (
-              <span style={{ fontSize: 15, fontWeight: 700 }}>{real} yds</span>
-            ) : estimated != null ? (
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#9AA39D', fontStyle: 'italic' }} title="Estimated from this hole's par — not yet entered by the course">~{estimated} yds</span>
-            ) : (
-              <span style={{ fontSize: 15, fontWeight: 700 }}>— yds</span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function Field({ label, value, onCommit }: { label: string; value: string; onCommit: (v: string) => void }) {
   return (
     <div>
       <label style={s.label}>{label}</label>
       <input key={value} style={s.input} defaultValue={value} onBlur={(e) => { if (e.target.value !== value) onCommit(e.target.value); }} />
-    </div>
-  );
-}
-
-// Fills every still-blank tee in `hole.teeYardages` with the most common
-// yardage for `hole.par`, per tee — never touches a tee that already has a
-// value. Returns the same object (no-op) when there's no par yet or nothing
-// is missing, so callers can cheaply check for a change with !==.
-function withPrefilledYardages(hole: CourseHole, tees: Tee[]): CourseHole {
-  if (!hole.par) return hole;
-  const teeYardages = { ...hole.teeYardages };
-  let changed = false;
-  for (const t of tees) {
-    if (teeYardages[t] == null) { teeYardages[t] = AVG_PAR_YARDAGES[hole.par as 3 | 4 | 5][t]; changed = true; }
-  }
-  return changed ? { ...hole, teeYardages } : hole;
-}
-
-function HoleEditor({ hole, tees, onSave }: { hole: CourseHole; tees: Tee[]; onSave: (h: CourseHole) => void }) {
-  // A hole that already has a par saved (however it got one — a prior par
-  // click, or data loaded from the course) but blank yardages opens
-  // pre-filled immediately, not just after the pro re-clicks its par button.
-  const [local, setLocal] = useState<CourseHole>(() => withPrefilledYardages(hole, tees));
-  function commit(next: CourseHole) { setLocal(next); onSave(next); }
-
-  useEffect(() => {
-    if (local !== hole) onSave(local); // persist the auto-prefill from initial state, once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <div style={s.card}>
-      <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, margin: '0 0 14px' }}>Hole {hole.holeNumber} — tee distances</h3>
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div>
-          <label style={s.label}>Par</label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[3, 4, 5].map((p) => (
-              <button key={p} onClick={() => commit(withPrefilledYardages({ ...local, par: p }, tees))} style={{
-                width: 40, height: 36, borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14, fontFamily: 'inherit',
-                border: local.par === p ? '1px solid #1B6B3A' : '1px solid #E5E0D5',
-                background: local.par === p ? '#1B6B3A' : '#fff', color: local.par === p ? '#fff' : '#1A1F1C',
-              }}>{p}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{ width: 120 }}>
-          <label style={s.label}>Handicap (1–18)</label>
-          <input type="number" min={1} max={18} style={s.input} value={local.handicap ?? ''}
-            onChange={(e) => setLocal({ ...local, handicap: e.target.value ? Number(e.target.value) : null })} onBlur={() => commit(local)} />
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-        {tees.map((tee) => (
-          <div key={tee} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F1ECDD' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, width: 92 }}><TeeDot tee={tee} />{tee[0].toUpperCase() + tee.slice(1)}</span>
-            <span style={{ fontSize: 12, color: '#6B7775', flex: 1 }}>{TEE_LABELS[tee]}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="number" style={{ ...s.input, width: 90, textAlign: 'right' }} value={local.teeYardages[tee] ?? ''}
-                onChange={(e) => setLocal({ ...local, teeYardages: { ...local.teeYardages, [tee]: e.target.value ? Number(e.target.value) : undefined } })} onBlur={() => commit(local)} />
-              <span style={{ fontSize: 12, color: '#6B7775' }}>yds</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <label style={s.label}>Hole layout & shape (optional)</label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {HOLE_SHAPE_TAGS.map((tag) => {
-          const active = local.shapeTags.includes(tag);
-          return (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => {
-                const shapeTags = active ? local.shapeTags.filter((t) => t !== tag) : [...local.shapeTags, tag];
-                commit({ ...local, shapeTags, description: describeShapeTags(shapeTags) });
-              }}
-              style={{
-                borderRadius: 20, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                border: active ? '1px solid #1B6B3A' : '1px solid #E5E0D5',
-                background: active ? '#E7F1EA' : '#fff', color: active ? '#1B6B3A' : '#1A1F1C',
-              }}
-            >
-              {HOLE_SHAPE_TAG_LABELS[tag]}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
