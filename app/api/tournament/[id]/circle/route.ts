@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { centroidOf, countWithinRadius, expectedClicks, isValidRadius, milesToMeters, NOTIFICATION_COST_CENTS, type Member } from '@/lib/tourneycircle';
+import { causeBreakdown, centroidOf, countWithinRadius, disclose, discloseLadder, expectedClicks, isValidRadius, membersWithinRadius, milesToMeters, MIN_DISCLOSABLE_COUNT, NOTIFICATION_COST_CENTS, RADIUS_OPTIONS, type Member } from '@/lib/tourneycircle';
 import { haversineMeters } from '@/lib/gps/geo';
 
 function getAuthedSupabase(req: NextRequest) {
@@ -43,7 +43,7 @@ async function suppressedProfileIds(service: SupabaseClient, tournamentId: strin
   return set;
 }
 
-type RawMember = Member & { player_profile_id: string | null; cadence_days?: number };
+type RawMember = Member & { player_profile_id: string | null; cadence_days?: number; cause_preferences?: string[] | null };
 const notSuppressed = (members: RawMember[], suppressed: Set<string>) =>
   members.filter((m) => !(m.player_profile_id && suppressed.has(m.player_profile_id)));
 
@@ -59,10 +59,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if ('error' in gate) return gate.error;
 
   const ref = await courseCentroid(gate.service, gate.courseId);
-  const { data: members, error } = await gate.service.from('tourneycircle_members').select('home_lat, home_lng, member_type, player_profile_id');
+  const { data: members, error } = await gate.service.from('tourneycircle_members').select('home_lat, home_lng, member_type, player_profile_id, cause_preferences');
   if (error) return NextResponse.json({ error: MIGRATION_HINT }, { status: 500 });
   const eligible = notSuppressed((members ?? []) as RawMember[], await suppressedProfileIds(gate.service, id));
-  const matched = countWithinRadius(eligible, ref, radiusMiles);
+  const rawMatched = countWithinRadius(eligible, ref, radiusMiles);
+
+  // Every count leaving this route passes the disclosure threshold. The headline
+  // `matched` needs it as much as the breakdowns do: the radius is a query
+  // param, so an organizer can walk all four radii and difference the totals —
+  // and a difference of one is a person. Thresholding only the breakdowns would
+  // have left that bypass wide open.
+  const matchedTotal = disclose(rawMatched.total);
+  const matched = matchedTotal.suppressed
+    ? { total: 0, individual: 0, corporate: 0, coe: 0 }
+    : rawMatched;
+
+  // Nested radii need the laddered rule, not a per-bucket floor: two totals that
+  // each clear the threshold can still be subtracted to expose the ring between
+  // them.
+  const rawByRadius = RADIUS_OPTIONS.map((r) => countWithinRadius(eligible, ref, r).total);
+  const byRadius = discloseLadder(rawByRadius).map((d, i) => ({ radiusMiles: RADIUS_OPTIONS[i], ...d }));
+
+  const byCause = causeBreakdown(membersWithinRadius(eligible, ref, radiusMiles))
+    .map((row) => ({ cause: row.cause, ...disclose(row.count) }))
+    .filter((row) => !row.suppressed);
 
   const { data: history } = await gate.service
     .from('tourneycircle_notifications').select('radius_miles, reached_count, clicked_count, registered_count, sent_at')
@@ -72,6 +92,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     courseLocated: ref != null,
     radiusMiles,
     matched,
+    matchedSuppressed: matchedTotal.suppressed,
+    byRadius,
+    byCause,
+    minDisclosableCount: MIN_DISCLOSABLE_COUNT,
     expectedClicks: expectedClicks(matched.total),
     costCents: NOTIFICATION_COST_CENTS,
     history: (history ?? []).map((h) => ({ radiusMiles: h.radius_miles, reached: h.reached_count, clicked: h.clicked_count, registered: h.registered_count, sentAt: h.sent_at })),
@@ -121,8 +145,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return !last || now - last >= (m.cadence_days ?? 10) * 86_400_000;
   });
 
-  if (recipients.length === 0) {
-    return NextResponse.json({ error: withinReach.length ? 'All matched players are within their notification cadence — try again later.' : 'No matched players in range yet.' }, { status: 400 });
+  // A send below the disclosure threshold is refused outright. Two reasons, and
+  // both matter: the returned `reached` count would otherwise describe a group
+  // small enough to be an individual, and charging $29 to notify one or two
+  // people isn't a product anyone should be sold.
+  //
+  // The message is deliberately identical whether the shortfall is "nobody in
+  // range" or "everyone is inside their cadence window" — distinguishing them
+  // told the organizer whether the in-range population was non-zero, which is
+  // its own free oracle.
+  if (recipients.length < MIN_DISCLOSABLE_COUNT) {
+    return NextResponse.json({
+      error: `Not enough reachable players in this radius right now. TourneyCircle only sends once at least ${MIN_DISCLOSABLE_COUNT} players can be reached — try a wider radius, or check back as more golfers opt in.`,
+    }, { status: 400 });
   }
 
   const { data: notif, error: insErr } = await gate.service.from('tourneycircle_notifications').insert({
@@ -135,6 +170,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const sendRows = recipients.filter((m) => m.player_profile_id).map((m) => ({
     player_profile_id: m.player_profile_id, tournament_id: id, notification_id: notif.id, sent_at: nowIso,
   }));
+  // Each row gets its own visit_token (DB default). Module 25 will read those
+  // back server-side to build each recipient's /register?id=<t>&tc=<token>
+  // link. They are deliberately NOT returned here — the organizer triggers the
+  // send but never receives anything that maps to a person.
   if (sendRows.length) await gate.service.from('tourneycircle_sends').insert(sendRows);
 
   return NextResponse.json({ ok: true, reached: recipients.length });

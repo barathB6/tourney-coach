@@ -47,6 +47,67 @@ export function centroidOf(points: LatLng[]): LatLng | null {
   };
 }
 
+// ── Disclosure control ──────────────────────────────────────────────────────
+// Aggregate counts are only private if they're big enough to hide inside. A
+// bucket of 1 IS an individual, and an organizer who can vary radius or read a
+// cause breakdown can difference two buckets to isolate one person — so any
+// bucket below this threshold is reported as "suppressed" rather than as a
+// number. This is what makes "counts only" actually mean "not individual data".
+export const MIN_DISCLOSABLE_COUNT = 5;
+
+export type DisclosedCount = { value: number; suppressed: boolean };
+
+export function disclose(count: number): DisclosedCount {
+  return count < MIN_DISCLOSABLE_COUNT
+    ? { value: 0, suppressed: true }
+    : { value: count, suppressed: false };
+}
+
+// Nested (cumulative) counts need more than a per-bucket floor. Radii are
+// concentric, so two individually-safe totals can be SUBTRACTED to expose the
+// ring between them: 15mi=6 and 25mi=7 both clear the floor, yet the difference
+// reveals exactly one person. So a rung is only disclosed when its increment
+// over the last disclosed rung is itself either zero (reveals nobody new) or at
+// or above the floor. Input must be ascending by radius.
+export function discloseLadder(counts: number[]): DisclosedCount[] {
+  let lastDisclosed = 0;
+  return counts.map((raw) => {
+    const increment = raw - lastDisclosed;
+    const safe = raw >= MIN_DISCLOSABLE_COUNT && (increment === 0 || increment >= MIN_DISCLOSABLE_COUNT);
+    if (!safe) return { value: 0, suppressed: true };
+    lastDisclosed = raw;
+    return { value: raw, suppressed: false };
+  });
+}
+
+// The organizer-facing cause breakdown. Cause preferences are free-form tags a
+// player picks, so a rare one ("junior hockey in Mandeville") can be as
+// identifying as a name — every bucket goes through the same threshold, and
+// anything under it is folded into "other" rather than listed.
+export function causeBreakdown(
+  members: { cause_preferences?: string[] | null }[],
+): { cause: string; count: number }[] {
+  const tally = new Map<string, number>();
+  for (const m of members) {
+    for (const c of m.cause_preferences ?? []) {
+      const key = c.trim().toLowerCase();
+      if (key) tally.set(key, (tally.get(key) ?? 0) + 1);
+    }
+  }
+  const rows: { cause: string; count: number }[] = [];
+  let other = 0;
+  for (const [cause, count] of tally) {
+    if (count < MIN_DISCLOSABLE_COUNT) other += count;
+    else rows.push({ cause, count });
+  }
+  rows.sort((a, b) => b.count - a.count || a.cause.localeCompare(b.cause));
+  // "Other" is a sum across several rare causes, so it doesn't identify anyone
+  // on its own — but it still gets the threshold, or a lone rare cause would
+  // simply reappear under a different label.
+  if (other >= MIN_DISCLOSABLE_COUNT) rows.push({ cause: 'other', count: other });
+  return rows;
+}
+
 export type Member = { home_lat: number | null; home_lng: number | null; member_type: MemberType };
 
 // Aggregate the matched-player counts within a radius of the reference point.
@@ -67,4 +128,19 @@ export function countWithinRadius(
     out[m.member_type]++;
   }
   return out;
+}
+
+// Members inside a radius — used server-side to derive further aggregates
+// (cause mix). Never returned to an organizer; only counts derived from it are.
+export function membersWithinRadius<T extends Member>(
+  members: T[],
+  reference: LatLng | null,
+  radiusMiles: number,
+): T[] {
+  if (!reference) return [];
+  const limit = milesToMeters(radiusMiles);
+  return members.filter(
+    (m) => m.home_lat != null && m.home_lng != null
+      && haversineMeters({ lat: m.home_lat, lng: m.home_lng }, reference) <= limit,
+  );
 }

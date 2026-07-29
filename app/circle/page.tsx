@@ -7,10 +7,15 @@ import { authedFetch } from '@/lib/authedFetch';
 import { RADIUS_OPTIONS, dollars, NOTIFICATION_COST_CENTS, PREVIEW_RADIUS_COUNTS, previewBreakdown } from '@/lib/tourneycircle';
 
 type Matched = { total: number; individual: number; corporate: number; coe: number };
+type Disclosed = { value: number; suppressed: boolean };
 type CircleData = {
   courseLocated: boolean;
   radiusMiles: number;
   matched: Matched;
+  matchedSuppressed: boolean;
+  byRadius: ({ radiusMiles: number } & Disclosed)[];
+  byCause: ({ cause: string } & Disclosed)[];
+  minDisclosableCount: number;
   expectedClicks: number;
   costCents: number;
   history: { radiusMiles: number; reached: number; clicked: number; registered: number; sentAt: string }[];
@@ -35,7 +40,14 @@ export default function CirclePage() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.replace('/sign-in?next=/circle'); return; }
-      const { data: t } = await supabase.from('tournaments').select('id, name, course_id').eq('organizer_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+      // Match the tournament the organizer has open on the dashboard, not just
+      // their newest — same key every other tournament-scoped page reads.
+      let selectedId: string | null = null;
+      try { selectedId = localStorage.getItem(`tourney_selected_tournament_${user.id}`); } catch { /* ignore */ }
+      const { data: all } = await supabase.from('tournaments').select('id, name, course_id').eq('organizer_id', user.id).order('created_at', { ascending: false });
+      const list = all ?? [];
+      const t = list.find((x) => x.id === selectedId) ?? list[0] ?? null;
       if (!t) { setLoading(false); return; }
       setTournamentId(t.id);
       if (t.course_id) {
@@ -71,7 +83,11 @@ export default function CirclePage() {
   // estimate (ported from the original TourneyCircle) so the page shows the
   // "you have an audience already" pitch before opt-ins accumulate.
   const realTotal = data?.matched.total ?? 0;
-  const preview = realTotal === 0;
+  // A suppressed count is a real (but too-small) audience, not an empty one —
+  // so it must NOT fall through to the marketing preview numbers, which would
+  // replace "we're withholding this" with an invented 347.
+  const suppressed = !!data?.matchedSuppressed;
+  const preview = realTotal === 0 && !suppressed;
   const total = preview ? (PREVIEW_RADIUS_COUNTS[radius] ?? 0) : realTotal;
   const bd = preview ? previewBreakdown(total) : data!.matched;
   const clicks = preview ? Math.floor(total * 0.25) : (data?.expectedClicks ?? 0);
@@ -106,6 +122,10 @@ export default function CirclePage() {
                 </h2>
                 {total > 0 ? (
                   <p style={S.heroP}>There are {total} charitable golfer{total === 1 ? '' : 's'} within {radius} miles of {courseName} who told us they want to hear about tournaments like yours. Send one notification. Watch what happens.</p>
+                ) : suppressed ? (
+                  <p style={S.heroP}>
+                    Your reach here is still too small to report. TourneyCircle shows a count only once at least {data?.minDisclosableCount ?? 5} golfers match — below that, a number would describe individual people rather than an audience. It grows every time a player opts in at the end of their round.
+                  </p>
                 ) : (
                   <p style={S.heroP}>
                     {data?.courseLocated
@@ -113,7 +133,7 @@ export default function CirclePage() {
                       : `Your course location resolves from live GPS once you host a round here. After that, TourneyCircle shows exactly how many opted-in golfers are within reach.`}
                   </p>
                 )}
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 72, fontWeight: 700, color: 'var(--gold)', lineHeight: 1, marginTop: 18 }}>{total}</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 72, fontWeight: 700, color: 'var(--gold)', lineHeight: 1, marginTop: 18 }}>{suppressed ? '—' : total}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)', marginTop: 6 }}>Matched players within {radius} miles</div>
                 {total > 0 && (
                   <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)', marginTop: 8 }}>
@@ -152,6 +172,57 @@ export default function CirclePage() {
               </button>
             </div>
             {note && <p style={{ fontSize: 13, color: note.startsWith('Notification queued') ? 'var(--primary)' : 'var(--alert)', margin: '10px 2px 0' }}>{note}</p>}
+
+            {/* Aggregate breakdowns — Day 25. Counts only, and every bucket
+                below the disclosure threshold is withheld rather than shown,
+                so no combination of views isolates an individual. */}
+            {!preview && data && (
+              <div className="tc-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginTop: 18 }}>
+                <div style={S.card}>
+                  <div style={S.kick}>Matched players by radius</div>
+                  <div style={{ marginTop: 12 }}>
+                    {data.byRadius.map((r) => {
+                      const max = Math.max(1, ...data.byRadius.map((x) => x.value));
+                      return (
+                        <div key={r.radiusMiles} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 0' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, width: 54, color: r.radiusMiles === radius ? 'var(--primary)' : '#6B7775' }}>{r.radiusMiles} mi</span>
+                          <div style={{ flex: 1, height: 8, background: '#F1ECDD', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{ width: `${(r.value / max) * 100}%`, height: '100%', background: r.radiusMiles === radius ? 'var(--primary)' : '#B7D3C0', borderRadius: 4 }} />
+                          </div>
+                          <span style={{ fontSize: 13.5, fontWeight: 700, width: 58, textAlign: 'right', color: r.suppressed ? '#9AA39D' : 'var(--ink)' }}>
+                            {r.suppressed ? '—' : r.value}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={S.card}>
+                  <div style={S.kick}>By cause preference · within {radius} mi</div>
+                  {data.byCause.length > 0 ? (
+                    <div style={{ marginTop: 12 }}>
+                      {data.byCause.map((c) => (
+                        <div key={c.cause} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: '1px solid var(--line)', fontSize: 13.5 }}>
+                          <span style={{ color: '#4A524C', textTransform: 'capitalize' }}>{c.cause}</span>
+                          <span style={{ fontWeight: 700 }}>{c.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: 13, color: '#8A9089', margin: '12px 0 0', lineHeight: 1.55 }}>
+                      No cause group in this radius is large enough to report yet. Groups appear once at least {data.minDisclosableCount} players share a cause.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!preview && data && (
+              <p style={{ fontSize: 12, color: '#8A9089', margin: '10px 2px 0', lineHeight: 1.55 }}>
+                Any group smaller than {data.minDisclosableCount} players is shown as “—” on purpose. A count that small would describe a person rather than an audience.
+              </p>
+            )}
 
             {/* How it works */}
             <div style={{ ...S.card, background: '#F3EFE4', marginTop: 18 }}>

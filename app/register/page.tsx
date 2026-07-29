@@ -169,10 +169,12 @@ function RegisterInner() {
   // notification link (?tc=<profile>), log the visit so we don't re-notify them
   // about this event (and it counts as a click on the performance report).
   useEffect(() => {
+    // ?tc= is the opaque visit token from this player's own notification, not
+    // their profile id — the server resolves who they are from it.
     const tc = searchParams?.get('tc');
-    if (!tournamentId || !tc) return;
-    fetch('/api/circle/visit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tournamentId, playerProfileId: tc }) }).catch(() => {});
-  }, [tournamentId, searchParams]);
+    if (!tc) return;
+    fetch('/api/circle/visit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tc }) }).catch(() => {});
+  }, [searchParams]);
 
   const regType = REG_TYPES.find(r => r.id === selectedType) ?? REG_TYPES[0];
 

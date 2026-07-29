@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { centroidOf, countWithinRadius, isValidRadius, type Member } from '@/lib/tourneycircle';
+import { centroidOf, countWithinRadius, disclose, isValidRadius, type DisclosedCount, type Member } from '@/lib/tourneycircle';
 
 const getServiceSupabase = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -77,10 +77,28 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: 'TourneyCircle tables missing — run migration 032' }, { status: 500 });
 
   // Aggregate-only confirmation: how many members are near this player.
-  let nearby = 0;
-  if (homeLat != null && homeLng != null) {
+  //
+  // This count is derived from the location now STORED on their own row, never
+  // from coordinates passed in on this request. Echoing a count back for
+  // caller-chosen coordinates turned this into a global geographic oracle:
+  // sweep a lat/lng grid, difference the overlapping circles, and a region that
+  // returns 1 pins an individual member's home. It also goes through the
+  // disclosure threshold, so a small neighbourhood can't be resolved to a
+  // person either.
+  const { data: self } = await service.from('tourneycircle_members')
+    .select('home_lat, home_lng').eq('player_profile_id', profileId).maybeSingle();
+  let nearby: DisclosedCount = { value: 0, suppressed: true };
+  if (self?.home_lat != null && self?.home_lng != null) {
     const { data: members } = await service.from('tourneycircle_members').select('home_lat, home_lng, member_type');
-    nearby = countWithinRadius((members ?? []) as Member[], centroidOf([{ lat: homeLat, lng: homeLng }]), radiusMiles).total;
+    const total = countWithinRadius(
+      (members ?? []) as Member[],
+      centroidOf([{ lat: Number(self.home_lat), lng: Number(self.home_lng) }]),
+      radiusMiles,
+    ).total;
+    nearby = disclose(total);
   }
-  return NextResponse.json({ ok: true, memberCountNearby: nearby });
+  return NextResponse.json({
+    ok: true,
+    memberCountNearby: nearby.suppressed ? null : nearby.value,
+  });
 }

@@ -190,12 +190,35 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Organizer-only. This runs on the service-role client, so it MUST check
+// ownership itself — without that it was an unauthenticated roster dump
+// (names + registration ids) for any tournament id. Registration ids are
+// bearer credentials elsewhere in this app (/live/<id>, the TourneyCircle
+// preferences link), so handing them out anonymously also unlocked those.
 export async function GET(req: NextRequest) {
   const supabase = getSupabase();
   const { searchParams } = new URL(req.url);
   const tournamentId = searchParams.get('tournament_id');
   if (!tournamentId) {
     return NextResponse.json({ error: 'tournament_id required' }, { status: 400 });
+  }
+
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(authHeader.slice(7));
+  if (authErr || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const { data: owned } = await supabase
+    .from('tournaments')
+    .select('id')
+    .eq('id', tournamentId)
+    .eq('organizer_id', user.id)
+    .maybeSingle();
+  if (!owned) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { data, error, count } = await supabase
