@@ -292,16 +292,30 @@ export default function CourseBuilderPage({ params }: { params: Promise<{ id: st
 
 // Read-only tee list (non-owners viewing a shared course profile).
 function TeeDistances({ hole, tees }: { hole: CourseHole; tees: Tee[] }) {
+  // Read-only view (a course you don't own) can't write yardages, but a
+  // hole with a par set and nothing entered yet can still show the common
+  // distance for that par as a labeled estimate, instead of a bare dash.
+  const display = withPrefilledYardages(hole, tees);
   return (
     <div style={s.card}>
       <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, margin: '0 0 14px' }}>Hole {hole.holeNumber} — tee distances</h3>
-      {tees.map((tee) => (
-        <div key={tee} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #F1ECDD' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, width: 120 }}><TeeDot tee={tee} />{tee[0].toUpperCase() + tee.slice(1)}</span>
-          <span style={{ fontSize: 13, color: '#6B7775', flex: 1 }}>{TEE_LABELS[tee]}</span>
-          <span style={{ fontSize: 15, fontWeight: 700 }}>{hole.teeYardages[tee] ?? '—'} yds</span>
-        </div>
-      ))}
+      {tees.map((tee) => {
+        const real = hole.teeYardages[tee];
+        const estimated = display.teeYardages[tee];
+        return (
+          <div key={tee} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #F1ECDD' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, width: 120 }}><TeeDot tee={tee} />{tee[0].toUpperCase() + tee.slice(1)}</span>
+            <span style={{ fontSize: 13, color: '#6B7775', flex: 1 }}>{TEE_LABELS[tee]}</span>
+            {real != null ? (
+              <span style={{ fontSize: 15, fontWeight: 700 }}>{real} yds</span>
+            ) : estimated != null ? (
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#9AA39D', fontStyle: 'italic' }} title="Estimated from this hole's par — not yet entered by the course">~{estimated} yds</span>
+            ) : (
+              <span style={{ fontSize: 15, fontWeight: 700 }}>— yds</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
