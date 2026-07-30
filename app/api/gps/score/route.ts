@@ -4,6 +4,7 @@ import { labelGreenOnScoreSubmission } from '@/lib/gps/labelGreen';
 import { isDeviceConsented } from '@/lib/gps/consent';
 import { applyMaxScore, type MaxScoreRule } from '@/lib/scoring/leaderboard';
 import { broadcastScoreUpdate } from '@/lib/realtime';
+import { runKitchenCheck } from '@/lib/pace/field';
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -143,6 +144,13 @@ export async function POST(req: NextRequest) {
 
   if (!insertErr && tournamentId) {
     await broadcastScoreUpdate(tournamentId, { holeNumber, registrationId: device.registration_id });
+    // Module 9: the kitchen notification is specified to fire with no human
+    // action. Pace only changes when a hole is posted, so a score submission is
+    // the natural trigger — and during a round they arrive constantly across
+    // the field. Idempotency is the unique index in migration 038, not this
+    // call site, so firing it on every score is safe. Best-effort: a player's
+    // scorecard must never fail because a chef's phone is unreachable.
+    try { await runKitchenCheck(supabase, tournamentId); } catch { /* organizer sees it on the pace screen */ }
   }
 
   return NextResponse.json({

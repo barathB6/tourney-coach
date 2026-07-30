@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/gps-clusters",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/kitchen-check",
+      "schedule": "*/5 14-23 * * *"
     }
   ]
 }

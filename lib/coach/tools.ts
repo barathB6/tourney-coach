@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { autoAssign, STANDARD_PAR_72, type ShotgunFormat, type Team } from '@/lib/shotgun';
 import { sendCircleNotification } from '@/lib/circle/send';
+import { loadFieldPace } from '@/lib/pace/field';
 import { applyScoreCorrection } from '@/lib/scoring/correct';
 import type { MaxScoreRule } from '@/lib/scoring/leaderboard';
 import { hashPassword, issuedPassword, newLinkToken, normalizeEmail } from '@/lib/proAccess';
@@ -50,6 +51,12 @@ export const COACH_TOOLS = [
   {
     name: 'list_volunteers',
     description: "List the tournament's volunteers with their role and check-in state.",
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_pace_of_play',
+    description:
+      "Where every group is on the course right now, how each is pacing (on pace / slightly behind / needs attention), when the last group is expected to finish, and whether the kitchen has been texted yet. Use during a live round for 'how are we doing', 'who's holding us up', or 'when do we eat'.",
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -360,6 +367,29 @@ export async function executeCoachTool(name: string, input: Record<string, unkno
       if (error) return { ok: false, summary: '', error: 'Could not read volunteers.' };
       if (!data?.length) return { ok: true, summary: 'no volunteers signed up yet' };
       return { ok: true, summary: `${data.length} volunteer(s):\n${data.map((v) => `${v.name} | ${v.role || 'unassigned'}${v.checked_in_at ? ' | checked in' : ''}`).join('\n')}` };
+    }
+
+    case 'get_pace_of_play': {
+      const field = await loadFieldPace(ctx.service, tid);
+      if (!field) return { ok: false, summary: '', error: 'Could not read pace for this tournament.' };
+      if (field.teams.length === 0) return { ok: true, summary: 'no teams registered yet, so there is no pace to report' };
+      if (field.playing === 0 && field.finished === 0) return { ok: true, summary: 'nobody has teed off yet — no scores posted' };
+      const lines = field.teams
+        .filter((t) => t.status !== 'not_started')
+        .sort((a, b) => (b.minutesToFinish ?? -1) - (a.minutesToFinish ?? -1))
+        .map((t) => t.status === 'finished'
+          ? `${t.teamName}: finished`
+          : `${t.teamName}: thru ${t.holesCompleted}, on hole ${t.currentHole ?? '?'}, ${t.pace ?? 'unknown'} pace, ~${t.minutesToFinish == null ? '?' : Math.round(t.minutesToFinish)} min left`);
+      const kitchen = field.kitchen?.sentAt
+        ? `Kitchen texted at ${new Date(field.kitchen.sentAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.`
+        : field.kitchenReady
+          ? 'Kitchen text is armed and will fire automatically 45 minutes before the last group finishes.'
+          : 'Kitchen text is NOT armed — no usable phone number on the course profile, or SMS is not configured.';
+      const last = field.minutesUntilLastFinish == null ? 'unknown' : `about ${Math.round(field.minutesUntilLastFinish)} min`;
+      return {
+        ok: true,
+        summary: `${field.playing} group(s) on the course, ${field.finished} finished. Last group in: ${last}. Holes in play: ${field.holesInPlay.join(', ') || 'none'}.\n${lines.join('\n')}\n${kitchen}`,
+      };
     }
 
     case 'get_course_holes': {
