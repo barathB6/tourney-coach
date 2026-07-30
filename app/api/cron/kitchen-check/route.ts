@@ -7,13 +7,22 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-// Safety net for the kitchen notification (see vercel.json).
+// Safety net for the kitchen notification.
 //
 // The primary trigger is a score submission — pace only moves when groups post
 // holes, so that fires naturally and often during a round. This exists for the
 // case that trigger can't cover: the last group stops posting (phone dead, or
 // they're just slow), elapsed time keeps climbing, and the estimate crosses 45
 // minutes with no score to prompt a re-check.
+//
+// NOT REGISTERED IN vercel.json, deliberately. A 45-minute trigger needs
+// roughly 5-minute granularity, and Vercel's Hobby plan permits daily crons
+// only — a once-a-day run would almost never land inside the window, so wiring
+// it up would imply a safety net that isn't there. To enable it, move to a plan
+// with sub-daily crons and add:
+//     { "path": "/api/cron/kitchen-check", "schedule": "*/5 14-23 * * *" }
+// Until then this route still works when invoked directly (an external
+// scheduler, or by hand) with the CRON_SECRET bearer token.
 //
 // Scoped to tournaments played TODAY, so it never touches history.
 export async function GET(req: NextRequest) {
