@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { computeFieldPace, kitchenMessage, shouldNotifyKitchen, type FieldPace, type TeamPaceInput } from '@/lib/pace';
+import { computeFieldPace, GPS_FRESH_MINUTES, kitchenMessage, shouldNotifyKitchen, type FieldPace, type TeamPaceInput } from '@/lib/pace';
 import { sendSms, toE164, twilioConfigured } from '@/lib/sms/twilio';
 
 // Module 9 — loading real pace state, and the auto-fire that follows from it.
@@ -30,13 +30,24 @@ export async function loadFieldPace(
     .maybeSingle();
   if (!tournament) return null;
 
-  const [{ data: regs }, { data: scores }, { data: course }, { data: kitchen }] = await Promise.all([
+  const [{ data: regs }, { data: scores }, { data: tracks }, { data: course }, { data: kitchen }] = await Promise.all([
     service.from('registrations')
       .select('id, team_name, contact_name, starting_hole, registration_type, payment_status')
       .eq('tournament_id', tournamentId),
     service.from('score_submissions')
       .select('registration_id, hole_number, submitted_at')
       .eq('tournament_id', tournamentId),
+    // Module 8 live positions. foursome_id IS the registration in this schema
+    // (see 024_gps_pipeline), so this joins straight to a team. Only recent
+    // fixes matter, and the window is generous enough to survive a phone that
+    // slept through a couple of ping cycles.
+    service.from('gps_tracks')
+      .select('foursome_id, hole_number, recorded_at')
+      .eq('tournament_id', tournamentId)
+      .not('hole_number', 'is', null)
+      .gte('recorded_at', new Date(now.getTime() - GPS_FRESH_MINUTES * 60000).toISOString())
+      .order('recorded_at', { ascending: false })
+      .limit(5000),
     tournament.course_id
       ? service.from('courses').select('total_holes, contact_phone').eq('id', tournament.course_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -61,6 +72,15 @@ export async function loadFieldPace(
     if (!prev || Date.parse(at) > Date.parse(prev)) holes.set(s.hole_number as number, at);
   }
 
+  // Latest fresh GPS fix per team. Rows arrive newest-first, so the first hit
+  // for a registration is the one to keep.
+  const gpsByTeam = new Map<string, { hole: number; at: string }>();
+  for (const t of tracks ?? []) {
+    const rid = t.foursome_id as string | null;
+    if (!rid || gpsByTeam.has(rid)) continue;
+    gpsByTeam.set(rid, { hole: t.hole_number as number, at: t.recorded_at as string });
+  }
+
   const inputs: TeamPaceInput[] = (regs ?? [])
     .filter((r) => r.registration_type !== 'sponsor' && r.payment_status !== 'refunded')
     .map((r) => {
@@ -73,6 +93,8 @@ export async function loadFieldPace(
         holesCompleted: holes?.size ?? 0,
         firstSubmittedAt: times.length ? new Date(times[0]).toISOString() : null,
         lastSubmittedAt: times.length ? new Date(times[times.length - 1]).toISOString() : null,
+        gpsHole: gpsByTeam.get(r.id as string)?.hole ?? null,
+        gpsAt: gpsByTeam.get(r.id as string)?.at ?? null,
       };
     });
 

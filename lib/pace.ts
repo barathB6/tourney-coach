@@ -21,6 +21,12 @@ export const TRUST_AFTER_HOLES = 3;
 
 export const KITCHEN_LEAD_MINUTES = 45;
 
+// How stale a GPS fix can be before we stop believing it locates the group.
+// Consented phones ping every 15s during play, so anything this old means the
+// player closed the app or lost signal — at which point their scorecard is the
+// better witness.
+export const GPS_FRESH_MINUTES = 20;
+
 export interface TeamPaceInput {
   registrationId: string;
   teamName: string;
@@ -28,6 +34,9 @@ export interface TeamPaceInput {
   holesCompleted: number;
   firstSubmittedAt: string | null; // ISO — when they posted their first hole
   lastSubmittedAt: string | null;  // ISO — their most recent hole
+  // Module 8 live position: the hole their phone last reported being on.
+  gpsHole?: number | null;
+  gpsAt?: string | null;           // ISO of that fix
 }
 
 export interface TeamPace {
@@ -35,6 +44,11 @@ export interface TeamPace {
   teamName: string;
   holesCompleted: number;
   currentHole: number | null;      // the hole they're playing NOW
+  // Where currentHole came from. 'gps' is Module 8 ground truth — it moves the
+  // moment the group walks to the next tee. 'scores' is inferred from holes
+  // posted, so it lags by up to a hole and is what we fall back to when a
+  // phone is dark or tracking was declined.
+  positionSource: 'gps' | 'scores' | null;
   holesRemaining: number;
   minutesPerHole: number | null;   // measured (blended) pace
   minutesToFinish: number | null;
@@ -81,13 +95,44 @@ export function computeTeamPace(
   totalHoles = DEFAULT_HOLES,
 ): TeamPace {
   const { registrationId, teamName, startingHole, holesCompleted } = input;
+
+  // Prefer the live GPS fix — it's where the group actually is, not where
+  // their scorecard implies they should be. A group walking to 14 shows on 14
+  // straight away instead of only once they post 13.
+  const gpsFresh = input.gpsAt != null
+    && input.gpsHole != null
+    && input.gpsHole >= 1 && input.gpsHole <= totalHoles
+    && (now.getTime() - Date.parse(input.gpsAt)) / 60000 <= GPS_FRESH_MINUTES;
+  const fromScores = currentHoleFor(startingHole, holesCompleted, totalHoles);
+
   const base = {
     registrationId, teamName, holesCompleted,
     holesRemaining: Math.max(0, totalHoles - holesCompleted),
-    currentHole: currentHoleFor(startingHole, holesCompleted, totalHoles),
+    currentHole: gpsFresh ? input.gpsHole! : fromScores,
+    positionSource: (gpsFresh ? 'gps' : fromScores != null ? 'scores' : null) as 'gps' | 'scores' | null,
   };
 
   if (holesCompleted <= 0 || !input.firstSubmittedAt) {
+    // A phone reporting a hole is a real group on the course even with nothing
+    // posted yet, and the kitchen has to wait for them. They'd otherwise be a
+    // blind spot: counted as playing but contributing no finish estimate, so
+    // the "last group in" could read 40 minutes while they were still on 3.
+    // Position them from GPS and price the rest of their round at the standard
+    // pace — a rough estimate beats an invisible group.
+    if (gpsFresh) {
+      const start = startingHole && startingHole >= 1 && startingHole <= totalHoles ? startingHole : 1;
+      const played = (input.gpsHole! - start + totalHoles) % totalHoles;
+      const remaining = Math.max(1, totalHoles - played);
+      const toFinish = remaining * ASSUMED_MIN_PER_HOLE;
+      return {
+        ...base,
+        holesRemaining: remaining,
+        minutesPerHole: ASSUMED_MIN_PER_HOLE,
+        minutesToFinish: toFinish,
+        estimatedFinish: new Date(now.getTime() + toFinish * 60000).toISOString(),
+        status: 'playing', pace: null, minutesSinceLastHole: null,
+      };
+    }
     return {
       ...base, minutesPerHole: null, minutesToFinish: null, estimatedFinish: null,
       status: 'not_started', pace: null, minutesSinceLastHole: null,
@@ -163,6 +208,11 @@ export function computeFieldPace(inputs: TeamPaceInput[], now: Date, totalHoles 
 export function shouldNotifyKitchen(field: FieldPace, leadMinutes = KITCHEN_LEAD_MINUTES): boolean {
   if (field.playing === 0) return false;               // nobody left to finish
   if (field.minutesUntilLastFinish == null) return false;
+  // If any group out there has no estimate at all, we don't actually know when
+  // the field finishes — and telling the kitchen "45 minutes" when a group
+  // might be two hours out is worse than telling them nothing. Between firing
+  // early and firing late, early is the one that leaves food sitting.
+  if (field.teams.some((t) => t.status === 'playing' && t.minutesToFinish == null)) return false;
   return field.minutesUntilLastFinish <= leadMinutes;
 }
 

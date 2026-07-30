@@ -110,6 +110,53 @@ async function main() {
   ok(msg.startsWith('TourneyCoach: St. Michael’s Cup estimated finish in '), 'message matches the spec wording');
   ok(/Groups on holes 17\.$/.test(msg), 'message names the holes still in play', msg);
 
+  section('6b. GPS position (Module 8) beats the scorecard');
+  const gpsTeam = computeTeamPace(team({
+    registrationId: 'gps', holesCompleted: 9, firstSubmittedAt: minsAgo(135), lastSubmittedAt: minsAgo(9),
+    gpsHole: 11, gpsAt: minsAgo(1),
+  }), NOW, 9);
+  ok(gpsTeam.currentHole === 11 && gpsTeam.positionSource === 'gps',
+    'a fresh fix wins over the hole implied by holes posted', `hole ${gpsTeam.currentHole} via ${gpsTeam.positionSource}`);
+
+  const staleGps = computeTeamPace(team({
+    registrationId: 'stale', holesCompleted: 9, firstSubmittedAt: minsAgo(135), lastSubmittedAt: minsAgo(9),
+    gpsHole: 11, gpsAt: minsAgo(90),
+  }), NOW, 9);
+  ok(staleGps.currentHole === 10 && staleGps.positionSource === 'scores',
+    'a stale fix is ignored and the scorecard takes over', `hole ${staleGps.currentHole} via ${staleGps.positionSource}`);
+
+  const noGps = computeTeamPace(team({
+    registrationId: 'nogps', holesCompleted: 9, firstSubmittedAt: minsAgo(135), lastSubmittedAt: minsAgo(9),
+  }), NOW, 9);
+  ok(noGps.positionSource === 'scores', 'a group that declined tracking still gets a position');
+
+  // A phone on the course with nothing posted is a real group the kitchen has
+  // to wait for — it must not be invisible.
+  const gpsOnly = computeTeamPace(team({
+    registrationId: 'gpsonly', startingHole: 1, holesCompleted: 0, gpsHole: 4, gpsAt: minsAgo(1),
+  }), NOW, 9);
+  ok(gpsOnly.status === 'playing', 'GPS alone counts a group as on the course');
+  ok(gpsOnly.minutesToFinish != null && gpsOnly.minutesToFinish > 200,
+    'and they get an estimate rather than none', `${Math.round(gpsOnly.minutesToFinish ?? 0)} min`);
+
+  section('6c. The kitchen refuses to guess');
+  // One group closing, one out there with no estimate at all → we do NOT know
+  // when the field finishes, so firing would be a guess.
+  const blindSpot = computeFieldPace([
+    team({ registrationId: 'closing', holesCompleted: 16, firstSubmittedAt: minsAgo(320), lastSubmittedAt: minsAgo(6) }),
+    { ...team({ registrationId: 'unknown', holesCompleted: 0 }), gpsHole: null, gpsAt: null },
+  ], NOW);
+  ok(blindSpot.playing === 1, 'a group with neither scores nor GPS is not counted as playing');
+  ok(shouldNotifyKitchen(blindSpot), 'so it does not block the fire');
+
+  const withUnknown = computeFieldPace([
+    team({ registrationId: 'closing', holesCompleted: 16, firstSubmittedAt: minsAgo(320), lastSubmittedAt: minsAgo(6) }),
+    team({ registrationId: 'earlyGps', startingHole: 1, holesCompleted: 0, gpsHole: 3, gpsAt: minsAgo(1) }),
+  ], NOW);
+  ok(!shouldNotifyKitchen(withUnknown),
+    'but a group still on hole 3 pushes the finish out and holds the kitchen',
+    `last in ~${Math.round(withUnknown.minutesUntilLastFinish ?? 0)} min`);
+
   section('7. Phone normalisation');
   ok(toE164('(985) 555-0134') === '+19855550134', 'formatted US number');
   ok(toE164('985-555-0134') === '+19855550134', 'dashed US number');

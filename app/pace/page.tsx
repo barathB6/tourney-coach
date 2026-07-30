@@ -10,6 +10,7 @@ type TeamPace = {
   teamName: string;
   holesCompleted: number;
   currentHole: number | null;
+  positionSource: 'gps' | 'scores' | null;
   holesRemaining: number;
   minutesPerHole: number | null;
   minutesToFinish: number | null;
@@ -155,7 +156,21 @@ export default function PacePage() {
                           <td style={S.td}>{t.holesCompleted} / {data.totalHoles}</td>
                           <td style={S.td}>
                             {t.status === 'finished' ? <span style={{ color: '#6B7775' }}>in</span>
-                              : t.currentHole ? `Hole ${t.currentHole}`
+                              : t.currentHole ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                  Hole {t.currentHole}
+                                  {/* Live GPS vs inferred from the scorecard — an
+                                      organizer chasing a slow group should know
+                                      whether this is where they ARE or where
+                                      their card says they should be. */}
+                                  <span
+                                    title={t.positionSource === 'gps' ? 'Live GPS position' : 'Inferred from holes posted — no live GPS'}
+                                    style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: t.positionSource === 'gps' ? 'var(--primary)' : '#9BA8A4' }}
+                                  >
+                                    {t.positionSource === 'gps' ? 'GPS' : 'est'}
+                                  </span>
+                                </span>
+                              )
                               : <span style={{ color: '#9BA8A4' }}>not started</span>}
                           </td>
                           <td style={S.td}>
