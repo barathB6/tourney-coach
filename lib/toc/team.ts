@@ -288,12 +288,22 @@ export async function runVolunteerReminders(
       const startsAt = new Date(m.startsAt);
       const minutesOut = (startsAt.getTime() - now.getTime()) / 60_000;
 
+      // Each reminder owns a BAND, not an open-ended window. "Inside the
+      // window" alone is true of every larger offset at once, so a volunteer
+      // confirmed 100 minutes before the horn would be sent the 7-day and
+      // 2-day reminders simultaneously — both of them lying about the time.
+      // Bands mean exactly one reminder is ever due, and a late addition
+      // simply gets fewer of them rather than a burst of wrong ones.
+      const bandFor = (offset: number) => {
+        const smaller = REMINDER_OFFSETS_MINUTES.filter((o) => o < offset);
+        return smaller.length ? Math.max(...smaller) : 0;
+      };
+
       for (const offset of REMINDER_OFFSETS_MINUTES) {
         if (m.remindersSent.includes(offset)) continue;
-        // Due once we're inside the window but not yet past the role start.
-        // The "not past" half matters: without it, adding a volunteer the day
-        // after an event fires all three reminders at once.
-        if (minutesOut > offset || minutesOut < 0) continue;
+        // Past the role start: nothing to remind anyone about.
+        if (minutesOut < 0) continue;
+        if (minutesOut > offset || minutesOut <= bandFor(offset)) continue;
 
         const phone = toE164(m.phone);
         if (!phone) { skipped += 1; continue; }
@@ -302,7 +312,10 @@ export async function runVolunteerReminders(
           roleName: m.roleName,
           tournamentName: team.tournament.name,
           whenLabel: startsAt.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }),
-          offsetLabel: reminderLabel(offset),
+          // ACTUAL time remaining, not the band's nominal offset. Someone
+          // confirmed late lands in the 2-day band 100 minutes before the
+          // horn; telling them "in 2 days" would be a straight falsehood.
+          offsetLabel: reminderLabel(Math.round(minutesOut)),
         });
 
         // Claim first, then send — same race protection as the kitchen

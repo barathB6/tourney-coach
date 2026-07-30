@@ -159,10 +159,10 @@ async function main() {
   ok(noAuth.status === 401, 'the team roster requires authentication', `HTTP ${noAuth.status}`);
 
   section('6. Reminders');
-  // Confirmed, with a phone, and the role starts in ~100 minutes → only the
-  // 90-minute reminder is due; the 7-day and 2-day windows are long gone.
+  // Each reminder owns a band: 90 covers (0,90], 2880 covers (90,2880],
+  // 10080 covers (2880,10080]. At 80 minutes out only the 90 band is live.
   const start = new Date(loadedDayOf.members[0].startsAt!);
-  const nowInside90 = new Date(start.getTime() - 100 * 60_000);
+  const nowInside90 = new Date(start.getTime() - 80 * 60_000);
   const smsOff = !get('TWILIO_ACCOUNT_SID');
   const run1 = await runVolunteerReminders(db, tid, nowInside90);
 
@@ -171,8 +171,24 @@ async function main() {
     const { data: rows } = await db.from('volunteer_reminders').select('offset_minutes, status');
     const failed = (rows ?? []).filter((r) => r.status === 'failed');
     ok(failed.length > 0, 'the attempt is recorded as failed rather than silently dropped', `${failed.length} failed row(s)`);
-    ok(failed.every((r) => r.offset_minutes === 90), 'only the 90-minute reminder was due, not all three',
-      failed.map((r) => r.offset_minutes).join(','));
+    ok(failed.length === 1 && failed[0].offset_minutes === 90,
+      'exactly one reminder was due — the 90-minute band, not all three',
+      failed.map((r) => r.offset_minutes).join(',') || 'none');
+
+    // The bug this caught: "inside the window" is true of EVERY larger offset
+    // at once, so a late confirmation fired the 7-day and 2-day reminders
+    // together, both claiming a time that had already passed.
+    await db.from('volunteer_reminders').delete().eq('assignment_id', dayOfMember.id);
+    const lateAdd = new Date(start.getTime() - 100 * 60_000); // in the 2880 band
+    await runVolunteerReminders(db, tid, lateAdd);
+    const { data: lateRows } = await db.from('volunteer_reminders').select('offset_minutes, message');
+    ok((lateRows ?? []).length === 1, 'a volunteer confirmed 100 minutes out gets ONE reminder, not three',
+      `${(lateRows ?? []).length} row(s): ${(lateRows ?? []).map((r) => r.offset_minutes).join(',')}`);
+    ok(!(lateRows ?? []).some((r) => /in \d+ days?/.test(String(r.message))),
+      'and it does not claim "in 2 days" when the event is 100 minutes away',
+      (lateRows ?? [])[0]?.message?.slice(0, 90) ?? '');
+    await db.from('volunteer_reminders').delete().eq('assignment_id', dayOfMember.id);
+    await runVolunteerReminders(db, tid, nowInside90);
   } else {
     ok(run1.sent === 1, 'exactly one reminder fires', `${run1.sent}`);
     const run2 = await runVolunteerReminders(db, tid, nowInside90);
