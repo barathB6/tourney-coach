@@ -1,4 +1,5 @@
 import { askClaude } from '@/lib/ai/anthropic';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 export const OUTREACH_SYSTEM = `You are TourneyCoach's sponsorship outreach writer. You draft short, warm, effective sponsorship outreach emails for charity golf tournament organizers. Plain language, no corporate jargon, no exclamation-mark overload. The goal is a reply, not a hard close.
 
@@ -47,7 +48,7 @@ Package being offered:
 
 Tournament:
 - Name: ${input.tournamentName ?? 'our charity golf tournament'}
-- Date: ${input.eventDate ? new Date(input.eventDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'TBD'}
+- Date: ${formatEventDate(input.eventDate, { month: 'long', day: 'numeric', year: 'numeric' })}
 - Course: ${input.locationName ?? 'a local course'}
 - Benefiting: ${input.causeOrg ?? input.causeTagline ?? 'a local cause'}
 - Field: ${input.maxPlayers ?? 72} players (local golfers, business owners, and community leaders)

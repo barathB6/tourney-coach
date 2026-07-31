@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildGoals, dueAt, describeOffset, taskStatus, type GoalRow, type Phase, type TaskStatus } from './phase';
+import { countPlayers, type HeadcountRow } from '@/lib/registrations/headcount';
 
 // Day 26 — loading the Operations Center for one tournament.
 //
@@ -133,10 +134,7 @@ export async function loadOperationsCenter(
   // registrations are a package, not bodies on the course, so they don't count
   // toward a player goal. Refunded entries stop counting the moment they're
   // refunded — that's the whole reason progress isn't stored.
-  const PLAYERS: Record<string, number> = { foursome: 4, single: 1, sponsor: 0 };
-  const players = (regs ?? [])
-    .filter((r) => r.payment_status !== 'refunded')
-    .reduce((n, r) => n + (PLAYERS[r.registration_type as string] ?? 0), 0);
+  const players = countPlayers(regs as HeadcountRow[] | null);
 
   // Money that is actually committed — verbal handshakes included, because the
   // committee is tracking progress toward a target, not closing the books.

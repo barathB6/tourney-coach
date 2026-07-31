@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/gps-clusters",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/donation-followups",
+      "schedule": "0 15 * * *"
     }
   ]
 }

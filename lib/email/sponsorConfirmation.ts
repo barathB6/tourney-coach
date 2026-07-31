@@ -1,3 +1,4 @@
+import { formatEventDate } from '@/lib/formatEventDate';
 // Sends the "your sponsorship is confirmed" email. Only call this once
 // payment is actually confirmed (webhook AUTHORISATION success) — never at
 // initial self-purchase submission.
@@ -15,9 +16,7 @@ export async function sendSponsorConfirmationEmail(params: {
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) return; // SendGrid not configured yet — skip silently
 
-  const dateStr = new Date(params.eventDate).toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  });
+  const dateStr = formatEventDate(params.eventDate);
   const fmt = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const greetingName = params.contactName || params.company;
 

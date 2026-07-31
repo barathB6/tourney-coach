@@ -10,6 +10,7 @@ interface SendGridEvent {
   event: string;
   sg_message_id?: string;
   sponsor_id?: string;
+  prospect_id?: string;
   timestamp?: number;
 }
 
@@ -33,8 +34,30 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabase();
 
   for (const evt of events) {
-    if (!evt.sponsor_id) continue;
     const at = evt.timestamp ? new Date(evt.timestamp * 1000).toISOString() : new Date().toISOString();
+
+    // Vendor donation outreach tags prospect_id instead of sponsor_id. This is
+    // the "opened" column of the Day 28 outreach tracker: the only place it can
+    // come from is SendGrid, since an organizer cannot know an email was read.
+    if (evt.prospect_id) {
+      if (evt.event !== 'open' && evt.event !== 'click') continue;
+      const { data: p } = await supabase.from('donation_prospects')
+        .select('status, email_opens, opened_at').eq('id', evt.prospect_id).maybeSingle();
+      if (!p) continue;
+      const patch: Record<string, unknown> = { updated_at: at };
+      if (evt.event === 'open') {
+        patch.email_opens = ((p.email_opens as number | null) ?? 0) + 1;
+        patch.opened_at = (p.opened_at as string | null) ?? at;
+      }
+      // Only advance 'sent' → 'opened'. A prospect who has already replied,
+      // committed or declined must not be dragged backwards by a late open
+      // event — the organizer's outcome outranks an inbox pixel.
+      if (p.status === 'sent') patch.status = 'opened';
+      await supabase.from('donation_prospects').update(patch).eq('id', evt.prospect_id);
+      continue;
+    }
+
+    if (!evt.sponsor_id) continue;
 
     if (evt.event === 'open') {
       const { data: current } = await supabase.from('sponsors').select('email_opens').eq('id', evt.sponsor_id).single();

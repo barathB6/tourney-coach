@@ -450,6 +450,16 @@ export default function Dashboard() {
                 Tournament Goals
               </button>
               <button
+                onClick={() => router.push('/fb')}
+                title="Weather-adjusted food and drink quantities, kitchen timing, and vendor donation outreach"
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 2v7a3 3 0 0 0 3 3v10" /><path d="M9 2v6" /><path d="M18 2a3 4 0 0 0-3 4v6h3v10" />
+                </svg>
+                F&amp;B Planner
+              </button>
+              <button
                 onClick={() => router.push('/pace')}
                 title="Where every group is, and when the last one finishes — the kitchen is texted automatically"
                 style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}

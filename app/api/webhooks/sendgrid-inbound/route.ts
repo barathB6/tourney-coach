@@ -75,11 +75,64 @@ export async function POST(req: NextRequest) {
       .from('sponsors')
       .select('id, company, status, tournament_id')
       .eq('id', sponsorId)
-      .single();
-    if (!sponsor) return ACK;
+      .maybeSingle();
 
     const snippet = topOfReply(text).slice(0, 800);
     const now = new Date().toISOString();
+
+    // Vendor donation outreach uses the same reply-<uuid>@ address shape, so an
+    // id that isn't a sponsor may be a donation prospect. This is what stops
+    // the 7-day follow-up cadence: the cron only chases 'sent' and 'opened'.
+    if (!sponsor) {
+      const { data: prospect } = await supabase
+        .from('donation_prospects')
+        .select('id, company, name, status, tournament_id')
+        .eq('id', sponsorId)
+        .maybeSingle();
+      if (!prospect) return ACK;
+
+      // A reply never overrides an outcome the organizer already recorded.
+      const resolved = prospect.status === 'committed' || prospect.status === 'declined';
+      await supabase.from('donation_prospects').update({
+        status: resolved ? prospect.status : 'responded',
+        responded_at: now,
+        reply_snippet: snippet || null,
+        last_contact_at: now,
+        updated_at: now,
+      }).eq('id', prospect.id);
+
+      await supabase.from('donation_outreach_log').insert({
+        prospect_id: prospect.id,
+        tournament_id: prospect.tournament_id,
+        method: 'email',
+        direction: 'inbound',
+        outcome: 'replied',
+        subject,
+        body: snippet || null,
+        contacted_at: now,
+      });
+
+      const { data: tournamentRow } = await supabase
+        .from('tournaments').select('organizer_id').eq('id', prospect.tournament_id).maybeSingle();
+      if (tournamentRow) {
+        const { data: organizerUser } = await supabase.auth.admin.getUserById(tournamentRow.organizer_id);
+        const organizerEmail = organizerUser?.user?.email;
+        if (organizerEmail) {
+          const from = parseFrom(fromField);
+          await forwardReplyToOrganizer({
+            organizerEmail,
+            organizerName: organizerUser?.user?.user_metadata?.full_name || organizerUser?.user?.user_metadata?.name || 'Organizer',
+            fromEmail: from.email,
+            fromName: from.name,
+            company: (prospect.company as string | null) ?? (prospect.name as string | null) ?? 'A vendor',
+            subject,
+            text: snippet,
+            dashboardUrl: `${getPublicAppUrl()}/fb`,
+          }).catch(err => console.error('Donation reply forward failed:', err));
+        }
+      }
+      return ACK;
+    }
     const nextStatus = TERMINAL.has(sponsor.status) ? sponsor.status : 'replied';
 
     await supabase
