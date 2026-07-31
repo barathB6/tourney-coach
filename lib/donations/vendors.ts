@@ -23,6 +23,10 @@ export type VendorCategory =
 export interface VendorCategoryMeta {
   key: VendorCategory;
   label: string;
+  /** Two-word label for the compact roster row. */
+  short: string;
+  /** Row glyph. Carries category at a glance without a second column. */
+  emoji: string;
   /** What this vendor is being asked to cover. */
   covers: string;
   /** How many to line up. Donation outreach converts poorly; one prospect is not a plan. */
@@ -35,18 +39,18 @@ export interface VendorCategoryMeta {
 // distributor with a community-giving budget says yes far more often than a
 // restaurant being asked to cover 89 covers at cost.
 export const VENDOR_CATEGORIES: VendorCategoryMeta[] = [
-  { key: 'beer_wine_distributor', label: 'Beer & wine distributors', covers: 'On-course beer and wine',
-    suggestedProspects: 3, supplies: ['beer'] },
-  { key: 'liquor_store', label: 'Liquor stores', covers: 'Beer, wine, and spirits for the awards reception',
-    suggestedProspects: 3, supplies: ['beer'] },
-  { key: 'food_supplier', label: 'Food suppliers & distributors', covers: 'Snacks and awards lunch ingredients',
-    suggestedProspects: 4, supplies: ['snacks'] },
-  { key: 'restaurant', label: 'Restaurants & caterers', covers: 'The awards lunch',
-    suggestedProspects: 4, supplies: [] },
-  { key: 'coffee_shop', label: 'Coffee shops & roasters', covers: 'Morning coffee at registration',
-    suggestedProspects: 2, supplies: [] },
-  { key: 'hole_in_one_insurance', label: 'Hole-in-one insurance', covers: 'The hole-in-one prize policy',
-    suggestedProspects: 2, supplies: [] },
+  { key: 'beer_wine_distributor', label: 'Beer & wine distributors', short: 'Beer', emoji: '\u{1F37A}',
+    covers: 'On-course beer and wine', suggestedProspects: 3, supplies: ['beer'] },
+  { key: 'liquor_store', label: 'Liquor stores', short: 'Liquor', emoji: '\u{1F943}',
+    covers: 'Beer, wine, and spirits for the awards reception', suggestedProspects: 3, supplies: ['beer'] },
+  { key: 'food_supplier', label: 'Food suppliers & distributors', short: 'Snacks', emoji: '\u{1F968}',
+    covers: 'Snacks and awards lunch ingredients', suggestedProspects: 4, supplies: ['snacks'] },
+  { key: 'restaurant', label: 'Restaurants & caterers', short: 'Lunch', emoji: '\u{1F354}',
+    covers: 'The awards lunch', suggestedProspects: 4, supplies: [] },
+  { key: 'coffee_shop', label: 'Coffee shops & roasters', short: 'Coffee', emoji: '\u2615',
+    covers: 'Morning coffee at registration', suggestedProspects: 2, supplies: [] },
+  { key: 'hole_in_one_insurance', label: 'Hole-in-one insurance', short: 'Hole-in-one', emoji: '\u26F3',
+    covers: 'The hole-in-one prize policy', suggestedProspects: 2, supplies: [] },
 ];
 
 export const VENDOR_CATEGORY_KEYS = VENDOR_CATEGORIES.map((c) => c.key);

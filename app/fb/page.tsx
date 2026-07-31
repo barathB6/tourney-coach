@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { authedFetch } from '@/lib/authedFetch';
 import { pluralUnit } from '@/lib/fb/calculator';
+import { formatEventTime } from '@/lib/formatEventDate';
 
 type Line = {
   key: string; label: string; units: number; packs: number; packUnit: string;
@@ -40,8 +41,18 @@ type Donations = {
     committedValueCents: number;
     uncovered: { key: string; label: string; covers: string; suggestedProspects: number }[];
   };
-  asks: { key: string; label: string; covers: string; ask: string | null; suggestedProspects: number }[];
+  asks: { key: string; label: string; short: string; emoji: string; covers: string; ask: string | null; suggestedProspects: number }[];
   hasFbPlan: boolean;
+  scripts: {
+    category: string; label: string; emoji: string; whoToAsk: string; whenToCall: string;
+    lines: { step: string; say: string; note?: string }[];
+    objections: { objection: string; response: string }[];
+  }[];
+  donorWall: {
+    groups: { key: string; label: string; emoji: string; donors: { name: string; detail: string | null }[] }[];
+    total: number; inline: string; plainText: string; uncategorised: string[];
+  };
+  charity: { legalName: string | null; ein: string | null; address: string | null; benefits: string | null; complete: boolean };
   sendError?: string;
 };
 
@@ -62,8 +73,9 @@ const CONSUMABLE_LABEL: Record<string, string> = {
   beer: 'Beer', water: 'Water', soft_drinks: 'Soft drinks', sports_drinks: 'Sports drinks', snacks: 'Snacks',
 };
 
-const time = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
+// Schedule instants are wall-clock at the course — always formatted in UTC.
+// See lib/formatEventDate.ts.
+const time = formatEventTime;
 const day = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
 
@@ -83,6 +95,10 @@ export default function FbPage() {
   const [openProspect, setOpenProspect] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ subject: string; body: string }>({ subject: '', body: '' });
   const [newProspect, setNewProspect] = useState({ company: '', contactName: '', email: '', category: '' });
+  // Module 09's three chips, plus the prospect roster they act on.
+  const [tool, setTool] = useState<'prospects' | 'scripts' | 'letters' | 'wall'>('prospects');
+  const [taxLetter, setTaxLetter] = useState<{ letter: { subject: string; body: string; missing: string[] }; disclaimer: string } | null>(null);
+  const [charity, setCharity] = useState({ charityLegalName: '', charityEin: '', charityAddress: '', donorBenefits: '' });
 
   const load = useCallback(async (id: string) => {
     const [f, d] = await Promise.all([
@@ -93,7 +109,16 @@ export default function FbPage() {
     const dj = await d.json().catch(() => ({}));
     if (f.ok) { setFb(fj as FbRecord); setMenuText(((fj as FbRecord).menu ?? []).join('\n')); setError(''); }
     else setError(fj.error || 'Could not load the F&B plan');
-    if (d.ok) setDon(dj as Donations);
+    if (d.ok) {
+      const snap = dj as Donations;
+      setDon(snap);
+      setCharity({
+        charityLegalName: snap.charity?.legalName ?? '',
+        charityEin: snap.charity?.ein ?? '',
+        charityAddress: snap.charity?.address ?? '',
+        donorBenefits: snap.charity?.benefits ?? '',
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -152,6 +177,20 @@ export default function FbPage() {
     if (!res.ok) { setError(d.error || d.sendError || 'That did not work'); return; }
     if (d.draft) { setEditDraft({ subject: d.draft.subject, body: d.draft.body }); setNote('Draft ready — read it before sending.'); }
     if (d.sent) { setNote('Sent.'); setOpenProspect(null); }
+    if (d.taxLetter) setTaxLetter(d.taxLetter);
+  }
+
+  async function saveCharity() {
+    if (!tid || busy) return;
+    setBusy(true); setError(''); setNote('');
+    const res = await authedFetch(`/api/tournament/${tid}/donations`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(charity),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setError(d.error || 'Could not save the charity details'); return; }
+    setDon(d as Donations);
+    setNote('Charity details saved.');
   }
 
   async function addProspect() {
@@ -378,6 +417,17 @@ export default function FbPage() {
       {/* ── Vendor donations ───────────────────────────────────────────── */}
       {tab === 'donations' && don && (
         <>
+          {/* The donations half is its own module — give it its own identity
+              rather than leaving it looking like a subsection of the calculator. */}
+          <header style={{ margin: '0 0 16px' }}>
+            <p style={S.kick}>Module 09</p>
+            <h2 style={{ fontSize: 24, margin: '4px 0 6px', fontFamily: "'Fraunces', serif" }}>Donation Solicitation</h2>
+            <p style={{ color: '#5C6B62', fontSize: 14.5, lineHeight: 1.6, margin: 0, maxWidth: 620 }}>
+              Pre-written outreach scripts for beverage distributors and food vendors.
+              The three calls every charity tournament needs to make.
+            </p>
+          </header>
+
           <section style={{ ...S.card, marginBottom: 14 }}>
             <p style={S.kick}>Outreach</p>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 8 }}>
@@ -392,11 +442,19 @@ export default function FbPage() {
             )}
           </section>
 
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            {([['prospects', 'Prospects'], ['scripts', 'Distributor scripts'],
+               ['letters', 'Tax letters'], ['wall', 'Donor wall']] as const).map(([k, label]) => (
+              <button key={k} onClick={() => setTool(k)} style={{ ...S.mini, ...(tool === k ? S.miniOn : {}) }}>{label}</button>
+            ))}
+          </div>
+
+          {tool === 'prospects' && (
           <section style={{ ...S.card, marginBottom: 14 }}>
             <p style={S.kick}>What to ask for</p>
             {don.asks.map((a) => (
               <div key={a.key} style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
-                <strong style={{ fontSize: 14.5 }}>{a.label}</strong>
+                <strong style={{ fontSize: 14.5 }}>{a.emoji} {a.label}</strong>
                 <span style={{ color: '#8A9089', fontSize: 12.5, marginLeft: 8 }}>line up {a.suggestedProspects}</span>
                 <p style={{ margin: '3px 0 0', fontSize: 13.5, color: a.ask ? '#1B6B3A' : '#8A9089', lineHeight: 1.55 }}>
                   {a.ask ?? `No quantity yet — ${a.covers.toLowerCase()}`}
@@ -404,7 +462,152 @@ export default function FbPage() {
               </div>
             ))}
           </section>
+          )}
 
+          {/* ── Distributor scripts ─────────────────────────────────────── */}
+          {tool === 'scripts' && (
+            <>
+              <p style={{ fontSize: 14, color: '#5C6B62', lineHeight: 1.6, margin: '0 0 14px' }}>
+                The first three are the calls every charity tournament needs to make — the biggest
+                line items and the ones most likely to say yes. Quantities come from your F&amp;B plan,
+                so the number you say on the phone matches the number in the email.
+              </p>
+              {don.scripts.map((s, i) => (
+                <section key={s.category} style={{ ...S.card, marginBottom: 10, borderColor: i < 3 ? 'var(--primary)' : 'var(--line)' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                    {i < 3 && <span style={{ ...S.pill, color: '#1B6B3A', background: '#E7F1EA' }}>Call {i + 1}</span>}
+                    <strong style={{ fontSize: 16 }}>{s.emoji} {s.label}</strong>
+                  </div>
+                  <p style={{ fontSize: 13, color: '#5C6B62', margin: '0 0 4px', lineHeight: 1.55 }}>{s.whoToAsk}</p>
+                  <p style={{ fontSize: 13, color: '#5C6B62', margin: '0 0 12px', lineHeight: 1.55 }}>{s.whenToCall}</p>
+                  {s.lines.map((l, j) => (
+                    <div key={j} style={{ padding: '9px 0', borderTop: '1px solid var(--line)' }}>
+                      <span style={{ ...S.kick, display: 'block', marginBottom: 3 }}>{l.step}</span>
+                      <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6 }}>{l.say}</p>
+                      {l.note && <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#8A6D1F', lineHeight: 1.55 }}>{l.note}</p>}
+                    </div>
+                  ))}
+                  {s.objections.length > 0 && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+                      <span style={{ ...S.kick, display: 'block', marginBottom: 6 }}>If they say…</span>
+                      {s.objections.map((o, j) => (
+                        <div key={j} style={{ marginBottom: 8 }}>
+                          <p style={{ margin: 0, fontSize: 13.5, color: '#5C6B62' }}>{o.objection}</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 13.5, lineHeight: 1.6 }}>{o.response}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ))}
+            </>
+          )}
+
+          {/* ── Tax letters ─────────────────────────────────────────────── */}
+          {tool === 'letters' && (
+            <>
+              <section style={{ ...S.card, marginBottom: 14 }}>
+                <p style={S.kick}>Charity details</p>
+                <p style={{ fontSize: 13.5, color: '#5C6B62', lineHeight: 1.6, margin: '6px 0 12px' }}>
+                  The letter needs the 501(c)(3)&apos;s <em>legal</em> name and EIN — not the tournament&apos;s name.
+                </p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <input placeholder="Charity legal name" style={{ ...S.input, flex: '1 1 220px' }}
+                    value={charity.charityLegalName} onChange={(e) => setCharity({ ...charity, charityLegalName: e.target.value })} />
+                  <input placeholder="EIN (12-3456789)" style={{ ...S.input, flex: '1 1 140px' }}
+                    value={charity.charityEin} onChange={(e) => setCharity({ ...charity, charityEin: e.target.value })} />
+                  <input placeholder="Charity mailing address" style={{ ...S.input, flex: '1 1 100%' }}
+                    value={charity.charityAddress} onChange={(e) => setCharity({ ...charity, charityAddress: e.target.value })} />
+                  <input placeholder="What donors get in return (signage, podium mention…)" style={{ ...S.input, flex: '1 1 100%' }}
+                    value={charity.donorBenefits} onChange={(e) => setCharity({ ...charity, donorBenefits: e.target.value })} />
+                  <button onClick={saveCharity} disabled={busy} style={S.btn}>Save</button>
+                </div>
+              </section>
+
+              <p style={S.warn}>
+                This produces a formatted acknowledgement, not tax advice. It deliberately states no
+                dollar value for donated goods — valuing them is the donor&apos;s job, not the charity&apos;s.
+                Have your treasurer approve the template once before the first one goes out.
+              </p>
+
+              {don.summary.committed === 0 ? (
+                <p style={{ color: '#8A9089', fontSize: 14, marginTop: 14 }}>
+                  No committed donations yet. Letters become available once a vendor is marked committed.
+                </p>
+              ) : (
+                <div style={{ marginTop: 14 }}>
+                  {don.prospects.filter((p) => p.status === 'committed').map((p) => (
+                    <div key={p.id} style={{ marginBottom: 8 }}>
+                      <button style={{ ...S.row, borderRadius: 12 }} disabled={busy}
+                        onClick={() => patchDon({ prospectId: p.id, action: 'tax_letter' })}>
+                        <span style={{ flex: 1 }}>
+                          <strong style={{ fontSize: 15 }}>{p.company}</strong>
+                          <span style={{ color: '#8A9089', fontSize: 13 }}> · {p.askSummary ?? 'donation'}</span>
+                        </span>
+                        <span style={{ ...S.pill, color: '#1B6B3A', background: '#E7F1EA' }}>Write letter</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {taxLetter && (
+                <section style={{ ...S.card, marginTop: 14 }}>
+                  <p style={S.kick}>{taxLetter.letter.subject}</p>
+                  {taxLetter.letter.missing.length > 0 && (
+                    <p style={S.warn}>Fill in {taxLetter.letter.missing.join(', ')} — the placeholders below are not usable as-is.</p>
+                  )}
+                  <textarea readOnly value={taxLetter.letter.body} rows={26}
+                    style={{ ...S.input, marginTop: 10, resize: 'vertical', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12.5, lineHeight: 1.6 }} />
+                  <button style={{ ...S.mini, marginTop: 8 }}
+                    onClick={() => { navigator.clipboard?.writeText(taxLetter.letter.body); setNote('Letter copied.'); }}>
+                    Copy letter
+                  </button>
+                </section>
+              )}
+            </>
+          )}
+
+          {/* ── Donor wall ──────────────────────────────────────────────── */}
+          {tool === 'wall' && (
+            <section style={S.card}>
+              <p style={S.kick}>Donor wall</p>
+              {don.donorWall.total === 0 ? (
+                <p style={{ color: '#8A9089', fontSize: 14, margin: '8px 0 0', lineHeight: 1.6 }}>
+                  Nobody has committed yet. Only committed donors go on the wall — a vendor still
+                  marked pending on a sign that has gone to print is awkward in both directions.
+                </p>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13.5, color: '#5C6B62', margin: '6px 0 14px', lineHeight: 1.6 }}>
+                    {don.donorWall.total} donor{don.donorWall.total === 1 ? '' : 's'}, grouped by what they
+                    covered and ordered by contribution. No dollar figures — a thank-you is not a price list.
+                  </p>
+                  {don.donorWall.groups.map((g) => (
+                    <div key={g.key} style={{ padding: '10px 0', borderTop: '1px solid var(--line)' }}>
+                      <span style={{ ...S.kick, display: 'block', marginBottom: 5 }}>{g.emoji} {g.label}</span>
+                      {g.donors.map((d) => (
+                        <p key={d.name} style={{ margin: '0 0 3px', fontSize: 14.5 }}>
+                          {d.name}
+                          {d.detail && <span style={{ color: '#8A9089', fontSize: 12.5 }}> — {d.detail}</span>}
+                        </p>
+                      ))}
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+                    <span style={{ ...S.kick, display: 'block', marginBottom: 6 }}>One-line credit</span>
+                    <p style={{ margin: '0 0 12px', fontSize: 14, lineHeight: 1.6, fontStyle: 'italic' }}>{don.donorWall.inline}</p>
+                    <button style={S.mini}
+                      onClick={() => { navigator.clipboard?.writeText(don.donorWall.plainText); setNote('Donor wall copied.'); }}>
+                      Copy for the program
+                    </button>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
+          {tool === 'prospects' && (
           <section style={{ ...S.card, marginBottom: 14 }}>
             <p style={S.kick}>Add a prospect</p>
             <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
@@ -422,21 +625,24 @@ export default function FbPage() {
               <button onClick={addProspect} disabled={busy} style={S.btn}>Add</button>
             </div>
           </section>
+          )}
 
-          {don.prospects.length === 0 && (
+          {tool === 'prospects' && don.prospects.length === 0 && (
             <p style={{ color: '#8A9089', fontSize: 14 }}>No prospects yet. Six categories, roughly eighteen businesses — that&apos;s a normal donation list.</p>
           )}
 
-          {don.prospects.map((p) => {
+          {tool === 'prospects' && don.prospects.map((p) => {
             const pill = PILL[p.status] ?? PILL.prospect;
+            const cat = don.asks.find((a) => a.key === p.category);
             const open = openProspect === p.id;
             return (
               <div key={p.id} style={{ marginBottom: 8 }}>
                 <button onClick={() => { setOpenProspect(open ? null : p.id); setEditDraft({ subject: p.draftSubject ?? '', body: p.draftBody ?? '' }); }}
                   style={{ ...S.row, borderRadius: open ? '12px 12px 0 0' : 12 }}>
                   <span style={{ flex: 1 }}>
+                    <span style={{ fontSize: 15 }}>{cat?.emoji ?? '\u{1F91D}'} {cat?.short ?? 'Other'}</span>
+                    <span style={{ color: '#8A9089', fontSize: 15 }}> · </span>
                     <strong style={{ fontSize: 15 }}>{p.company}</strong>
-                    <span style={{ color: '#8A9089', fontSize: 13 }}> · {p.categoryLabel ?? 'Uncategorised'}</span>
                     {p.nextFollowUpAt && (
                       <span style={{ color: '#8A6D1F', fontSize: 12.5, display: 'block', marginTop: 2 }}>
                         Follow-up {p.followUpCount + 1} of 2 due {day(p.nextFollowUpAt)}

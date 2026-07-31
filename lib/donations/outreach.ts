@@ -13,6 +13,10 @@ import { loadFbPlan } from '@/lib/fb/plan';
 import { askFor, categoryMeta, VENDOR_CATEGORIES, type VendorCategory } from '@/lib/donations/vendors';
 import { draftDonationEmail } from '@/lib/ai/donationOutreachDraft';
 import { sendDonationOutreachEmail } from '@/lib/email/donationOutreach';
+import { buildAllScripts, type OutreachScript } from '@/lib/donations/scripts';
+import { buildDonorWall, type DonorWall } from '@/lib/donations/donorWall';
+import { buildTaxLetter, TAX_LETTER_DISCLAIMER, type TaxLetter } from '@/lib/donations/taxLetter';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, 'public', any>;
@@ -80,17 +84,43 @@ export interface DonationsSnapshot {
     uncovered: { key: string; label: string; covers: string; suggestedProspects: number }[];
   };
   /** What each category should be asked for, given the current F&B plan. */
-  asks: { key: VendorCategory; label: string; covers: string; ask: string | null; suggestedProspects: number }[];
+  asks: { key: VendorCategory; label: string; short: string; emoji: string; covers: string; ask: string | null; suggestedProspects: number }[];
   hasFbPlan: boolean;
+  /** Module 09: pre-written call scripts, priority three first. */
+  scripts: OutreachScript[];
+  /** Module 09: recognition list built from committed donors. */
+  donorWall: DonorWall;
+  /** Whether the charity identity needed for acknowledgement letters is on file. */
+  charity: { legalName: string | null; ein: string | null; address: string | null; benefits: string | null; complete: boolean };
 }
 
 export async function loadDonations(service: DB, tournamentId: string): Promise<DonationsSnapshot> {
-  const [{ data: rows }, planRecord] = await Promise.all([
+  const [{ data: rows }, planRecord, { data: tRow }] = await Promise.all([
     service.from('donation_prospects').select('*').eq('tournament_id', tournamentId).order('created_at', { ascending: false }),
     loadFbPlan(service, tournamentId),
+    service.from('tournaments')
+      .select('name, event_date, location_name, cause_org, organizer_id')
+      .eq('id', tournamentId).maybeSingle(),
   ]);
 
+  // The charity identity columns arrive in migration 042. Selecting them in
+  // the query above would make PostgREST fail the WHOLE row when 042 hasn't
+  // run, which silently turned every call script into placeholders ("on TBD",
+  // "a local cause"). Same failure shape as the courses.latitude select.
+  const { data: charityRow } = await service.from('tournaments')
+    .select('charity_legal_name, charity_ein, charity_address, donor_benefits')
+    .eq('id', tournamentId).maybeSingle();
+
   const plan = planRecord?.plan ?? null;
+
+  // The call scripts are read aloud, so they carry the organizer's real name
+  // rather than a "[YOUR NAME]" placeholder nobody remembers to replace.
+  let scriptOrganizer: string | null = null;
+  if (tRow?.organizer_id) {
+    const { data: prof } = await service.from('profiles')
+      .select('full_name').eq('id', tRow.organizer_id as string).maybeSingle();
+    scriptOrganizer = (prof?.full_name as string | null) || null;
+  }
 
   const prospects: ProspectRow[] = (rows ?? []).map((r) => ({
     id: r.id as string,
@@ -142,11 +172,81 @@ export async function loadDonations(service: DB, tournamentId: string): Promise<
         .map((c) => ({ key: c.key, label: c.label, covers: c.covers, suggestedProspects: c.suggestedProspects })),
     },
     asks: VENDOR_CATEGORIES.map((c) => ({
-      key: c.key, label: c.label, covers: c.covers,
+      key: c.key, label: c.label, short: c.short, emoji: c.emoji, covers: c.covers,
       ask: askFor(c.key, plan),
       suggestedProspects: c.suggestedProspects,
     })),
     hasFbPlan: !!plan,
+    scripts: buildAllScripts(plan, {
+      tournamentName: (tRow?.name as string | null) ?? null,
+      causeOrg: (tRow?.cause_org as string | null) ?? null,
+      eventDateLabel: formatEventDate(tRow?.event_date as string | null, { month: 'long', day: 'numeric' }),
+      locationName: (tRow?.location_name as string | null) ?? null,
+      playerCount: plan?.inputs.playerCount ?? planRecord?.livePlayerCount ?? null,
+      organizerName: scriptOrganizer,
+    }),
+    donorWall: buildDonorWall(
+      prospects.map((p) => ({
+        company: p.company, category: p.category, status: p.status,
+        committedValueCents: p.committedValueCents, askSummary: p.askSummary,
+      })),
+      { tournamentName: (tRow?.name as string | null) ?? null },
+    ),
+    charity: {
+      legalName: (charityRow?.charity_legal_name as string | null) ?? null,
+      ein: (charityRow?.charity_ein as string | null) ?? null,
+      address: (charityRow?.charity_address as string | null) ?? null,
+      benefits: (charityRow?.donor_benefits as string | null) ?? null,
+      complete: !!(charityRow?.charity_legal_name && charityRow?.charity_ein && charityRow?.charity_address),
+    },
+  };
+}
+
+/**
+ * Build the acknowledgement letter for one committed donor. Refuses for a
+ * donor who hasn't actually committed — an acknowledgement for a donation
+ * nobody made is a real problem, not a formatting one.
+ */
+export async function buildLetterForProspect(
+  service: DB, tournamentId: string, prospectId: string, overrides: { description?: string; receivedDate?: string } = {},
+): Promise<{ letter: TaxLetter; disclaimer: string } | { error: string }> {
+  const { data: p } = await service.from('donation_prospects')
+    .select('*').eq('id', prospectId).eq('tournament_id', tournamentId).maybeSingle();
+  if (!p) return { error: 'That prospect is not part of this tournament.' };
+  if ((p.status as string) !== 'committed') {
+    return { error: 'Mark the donation as committed first — we do not write acknowledgements for donations that have not been confirmed.' };
+  }
+
+  const { data: t } = await service.from('tournaments')
+    .select('name, event_date, organizer_id').eq('id', tournamentId).maybeSingle();
+  const { data: charity, error: charityErr } = await service.from('tournaments')
+    .select('charity_legal_name, charity_ein, charity_address, donor_benefits')
+    .eq('id', tournamentId).maybeSingle();
+  if (charityErr && /column .* does not exist|schema cache/i.test(charityErr.message)) {
+    return { error: 'Run db/migrations/042_charity_identity.sql before writing acknowledgement letters.' };
+  }
+
+  let organizerName = 'The tournament committee';
+  if (t?.organizer_id) {
+    const { data: prof } = await service.from('profiles').select('full_name').eq('id', t.organizer_id as string).maybeSingle();
+    if (prof?.full_name) organizerName = prof.full_name as string;
+  }
+
+  return {
+    letter: buildTaxLetter({
+      charityLegalName: (charity?.charity_legal_name as string | null) ?? null,
+      charityEin: (charity?.charity_ein as string | null) ?? null,
+      charityAddress: (charity?.charity_address as string | null) ?? null,
+      tournamentName: (t?.name as string | null) ?? null,
+      eventDate: (t?.event_date as string | null) ?? null,
+      organizerName,
+      company: (p.company as string | null) ?? (p.name as string | null) ?? 'Donor',
+      contactName: (p.contact_name as string | null) ?? null,
+      donationDescription: overrides.description ?? (p.ask_summary as string | null) ?? '',
+      receivedDate: overrides.receivedDate ?? (t?.event_date as string | null) ?? null,
+      benefitsProvided: (charity?.donor_benefits as string | null) ?? null,
+    }),
+    disclaimer: TAX_LETTER_DISCLAIMER,
   };
 }
 

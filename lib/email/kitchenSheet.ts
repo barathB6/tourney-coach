@@ -12,13 +12,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FbPlanRecord } from '@/lib/fb/plan';
 import { pluralUnit } from '@/lib/fb/calculator';
-import { formatEventDate } from '@/lib/formatEventDate';
+import { formatEventDate, formatEventTime } from '@/lib/formatEventDate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, 'public', any>;
 
-const timeOf = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
+const timeOf = formatEventTime;
 
 export function buildKitchenSheet(plan: FbPlanRecord): { subject: string; text: string; html: string } {
   const p = plan.plan!;

@@ -21,3 +21,23 @@ export function formatEventDate(
   if (Number.isNaN(parsed.getTime())) return 'TBD';
   return parsed.toLocaleDateString('en-US', { timeZone: 'UTC', ...opts });
 }
+
+/**
+ * Format a schedule instant as the wall-clock time at the course.
+ *
+ * Event schedules in this app are *wall clock*, not absolute instants. A
+ * shotgun at "8:30 AM" means half past eight where the course is, whatever
+ * zone the server, the organizer's laptop and the kitchen's phone are in. We
+ * carry that by building the instant with a Z suffix — 08:30 local becomes
+ * 08:30Z — which only reads back correctly if it is also *formatted* in UTC.
+ *
+ * Formatting these with the runtime's local zone (the default) renders an 8am
+ * shotgun as 4am on a US-East server and 1am on a US-West one, on a sheet the
+ * kitchen works from. Always go through this.
+ */
+export function formatEventTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: 'numeric', minute: '2-digit' });
+}

@@ -23,6 +23,12 @@ import { buildKitchenSheet } from '../lib/email/kitchenSheet';
 const env = readFileSync(new URL('../.env.local', import.meta.url), 'utf8');
 const get = (k: string) => env.match(new RegExp(`^${k}=(.*)$`, 'm'))?.[1]?.trim();
 const db = createClient(get('NEXT_PUBLIC_SUPABASE_URL')!, get('SUPABASE_SERVICE_ROLE_KEY')!);
+// The libraries under test read process.env directly (askClaude, SendGrid), so
+// mirror .env.local into it rather than only handing values to createClient.
+for (const line of env.split('\n')) {
+  const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+}
 
 const TAG = 'ZZZ FBDON';
 const DOM = 'fbdon.example.invalid';
@@ -66,17 +72,20 @@ async function main() {
   }).select('id').single();
   const tid = t!.id;
 
-  // 18 foursomes = 72 players, matching the worked example.
-  await db.from('registrations').insert(
+  // 18 foursomes = 72 players, matching the worked example. Errors here are
+  // thrown rather than ignored — a silently-empty fixture set produced a wall
+  // of confusing failures further down instead of one clear message.
+  const regErr = await db.from('registrations').insert(
     Array.from({ length: 18 }, (_, i) => ({
       tournament_id: tid, registration_type: 'foursome', payment_status: 'paid',
-      captain_name: `${TAG} CAP ${i}`, captain_email: `cap${i}@${DOM}`,
+      contact_name: `${TAG} CAP ${i}`, contact_email: `cap${i}@${DOM}`,
     })),
   );
+  if (regErr.error) throw new Error(`fixture registrations: ${regErr.error.message}`);
   // A refunded foursome and a sponsor package must NOT reach the kitchen.
   await db.from('registrations').insert([
-    { tournament_id: tid, registration_type: 'foursome', payment_status: 'refunded', captain_name: `${TAG} REFUND`, captain_email: `ref@${DOM}` },
-    { tournament_id: tid, registration_type: 'sponsor', payment_status: 'paid', captain_name: `${TAG} SPON`, captain_email: `spon@${DOM}` },
+    { tournament_id: tid, registration_type: 'foursome', payment_status: 'refunded', contact_name: `${TAG} REFUND`, contact_email: `ref@${DOM}` },
+    { tournament_id: tid, registration_type: 'sponsor', payment_status: 'paid', contact_name: `${TAG} SPON`, contact_email: `spon@${DOM}` },
   ]);
 
   const cleanup = async () => {
@@ -115,7 +124,7 @@ async function main() {
     // Someone registers after the lock.
     await db.from('registrations').insert({
       tournament_id: tid, registration_type: 'foursome', payment_status: 'paid',
-      captain_name: `${TAG} LATE`, captain_email: `late@${DOM}`,
+      contact_name: `${TAG} LATE`, contact_email: `late@${DOM}`,
     });
     plan = (await loadFbPlan(db, tid))!;
     ok(plan.livePlayerCount === 76, 'registrations keep moving after the lock', String(plan.livePlayerCount));
@@ -131,6 +140,9 @@ async function main() {
       'the timeline shows real clock times back-timed from the shotgun');
     ok(!sheet.html.includes('<script'), 'the HTML sheet escapes its inputs');
 
+    // Back to the worked example for the rest of the file: drop the late
+    // registration, then unlock.
+    await db.from('registrations').delete().eq('tournament_id', tid).eq('contact_name', `${TAG} LATE`);
     await saveFbInputs(db, tid, { headcount_locked_at: null, locked_player_count: null });
 
     // ── Donation engine ─────────────────────────────────────────────────────
@@ -290,6 +302,79 @@ async function main() {
       'and the beer category drops off the uncovered list');
     ok(snap.prospects.find((p) => p.id === distributor)!.nextFollowUpAt === null,
       'a committed vendor is no longer scheduled for anything');
+
+    section('12. Outreach tracking webhooks');
+    // These call OUR webhook handlers with the payload shapes SendGrid posts.
+    // That proves the attribution logic — which prospect an open belongs to,
+    // and which status transitions are allowed — without depending on
+    // SendGrid actually reaching this machine. Real end-to-end delivery of an
+    // event still needs the webhook URL configured in the SendGrid dashboard.
+    const { POST: eventHook } = await import('../app/api/webhooks/sendgrid/route');
+    const { POST: inboundHook } = await import('../app/api/webhooks/sendgrid-inbound/route');
+    const { NextRequest } = await import('next/server');
+
+    const postEvents = (events: unknown[]) => eventHook(new NextRequest('http://localhost/api/webhooks/sendgrid', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(events),
+    }));
+
+    // A fresh prospect, sent but not yet opened.
+    const tracked = await mk('Gulf Coast Wine', 'liquor_store', `wine@${DOM}`);
+    await db.from('donation_prospects').update({ status: 'sent', sent_at: daysAgo(1), last_contact_at: daysAgo(1) }).eq('id', tracked);
+
+    await postEvents([{ event: 'open', prospect_id: tracked, timestamp: Math.floor(Date.now() / 1000) }]);
+    let { data: row } = await db.from('donation_prospects')
+      .select('status, email_opens, opened_at').eq('id', tracked).single();
+    ok(row?.status === 'opened', 'an open event moves the prospect from Sent to Opened', String(row?.status));
+    ok(row?.email_opens === 1 && !!row?.opened_at, 'and records the open count and first-open time', `${row?.email_opens} opens`);
+
+    await postEvents([{ event: 'open', prospect_id: tracked }, { event: 'click', prospect_id: tracked }]);
+    ({ data: row } = await db.from('donation_prospects').select('status, email_opens').eq('id', tracked).single());
+    ok(row?.email_opens === 2, 'a second open increments; a click does not inflate the open count', `${row?.email_opens} opens`);
+
+    // A late open must never drag a resolved prospect backwards.
+    await db.from('donation_prospects').update({ status: 'committed' }).eq('id', tracked);
+    await postEvents([{ event: 'open', prospect_id: tracked }]);
+    ({ data: row } = await db.from('donation_prospects').select('status').eq('id', tracked).single());
+    ok(row?.status === 'committed', 'a late open does not drag a committed vendor back to "opened"', String(row?.status));
+
+    // A sponsor-tagged event must not touch donation rows, and vice versa.
+    await db.from('donation_prospects').update({ status: 'sent', email_opens: 0 }).eq('id', tracked);
+    await postEvents([{ event: 'open', sponsor_id: tracked }]);
+    ({ data: row } = await db.from('donation_prospects').select('status, email_opens').eq('id', tracked).single());
+    ok(row?.status === 'sent' && row?.email_opens === 0,
+      'an event tagged sponsor_id never touches a donation prospect with the same id');
+
+    // Inbound reply: stops the cadence and files the conversation.
+    const form = new FormData();
+    form.set('envelope', JSON.stringify({ to: [`reply-${tracked}@reply.tourneycoach.com`] }));
+    form.set('to', `reply-${tracked}@reply.tourneycoach.com`);
+    form.set('from', 'Dana Whitfield <dana@gulfcoastwine.example>');
+    form.set('subject', 'Re: Donation request');
+    form.set('text', 'Happy to help — we can cover 6 cases.\n\nOn Tue someone wrote:\n> original');
+    await inboundHook(new NextRequest('http://localhost/api/webhooks/sendgrid-inbound', { method: 'POST', body: form }));
+
+    const { data: replied2 } = await db.from('donation_prospects')
+      .select('status, responded_at, reply_snippet').eq('id', tracked).single();
+    const snippet = (replied2?.reply_snippet as string | null) ?? '';
+    ok(replied2?.status === 'responded', 'a reply moves the prospect to Responded', String(replied2?.status));
+    ok(snippet.includes('6 cases') && !snippet.includes('> original'),
+      'the snippet keeps their words and strips the quoted history', snippet || 'none');
+    ok(nextFollowUpAt({ status: replied2!.status as string, follow_up_count: 0, last_contact_at: daysAgo(30) }) === null,
+      'and the follow-up cadence stops immediately');
+
+    const { data: inLog } = await db.from('donation_outreach_log')
+      .select('direction, outcome, subject').eq('prospect_id', tracked).eq('direction', 'inbound');
+    ok((inLog ?? []).length === 1 && inLog![0].outcome === 'replied',
+      'the reply is filed in the outreach history as an inbound entry');
+
+    // An unknown reply address must be ignored, not crash or mis-attribute.
+    const stray = new FormData();
+    stray.set('to', 'reply-00000000-0000-0000-0000-000000000000@reply.tourneycoach.com');
+    stray.set('from', 'nobody@example.invalid');
+    stray.set('subject', 'hello');
+    stray.set('text', 'hello');
+    const strayRes = await inboundHook(new NextRequest('http://localhost/api/webhooks/sendgrid-inbound', { method: 'POST', body: stray }));
+    ok(strayRes.status === 200, 'a reply to an unknown address is acknowledged and ignored');
 
     section('11. Shotgun instant');
     // Real rows in this database hold "8:30 am", not "08:30". Getting this

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { loadDonations, draftForProspect, sendDonationOutreach } from '@/lib/donations/outreach';
+import { loadDonations, draftForProspect, sendDonationOutreach, buildLetterForProspect } from '@/lib/donations/outreach';
 import { VENDOR_CATEGORY_KEYS } from '@/lib/donations/vendors';
 
 function getAuthedSupabase(req: NextRequest) {
@@ -126,6 +126,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(await loadDonations(gate.service, id));
   }
 
+  // Module 09 — the acknowledgement letter for a committed donor.
+  if (action === 'tax_letter') {
+    const result = await buildLetterForProspect(gate.service, id, prospectId, {
+      description: str(body?.description, 600) || undefined,
+      receivedDate: str(body?.receivedDate, 40) || undefined,
+    });
+    if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 });
+    return NextResponse.json({ ...(await loadDonations(gate.service, id)), taxLetter: result });
+  }
+
   if (action === 'delete') {
     await gate.service.from('donation_outreach_log').delete().eq('prospect_id', prospectId).eq('tournament_id', id);
     await gate.service.from('donation_prospects').delete().eq('id', prospectId).eq('tournament_id', id);
@@ -133,4 +143,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+}
+
+// PUT — the charity's legal identity, needed before any acknowledgement letter
+// is usable. Kept separate from PATCH because it is about the tournament, not
+// about one prospect.
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const gate = await requireOwner(req, id);
+  if ('error' in gate) return gate.error;
+
+  const body = await req.json().catch(() => null);
+  const ein = str(body?.charityEin, 20).replace(/\s/g, '');
+  if (ein && !/^[0-9]{2}-?[0-9]{7}$/.test(ein)) {
+    return NextResponse.json({ error: 'An EIN looks like 12-3456789.' }, { status: 400 });
+  }
+
+  const { error } = await gate.service.from('tournaments').update({
+    charity_legal_name: str(body?.charityLegalName, 200) || null,
+    charity_ein: ein || null,
+    charity_address: str(body?.charityAddress, 400) || null,
+    donor_benefits: str(body?.donorBenefits, 600) || null,
+  }).eq('id', id);
+  if (error) {
+    return NextResponse.json({
+      error: /column .* does not exist|schema cache/i.test(error.message)
+        ? 'Run db/migrations/042_charity_identity.sql to store the charity details.'
+        : `Could not save that: ${error.message}`,
+    }, { status: 500 });
+  }
+  return NextResponse.json(await loadDonations(gate.service, id));
 }
