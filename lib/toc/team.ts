@@ -83,6 +83,10 @@ export interface TeamSnapshot {
     planningFilled: number; planningTotal: number;
     dayOfFilled: number; dayOfTotal: number;
     awaitingResponse: number; declined: number; noShows: number;
+    // Per-phase, because the tab header says "Filled 3 of 11" for one phase
+    // and it is jarring for the counters beside it to be counting both.
+    planning: { awaiting: number; declined: number };
+    dayOf: { awaiting: number; declined: number; noShows: number };
   };
 }
 
@@ -205,6 +209,9 @@ export async function loadTeam(
   const active = (m: TeamMember) => m.status !== 'declined';
   const planning = roles.filter((r) => r.phase === 'planning');
   const dayOf = roles.filter((r) => r.phase === 'day_of');
+  const allMembers = roles.flatMap((r) => r.members);
+  const planningMembers = planning.flatMap((r) => r.members);
+  const dayOfMembers = dayOf.flatMap((r) => r.members);
 
   return {
     tournament: { id: t.id as string, name: t.name as string, eventDate, shotgunTime },
@@ -214,9 +221,23 @@ export async function loadTeam(
       planningTotal: planning.length,
       dayOfFilled: dayOf.filter((r) => r.members.some(active)).length,
       dayOfTotal: dayOf.length,
-      awaitingResponse: roles.flatMap((r) => r.members).filter((m) => m.invitedAt && !m.respondedAt).length,
-      declined: roles.flatMap((r) => r.members).filter((m) => m.status === 'declined').length,
-      noShows: roles.flatMap((r) => r.members).filter((m) => m.noShow).length,
+      // Keyed off STATUS, not "invited but no responded_at". Status is the
+      // source of truth the pills render from, and a confirmed volunteer whose
+      // responded_at was never stamped (imported, or confirmed verbally by the
+      // organizer) is not awaiting anything — counting them made the header
+      // say "8 awaiting" beside two "Asked" pills.
+      awaitingResponse: allMembers.filter((m) => m.status === 'assigned').length,
+      declined: allMembers.filter((m) => m.status === 'declined').length,
+      noShows: allMembers.filter((m) => m.noShow).length,
+      planning: {
+        awaiting: planningMembers.filter((m) => m.status === 'assigned').length,
+        declined: planningMembers.filter((m) => m.status === 'declined').length,
+      },
+      dayOf: {
+        awaiting: dayOfMembers.filter((m) => m.status === 'assigned').length,
+        declined: dayOfMembers.filter((m) => m.status === 'declined').length,
+        noShows: dayOfMembers.filter((m) => m.noShow).length,
+      },
     },
   };
 }
