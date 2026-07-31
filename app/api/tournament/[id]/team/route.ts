@@ -117,6 +117,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body?.action === 'resend') {
     const origin = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
     invite = await sendVolunteerInvite(gate.service, assignmentId, origin);
+  } else if (body?.action === 'checkin' || body?.action === 'undo_checkin') {
+    // Check-in lives on the volunteer, not the assignment: someone who shows up
+    // is present for every role they hold that day, and making them check in
+    // three times would be silly.
+    const { data: a } = await gate.service.from('tournament_volunteer_assignments')
+      .select('volunteer_id').eq('id', assignmentId).eq('tournament_id', id).maybeSingle();
+    if (a?.volunteer_id) {
+      await gate.service.from('volunteers')
+        .update({ checked_in_at: body.action === 'checkin' ? new Date().toISOString() : null })
+        .eq('id', a.volunteer_id as string).eq('tournament_id', id);
+    }
   } else if (body?.action === 'remove') {
     await gate.service.from('tournament_volunteer_assignments').delete().eq('id', assignmentId).eq('tournament_id', id);
   } else {

@@ -10,6 +10,7 @@ type Member = {
   roleId: string; roleName: string; phase: 'planning' | 'day_of'; status: string;
   invitedAt: string | null; respondedAt: string | null; inviteChannel: string | null; inviteError: string | null;
   startsAt: string | null; remindersSent: number[];
+  checkedInAt: string | null; noShow: boolean;
 };
 type Role = {
   id: string; name: string; description: string | null; phase: 'planning' | 'day_of';
@@ -18,7 +19,7 @@ type Role = {
 type Team = {
   tournament: { id: string; name: string; eventDate: string | null };
   roles: Role[];
-  summary: { planningFilled: number; planningTotal: number; dayOfFilled: number; dayOfTotal: number; awaitingResponse: number; declined: number };
+  summary: { planningFilled: number; planningTotal: number; dayOfFilled: number; dayOfTotal: number; awaitingResponse: number; declined: number; noShows: number };
 };
 
 const STATUS: Record<string, { label: string; fg: string; bg: string }> = {
@@ -144,10 +145,21 @@ export default function TeamPage() {
               <Stat label="Roles filled" value={`${filled} of ${total}`} />
               <Stat label="Awaiting reply" value={String(s!.awaitingResponse)} accent={s!.awaitingResponse ? 'var(--gold)' : undefined} />
               <Stat label="Declined" value={String(s!.declined)} accent={s!.declined ? 'var(--alert)' : undefined} />
+              <Stat label="No-shows" value={String(s!.noShows)} accent={s!.noShows ? 'var(--alert)' : undefined} />
             </div>
 
             {note && <div style={{ ...S.card, marginBottom: 14, background: '#E7F1EA', borderColor: '#B7E0C6' }}><p style={{ margin: 0, fontSize: 13.5, color: 'var(--deep-green)' }}>{note}</p></div>}
             {error && <div style={{ ...S.card, marginBottom: 14, borderColor: '#F5C6C0' }}><p style={{ margin: 0, fontSize: 13.5, color: 'var(--alert)' }}>{error}</p></div>}
+
+            {s!.noShows > 0 && (
+              <div style={{ ...S.card, marginBottom: 14, background: '#FBE9E7', borderColor: '#F5C6C0' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: 'var(--alert)' }}>No-show alert</div>
+                <p style={{ margin: '6px 0 0', fontSize: 14, color: '#7A2E1E', lineHeight: 1.6 }}>
+                  {s!.noShows} confirmed volunteer{s!.noShows === 1 ? ' has' : 's have'} not checked in and their role has already started.
+                  {' '}Find them below and either check them in or move somebody across.
+                </p>
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {roles.map((r) => {
@@ -178,10 +190,17 @@ export default function TeamPage() {
                             <div key={m.assignmentId} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '9px 12px', background: '#FAF8F3', borderRadius: 10, border: '1px solid var(--line)' }}>
                               <span style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</span>
                               <span style={{ background: st.bg, color: st.fg, borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>{st.label}</span>
+                              {m.noShow && <span style={{ background: '#FBE9E7', color: 'var(--alert)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>No-show</span>}
+                              {m.checkedInAt && <span style={{ background: '#E7F1EA', color: 'var(--primary)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>Checked in</span>}
                               <span style={{ fontSize: 12, color: '#8A9089', flex: 1, minWidth: 140 }}>
                                 {m.invitedAt ? `Invited ${m.inviteChannel ? `by ${m.inviteChannel}` : ''}` : 'Not invited yet'}
                                 {m.remindersSent.length > 0 && ` · ${m.remindersSent.length} reminder${m.remindersSent.length === 1 ? '' : 's'} sent`}
                               </span>
+                              {m.phase === 'day_of' && (
+                                <button onClick={() => act(m.assignmentId, { action: m.checkedInAt ? 'undo_checkin' : 'checkin' })} disabled={busy} style={S.mini}>
+                                  {m.checkedInAt ? 'Undo check-in' : 'Check in'}
+                                </button>
+                              )}
                               <button onClick={() => act(m.assignmentId, { action: 'resend' })} disabled={busy} style={S.mini}>Re-send</button>
                               {m.status !== 'confirmed' && (
                                 <button onClick={() => act(m.assignmentId, { status: 'confirmed' })} disabled={busy} style={S.mini}>Mark confirmed</button>

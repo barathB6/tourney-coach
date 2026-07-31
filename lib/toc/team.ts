@@ -58,6 +58,11 @@ export interface TeamMember {
   inviteError: string | null;
   startsAt: string | null;
   remindersSent: number[];     // offsets already delivered
+  checkedInAt: string | null;
+  // Confirmed, their role has started, and they never checked in. Only ever
+  // true for day-of roles: a planning role "starting" 16 weeks out has no
+  // check-in desk to miss.
+  noShow: boolean;
 }
 
 export interface TeamRole {
@@ -77,13 +82,35 @@ export interface TeamSnapshot {
   summary: {
     planningFilled: number; planningTotal: number;
     dayOfFilled: number; dayOfTotal: number;
-    awaitingResponse: number; declined: number;
+    awaitingResponse: number; declined: number; noShows: number;
   };
+}
+
+// How long after a role starts before an absence counts as a no-show. Someone
+// two minutes late is not a no-show; someone twenty minutes late means the
+// registration table is unmanned and the organizer needs to know NOW, while
+// there is still time to move somebody.
+export const NO_SHOW_GRACE_MINUTES = 20;
+
+export function isNoShow(
+  phase: Phase,
+  status: string,
+  startsAt: Date | null,
+  checkedInAt: string | null,
+  now: Date,
+): boolean {
+  // Planning roles have no check-in desk, so absence is not measurable.
+  if (phase !== 'day_of') return false;
+  if (status !== 'confirmed') return false;   // nobody promised, nobody missed
+  if (checkedInAt) return false;
+  if (!startsAt) return false;
+  return now.getTime() - startsAt.getTime() > NO_SHOW_GRACE_MINUTES * 60_000;
 }
 
 export async function loadTeam(
   service: SupabaseClient,
   tournamentId: string,
+  now: Date = new Date(),
 ): Promise<TeamSnapshot | null> {
   const { data: t } = await service.from('tournaments')
     .select('id, name, event_date, shotgun_time').eq('id', tournamentId).maybeSingle();
@@ -96,7 +123,7 @@ export async function loadTeam(
     service.from('role_templates').select('id, name, description, phase, sort_order').order('sort_order'),
     service.from('task_templates').select('role_template_id, title, due_offset_hours').order('sort_order'),
     service.from('tournament_volunteer_assignments')
-      .select('id, volunteer_id, role_template_id, status, invited_at, responded_at, invite_channel, invite_error, volunteers(name, email, phone)')
+      .select('id, volunteer_id, role_template_id, status, invited_at, responded_at, invite_channel, invite_error, volunteers(name, email, phone, checked_in_at)')
       .eq('tournament_id', tournamentId),
   ]);
 
@@ -137,7 +164,7 @@ export async function loadTeam(
     const startsAt = roleStartAt(phase, earliest, eventDate, shotgunTime);
 
     const members: TeamMember[] = (assignsBy.get(r.id as string) ?? []).map((a) => {
-      const v = a.volunteers as unknown as { name?: string; email?: string | null; phone?: string | null } | null;
+      const v = a.volunteers as unknown as { name?: string; email?: string | null; phone?: string | null; checked_in_at?: string | null } | null;
       return {
         assignmentId: a.id as string,
         volunteerId: a.volunteer_id as string,
@@ -154,6 +181,8 @@ export async function loadTeam(
         inviteError: (a.invite_error as string | null) ?? null,
         startsAt: startsAt ? startsAt.toISOString() : null,
         remindersSent: remindersBy.get(a.id as string) ?? [],
+        checkedInAt: v?.checked_in_at ?? null,
+        noShow: isNoShow(phase, (a.status as string) ?? 'assigned', startsAt, v?.checked_in_at ?? null, now),
       };
     });
 
@@ -187,6 +216,7 @@ export async function loadTeam(
       dayOfTotal: dayOf.length,
       awaitingResponse: roles.flatMap((r) => r.members).filter((m) => m.invitedAt && !m.respondedAt).length,
       declined: roles.flatMap((r) => r.members).filter((m) => m.status === 'declined').length,
+      noShows: roles.flatMap((r) => r.members).filter((m) => m.noShow).length,
     },
   };
 }
@@ -276,7 +306,7 @@ export async function runVolunteerReminders(
   tournamentId: string,
   now: Date = new Date(),
 ): Promise<{ sent: number; skipped: number; details: string[] }> {
-  const team = await loadTeam(service, tournamentId);
+  const team = await loadTeam(service, tournamentId, now);
   if (!team) return { sent: 0, skipped: 0, details: ['tournament not found'] };
 
   let sent = 0, skipped = 0;
