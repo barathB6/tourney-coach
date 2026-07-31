@@ -98,6 +98,8 @@ export function askFor(category: VendorCategory, plan: FbPlan | null): string | 
       return `morning coffee service for ${heads} at registration`;
     }
     case 'hole_in_one_insurance':
+      // A "0-player shotgun" is not an ask anyone should read.
+      if (players <= 0) return null;
       return `a hole-in-one prize policy for a ${players}-player shotgun`;
     default:
       return null;

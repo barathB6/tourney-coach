@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 
 interface Tournament {
   id: string;
@@ -60,6 +61,9 @@ export default function Dashboard() {
   const [phase2CoachDismissed, setPhase2CoachDismissed] = useState(false);
   const [lastCourseId, setLastCourseId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Real completion signals for the game-plan spine, so the "you're here"
+  // marker moves as data accumulates instead of being pinned to step 4.
+  const [progress, setProgress] = useState({ sponsors: false, volunteers: false, dayOf: false });
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -156,6 +160,37 @@ export default function Dashboard() {
           .eq('tournament_id', data.id)
           .in('payment_status', ['pending', 'paid']);
         setRegistrationCount(count ?? 0);
+
+        // Spine progress, from the same definitions the rest of the app uses:
+        // a sponsor counts once committed (verbal handshake included — the
+        // goals dashboard's rule), volunteers count from day-of signups or a
+        // committee member, and the day-of plan counts once any foursome has
+        // a starting hole.
+        const [spon, signups, holes] = await Promise.all([
+          supabase.from('sponsors').select('id', { count: 'exact', head: true })
+            .eq('tournament_id', data.id).in('status', ['verbal', 'invoiced', 'paid']),
+          supabase.from('volunteer_signups').select('id', { count: 'exact', head: true })
+            .eq('tournament_id', data.id),
+          supabase.from('registrations').select('id', { count: 'exact', head: true })
+            .eq('tournament_id', data.id).not('starting_hole', 'is', null),
+        ]);
+        let volunteers = (signups.count ?? 0) > 0;
+        if (!volunteers) {
+          // Committee members built on /team live behind an owner-checked API
+          // (their tables are service-role only) — ask it rather than guess.
+          try {
+            const res = await authedFetch(`/api/tournament/${data.id}/team`);
+            if (res.ok) {
+              const t = await res.json();
+              volunteers = ((t.summary?.planningFilled ?? 0) + (t.summary?.dayOfFilled ?? 0)) > 0;
+            }
+          } catch { /* stay false */ }
+        }
+        setProgress({
+          sponsors: (spon.count ?? 0) > 0,
+          volunteers,
+          dayOf: (holes.count ?? 0) > 0,
+        });
       }
       setLoading(false);
     }
@@ -188,10 +223,10 @@ export default function Dashboard() {
     { label: 'Set up the event details', done: setupDone, href: '/setup/format' },
     // Both of these go where the matching dashboard button goes, so a step in
     // the spine and its button are never two different destinations.
-    { label: 'Open registration', done: setupDone, href: setupDone ? '/dashboard/registrations' : null },
-    { label: 'Line up your sponsors', done: false, href: '/sponsors' },
-    { label: 'Rally your volunteers', done: false, href: '/dashboard/volunteers' },
-    { label: 'Build your day-of game plan', done: false, href: '/shotgun' },
+    { label: 'Open registration', done: (tournament?.status ?? 'draft') !== 'draft' || registrationCount > 0, href: setupDone ? '/dashboard/registrations' : null },
+    { label: 'Line up your sponsors', done: progress.sponsors, href: '/sponsors' },
+    { label: 'Rally your volunteers', done: progress.volunteers, href: '/dashboard/volunteers' },
+    { label: 'Build your day-of game plan', done: progress.dayOf, href: '/shotgun' },
   ];
   const activeIdx = steps.findIndex(s => !s.done);
 
