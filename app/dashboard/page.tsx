@@ -186,9 +186,11 @@ export default function Dashboard() {
   const steps = [
     { label: 'Tell your cause story', done: causeStoryDone, href: '/story' },
     { label: 'Set up the event details', done: setupDone, href: '/setup/format' },
-    { label: 'Open registration', done: setupDone, href: null },
+    // Both of these go where the matching dashboard button goes, so a step in
+    // the spine and its button are never two different destinations.
+    { label: 'Open registration', done: setupDone, href: setupDone ? '/dashboard/registrations' : null },
     { label: 'Line up your sponsors', done: false, href: '/sponsors' },
-    { label: 'Rally your volunteers', done: false, href: null },
+    { label: 'Rally your volunteers', done: false, href: '/dashboard/volunteers' },
     { label: 'Build your day-of game plan', done: false, href: '/shotgun' },
   ];
   const activeIdx = steps.findIndex(s => !s.done);
@@ -451,13 +453,24 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => router.push('/fb')}
-                title="Weather-adjusted food and drink quantities, kitchen timing, and vendor donation outreach"
+                title="Weather-adjusted beer, water, snack and lunch quantities, plus kitchen prep timing"
                 style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M6 2v7a3 3 0 0 0 3 3v10" /><path d="M9 2v6" /><path d="M18 2a3 4 0 0 0-3 4v6h3v10" />
                 </svg>
-                F&amp;B Planner
+                F&amp;B Calculator
+              </button>
+              <button
+                onClick={() => router.push('/fb?tab=donations')}
+                title="Vendor prospects, AI-drafted donation requests, call scripts, tax letters and the donor wall"
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 12v9H4v-9" /><rect x="2" y="7" width="20" height="5" rx="1" /><path d="M12 21V7" />
+                  <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" /><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+                </svg>
+                Vendor Donations
               </button>
               <button
                 onClick={() => router.push('/pace')}
@@ -633,7 +646,7 @@ export default function Dashboard() {
                     <strong style={{ color: 'var(--ink)', fontWeight: 700 }}>You</strong>
                     <span style={{ color: '#5C6B62', fontWeight: 400 }}>&middot; everything</span>
                   </span>
-                  <button style={s.addBtn}>+ Invite someone to help</button>
+                  <button style={s.addBtn} onClick={() => router.push('/team')}>+ Invite someone to help</button>
                 </div>
               </div>
 
@@ -719,6 +732,22 @@ export default function Dashboard() {
                     { label: 'Sponsors', sub: setupDone ? 'view sponsors' : 'not started', href: setupDone ? '/sponsors' : null },
                     { label: 'Shotgun start', sub: setupDone ? 'assign holes' : 'not started', href: setupDone ? '/shotgun' : null },
                     { label: 'Course profile', sub: tournament?.course_id ? 'resume building' : 'build a course', href: courseHref },
+                    // Everything in the toolbar above also lives here, so the
+                    // grid is the one complete index of the dashboard rather
+                    // than a shortlist that quietly falls behind it.
+                    { label: 'Your team', sub: 'committee and crew', href: '/team' },
+                    { label: 'Volunteers', sub: 'day-of signups', href: '/dashboard/volunteers' },
+                    { label: 'Tournament goals', sub: 'track your five', href: '/goals' },
+                    { label: 'F&B calculator', sub: 'weather-adjusted quantities', href: '/fb' },
+                    { label: 'Vendor donations', sub: 'prospects and outreach', href: '/fb?tab=donations' },
+                    { label: 'Pace of play', sub: 'where every group is', href: '/pace' },
+                    { label: 'Contest holes', sub: 'hole-in-one and more', href: '/contests' },
+                    { label: 'Hole map', sub: 'tag each hole', href: '/preview/hole-map' },
+                    { label: 'TourneyCircle', sub: 'reach nearby golfers', href: '/circle' },
+                    { label: 'Microsite', sub: 'your public page', href: '/dashboard/microsite' },
+                    { label: 'Share', sub: 'graphics and links', href: '/dashboard/share' },
+                    { label: 'TV leaderboard', sub: 'clubhouse screen', href: '/tv/leaderboard' },
+                    ...(isAdmin ? [{ label: 'GPS pipeline', sub: 'admin', href: '/admin/pipeline/gps' }] : []),
                   ].map(({ label, sub, href }) => (
                     <button key={label} style={s.q} onClick={() => href && router.push(href)} disabled={!href}>
                       <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)' }}>{label}</div>

@@ -99,6 +99,9 @@ export default function FbPage() {
   const [tool, setTool] = useState<'prospects' | 'scripts' | 'letters' | 'wall'>('prospects');
   const [taxLetter, setTaxLetter] = useState<{ letter: { subject: string; body: string; missing: string[] }; disclaimer: string } | null>(null);
   const [charity, setCharity] = useState({ charityLegalName: '', charityEin: '', charityAddress: '', donorBenefits: '' });
+  // The URL-sync effect must not run before the deep link has been read, or it
+  // races the async read and strips ?tab= off the address on first paint.
+  const [linkRead, setLinkRead] = useState(false);
 
   const load = useCallback(async (id: string) => {
     const [f, d] = await Promise.all([
@@ -121,8 +124,30 @@ export default function FbPage() {
     }
   }, []);
 
+  // Keep the URL in step with the tab so a view can be linked to or reloaded.
   useEffect(() => {
+    if (!linkRead) return;
+    const url = new URL(window.location.href);
+    if (tab === 'plan') url.searchParams.delete('tab'); else url.searchParams.set('tab', tab);
+    if (tab === 'donations' && tool !== 'prospects') url.searchParams.set('tool', tool);
+    else url.searchParams.delete('tool');
+    window.history.replaceState(null, '', url.toString());
+  }, [tab, tool, linkRead]);
+
+  useEffect(() => {
+    // Deep link: /fb opens the calculator, /fb?tab=donations opens Module 09.
+    // Read off window.location rather than useSearchParams, which would push
+    // this client component behind a Suspense boundary for no benefit — and
+    // done inside this async callback rather than its own effect, so it isn't
+    // a synchronous setState during an effect.
     supabase.auth.getUser().then(async ({ data: { user } }) => {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('tab');
+      if (q === 'donations' || q === 'kitchen' || q === 'plan') setTab(q);
+      const toolParam = params.get('tool');
+      if (toolParam === 'scripts' || toolParam === 'letters' || toolParam === 'wall' || toolParam === 'prospects') setTool(toolParam);
+      setLinkRead(true);
+
       if (!user) { router.replace('/sign-in?next=/fb'); return; }
       let selected: string | null = null;
       try { selected = localStorage.getItem(`tourney_selected_tournament_${user.id}`); } catch { /* ignore */ }
