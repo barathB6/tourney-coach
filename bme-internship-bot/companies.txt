@@ -1,0 +1,86 @@
+# Companies to hunt for public job boards. One per line, plain names.
+# `node src/index.js --discover` tries slug variants of each against
+# Greenhouse / Lever / Ashby / SmartRecruiters and writes the live ones into
+# config.json. Add or remove freely — this file is the input, config.json is
+# the generated output.
+
+# --- Medical devices ---
+Medtronic
+Stryker
+Boston Scientific
+Abbott
+Edwards Lifesciences
+Becton Dickinson
+Zimmer Biomet
+Intuitive Surgical
+Hologic
+ResMed
+Dexcom
+Insulet
+Tandem Diabetes Care
+iRhythm
+Penumbra
+Inari Medical
+Shockwave Medical
+Axonics
+Inspire Medical Systems
+Nevro
+Outset Medical
+Procept BioRobotics
+Vicarious Surgical
+Neuralink
+Butterfly Network
+Hyperfine
+Exo Imaging
+Nuvasive
+Globus Medical
+Integra LifeSciences
+Teleflex
+Masimo
+ICU Medical
+
+# --- Diagnostics / genomics / biotech ---
+Illumina
+10x Genomics
+Pacific Biosciences
+Twist Bioscience
+Natera
+Guardant Health
+Exact Sciences
+Myriad Genetics
+Tempus
+Freenome
+Grail
+Color Health
+Ginkgo Bioworks
+AbCellera
+Generate Biomedicines
+Recursion
+Insitro
+Benchling
+Moderna
+Genentech
+Amgen
+Regeneron
+Vertex Pharmaceuticals
+Alnylam
+Beam Therapeutics
+Intellia Therapeutics
+Editas Medicine
+Danaher
+Thermo Fisher Scientific
+Agilent
+Waters Corporation
+Bio-Rad
+
+# --- Digital health / health AI ---
+Komodo Health
+Clarify Health
+Viz.ai
+Aidoc
+Cleerly
+HeartFlow
+Hinge Health
+Sword Health
+Carbon Health
+Included Health

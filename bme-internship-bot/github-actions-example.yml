@@ -1,0 +1,36 @@
+# Optional cloud schedule. Copy to .github/workflows/bme-bot.yml in a repo,
+# add SMTP_USER / SMTP_PASS / REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET as repo
+# secrets, and it runs without your laptop being on.
+name: BME internship bot
+
+on:
+  schedule:
+    - cron: '0 13 * * 1-5' # 13:00 UTC ~= 8am ET, weekdays
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Carries data/state.json between runs so you only get new listings.
+      - uses: actions/cache@v4
+        with:
+          path: bme-internship-bot/data
+          key: bme-bot-state-${{ github.run_id }}
+          restore-keys: bme-bot-state-
+
+      - name: Run
+        working-directory: bme-internship-bot
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          NOTIFY_TO: barathb2306@gmail.com
+        run: node src/index.js

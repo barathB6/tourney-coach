@@ -13,10 +13,12 @@
     "@adyen/api-library": "^31.0.0",
     "@anthropic-ai/sdk": "^0.110.0",
     "@supabase/supabase-js": "^2.108.2",
+    "@types/web-push": "^3.6.4",
     "@vercel/analytics": "^2.0.1",
     "next": "16.2.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

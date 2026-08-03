@@ -1,0 +1,169 @@
+{
+  "season": "Summer 2027",
+  "minScore": 4,
+  "maxAgeDays": 45,
+  "requestDelayMs": 900,
+  "reddit": {
+    "subreddits": [
+      "BiomedicalEngineering",
+      "biotech",
+      "EngineeringStudents",
+      "internships",
+      "jobsearchhacks",
+      "MedicalDevices",
+      "labrats",
+      "engineering"
+    ],
+    "queries": [
+      "biomedical internship",
+      "biomedical engineering intern",
+      "bioengineering intern",
+      "medical device intern",
+      "R&D intern undergrad"
+    ],
+    "listings": [
+      "new"
+    ],
+    "limit": 50
+  },
+  "_comment_boards": "Board tokens are the slug in the company's public careers URL. Run `node src/index.js --verify-sources` to see which resolve; prune the dead ones and add your own targets.",
+  "greenhouse": [
+    "ginkgobioworks",
+    "10xgenomics",
+    "neuralink",
+    "natera",
+    "freenome",
+    "abcellera",
+    "generatebiomedicines",
+    "vicarioussurgical",
+    "komodohealth",
+    "twistbioscience",
+    "outsetmedical",
+    "butterflynetwork",
+    "integra",
+    "beamtherapeutics",
+    "carbon"
+  ],
+  "lever": [
+    "shieldai",
+    "clarifyhealth",
+    "swordhealth",
+    "includedhealth"
+  ],
+  "ashby": [
+    "cerebras",
+    "color-health",
+    "insitro",
+    "benchling",
+    "hinge-health"
+  ],
+  "smartrecruiters": [
+    "intuitive",
+    "resmed",
+    "shockwavemedical",
+    "masimo",
+    "alnylam"
+  ],
+  "githubLists": [
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README.md",
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README.md",
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README-Off-Season.md"
+  ],
+  "usajobs": {
+    "enabled": false,
+    "keywords": [
+      "biomedical engineering student",
+      "biomedical engineer intern"
+    ],
+    "note": "Set USAJOBS_EMAIL + USAJOBS_API_KEY (free at developer.usajobs.gov) and flip enabled to true. Covers NIH, FDA, VA, Army MRDC."
+  },
+  "scoring": {
+    "internSignals": {
+      "intern": 3,
+      "internship": 3,
+      "co-op": 3,
+      "coop": 2,
+      "co op": 2,
+      "summer 2027": 3,
+      "summer 2026": 2,
+      "undergrad": 2,
+      "undergraduate": 2,
+      "student": 1,
+      "entry level": 2,
+      "entry-level": 2,
+      "new grad": 1,
+      "rotational program": 1
+    },
+    "domainSignals": {
+      "biomedical": 4,
+      "bioengineering": 4,
+      "biomedical engineering": 5,
+      "medical device": 4,
+      "medtech": 3,
+      "biotech": 2,
+      "biotechnology": 2,
+      "clinical engineering": 3,
+      "biomechanics": 3,
+      "biomaterials": 3,
+      "tissue engineering": 3,
+      "prosthetic": 3,
+      "orthopedic": 2,
+      "cardiovascular": 2,
+      "neurotech": 3,
+      "neural interface": 3,
+      "bioinformatics": 2,
+      "biosignal": 2,
+      "biosensor": 3,
+      "regulatory affairs": 1,
+      "iso 13485": 3,
+      "510(k)": 3,
+      "fda": 1,
+      "gmp": 1,
+      "quality engineering": 1,
+      "r&d engineering": 1,
+      "drug delivery": 2,
+      "diagnostics": 2,
+      "imaging": 1,
+      "mri": 1,
+      "wet lab": 1,
+      "cell culture": 1,
+      "lab technician": 1
+    },
+    "negativeSignals": {
+      "senior": -5,
+      "staff engineer": -5,
+      "principal": -5,
+      "director": -6,
+      "manager": -3,
+      "lead engineer": -3,
+      "phd required": -6,
+      "ph.d. required": -6,
+      "doctorate required": -6,
+      "mba": -3,
+      "10+ years": -6,
+      "8+ years": -6,
+      "5+ years": -5,
+      "3+ years": -2,
+      "sales representative": -4,
+      "territory manager": -4,
+      "faculty": -5,
+      "postdoc": -6,
+      "post-doctoral": -6,
+      "graduate students only": -6,
+      "must be enrolled in a phd": -6
+    },
+    "hardExcludeTitle": [
+      "senior",
+      "sr\\.",
+      "staff",
+      "principal",
+      "director",
+      "vp ",
+      "postdoc",
+      "post-doc",
+      "faculty",
+      "professor",
+      "manager"
+    ]
+  }
+}

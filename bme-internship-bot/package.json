@@ -1,0 +1,14 @@
+{
+  "name": "bme-internship-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Aggregates entry-level Biomedical Engineering internships for undergrads from Reddit and public company job-board APIs.",
+  "bin": { "bme-bot": "./src/index.js" },
+  "scripts": {
+    "run": "node src/index.js",
+    "dry": "node src/index.js --dry-run",
+    "digest": "node src/index.js --since 7d"
+  },
+  "engines": { "node": ">=20" }
+}

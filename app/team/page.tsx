@@ -38,6 +38,13 @@ type Meetings = {
   meetings: Meeting[]; actionItems: ActionItem[]; openItems: number; unownedItems: number;
   volunteers: { id: string; name: string }[];
 };
+type CommData = {
+  threads: { volunteerId: string; name: string; unread: number; escalated: boolean;
+    messages: { id: string; direction: string; audience: string; senderName: string | null; body: string; createdAt: string }[] }[];
+  profiles: { volunteerId: string; name: string; experienceLevel: string; depth: string; cadence: string; channel: string; computedAt: string; recomputeReason: string | null }[];
+  ledger: { id: string; volunteerName: string; channel: string; kind: string; subject: string | null; status: string; offsetKey: string | null; error: string | null; sentAt: string | null }[];
+  unreadTotal: number;
+};
 
 // The pill vocabulary. "Need" is the important one — an unfilled role is not a
 // neutral empty state, it is the thing the organizer has to go do something
@@ -59,7 +66,9 @@ export default function TeamPage() {
   const [tournamentId, setTournamentId] = useState<string | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
   const [meetings, setMeetings] = useState<Meetings | null>(null);
-  const [tab, setTab] = useState<'planning' | 'day_of' | 'meetings'>('planning');
+  const [tab, setTab] = useState<'planning' | 'day_of' | 'meetings' | 'inbox'>('planning');
+  const [comm, setComm] = useState<CommData | null>(null);
+  const [replyDraft, setReplyDraft] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -70,14 +79,17 @@ export default function TeamPage() {
   const [itemDraft, setItemDraft] = useState<Record<string, string>>({});
 
   const load = useCallback(async (tid: string) => {
-    const [tRes, mRes] = await Promise.all([
+    const [tRes, mRes, cRes] = await Promise.all([
       authedFetch(`/api/tournament/${tid}/team`),
       authedFetch(`/api/tournament/${tid}/meetings`),
+      authedFetch(`/api/tournament/${tid}/comm`),
     ]);
     const t = await tRes.json().catch(() => ({}));
     const m = await mRes.json().catch(() => ({}));
+    const c = await cRes.json().catch(() => ({}));
     if (tRes.ok) { setTeam(t as Team); setError(''); } else setError(t.error || 'Could not load your team');
     if (mRes.ok) setMeetings(m as Meetings);
+    if (cRes.ok) setComm(c as CommData);
   }, []);
 
   useEffect(() => {
@@ -95,6 +107,19 @@ export default function TeamPage() {
       setLoading(false);
     });
   }, [router, load]);
+
+  async function commAct(body: Record<string, unknown>) {
+    if (!tournamentId || busy) return;
+    setBusy(true); setError(''); setNote('');
+    const res = await authedFetch(`/api/tournament/${tournamentId}/comm`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setError(d.error || 'That did not work'); return; }
+    setComm(d as CommData);
+    if (d.run) setNote(`Reminder run: ${d.run.sent} sent, ${d.run.alreadyClaimed} already sent, ${d.run.failed} failed.`);
+  }
 
   async function assign(roleId: string) {
     if (!tournamentId || busy) return;
@@ -173,6 +198,7 @@ export default function TeamPage() {
               <Tab on={tab === 'planning'} onClick={() => setTab('planning')} label={`Planning team · ${s!.planningFilled}/${s!.planningTotal}`} />
               <Tab on={tab === 'day_of'} onClick={() => setTab('day_of')} label={`Day-of team · ${s!.dayOfFilled}/${s!.dayOfTotal}`} />
               <Tab on={tab === 'meetings'} onClick={() => setTab('meetings')} label={`Meetings${meetings?.openItems ? ` · ${meetings.openItems} open` : ''}`} />
+              <Tab on={tab === 'inbox'} onClick={() => setTab('inbox')} label={`Inbox${comm?.unreadTotal ? ` · ${comm.unreadTotal} new` : ''}`} />
             </div>
 
             {note && <Banner tone="good">{note}</Banner>}
@@ -183,7 +209,9 @@ export default function TeamPage() {
               </Banner>
             )}
 
-            {tab !== 'meetings' ? (
+            {tab === 'inbox' ? (
+              <InboxView comm={comm} draft={replyDraft} setDraft={setReplyDraft} onAction={commAct} busy={busy} />
+            ) : tab !== 'meetings' ? (
               <>
                 <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginBottom: 14, padding: '0 4px' }}>
                   <Stat label="Filled" value={`${tab === 'planning' ? s!.planningFilled : s!.dayOfFilled} of ${tab === 'planning' ? s!.planningTotal : s!.dayOfTotal}`} />
@@ -457,6 +485,95 @@ function Banner({ tone, children }: { tone: 'good' | 'bad'; children: React.Reac
   return (
     <div style={{ ...S.card, marginBottom: 14, background: good ? '#E7F1EA' : '#FBE9E7', borderColor: good ? '#B7E0C6' : '#F5C6C0', padding: '14px 18px' }}>
       <p style={{ margin: 0, fontSize: 13.5, color: good ? 'var(--deep-green)' : '#7A2E1E', lineHeight: 1.55 }}>{children}</p>
+    </div>
+  );
+}
+
+// The organizer's side of two-way messaging, plus the guidance profiles and
+// the raw send ledger — the Communication Engine's paper trail, visible.
+function InboxView({ comm, draft, setDraft, onAction, busy }: {
+  comm: CommData | null;
+  draft: Record<string, string>;
+  setDraft: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  onAction: (body: Record<string, unknown>) => void;
+  busy: boolean;
+}) {
+  if (!comm) return <p style={{ color: '#8A9089', fontSize: 14 }}>Loading…</p>;
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button style={S.btn} disabled={busy} onClick={() => onAction({ action: 'run_reminders' })}>
+          Send due reminders now
+        </button>
+        <span style={{ fontSize: 12.5, color: '#8A9089' }}>
+          The daily run covers 7-day, 48-hour and 24-hour reminders; press this on event day for the 6-hour and 30-minute ones.
+        </span>
+      </div>
+
+      {comm.threads.length === 0 && (
+        <p style={{ color: '#8A9089', fontSize: 14 }}>No messages yet. Volunteers can write to you from their portal link.</p>
+      )}
+      {comm.threads.map((t) => (
+        <div key={t.volunteerId} style={{ ...S.card, marginBottom: 10, borderColor: t.escalated ? 'var(--alert)' : 'var(--line)' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+            <strong style={{ fontSize: 15 }}>{t.name}</strong>
+            {t.unread > 0 && <span style={{ fontSize: 11.5, fontWeight: 700, color: '#8A6D1F', background: '#FBF0DC', borderRadius: 999, padding: '2px 9px' }}>{t.unread} new</span>}
+            {t.escalated && <span style={{ fontSize: 11.5, fontWeight: 700, color: '#B8442C', background: '#FBE9E7', borderRadius: 999, padding: '2px 9px' }}>Escalated to platform</span>}
+          </div>
+          {t.messages.map((m) => (
+            <div key={m.id} style={{
+              margin: '5px 0', padding: '7px 11px', borderRadius: 10, fontSize: 13.5, lineHeight: 1.55, maxWidth: '85%',
+              background: m.direction === 'to_volunteer' ? '#E7F1EA' : '#FAF8F3',
+              marginLeft: m.direction === 'to_volunteer' ? 'auto' : 0,
+            }}>
+              {m.body}
+              <span style={{ display: 'block', fontSize: 10.5, color: '#8A9089', marginTop: 2 }}>
+                {m.direction === 'to_volunteer' ? 'You' : `${m.senderName ?? t.name} → ${m.audience}`}
+              </span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <input value={draft[t.volunteerId] ?? ''} placeholder="Reply…" style={{ ...S.input, flex: 1 }}
+              onChange={(e) => setDraft((d) => ({ ...d, [t.volunteerId]: e.target.value }))} />
+            <button style={S.mini} disabled={busy || !(draft[t.volunteerId] ?? '').trim()}
+              onClick={() => { onAction({ action: 'reply', volunteerId: t.volunteerId, body: draft[t.volunteerId] }); setDraft((d) => ({ ...d, [t.volunteerId]: '' })); }}>
+              Send
+            </button>
+            {t.unread > 0 && (
+              <button style={S.mini} disabled={busy} onClick={() => onAction({ action: 'mark_read', volunteerId: t.volunteerId })}>Mark read</button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {comm.profiles.length > 0 && (
+        <div style={{ ...S.card, marginBottom: 10 }}>
+          <p style={S.kick}>Guidance profiles — how each volunteer is being coached</p>
+          {comm.profiles.map((p) => (
+            <div key={p.volunteerId} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '7px 0', borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+              <strong style={{ fontSize: 14 }}>{p.name}</strong>
+              <span style={{ fontSize: 12, color: '#5C6B62' }}>
+                {p.experienceLevel.replace('_', '-')} · {p.depth} instructions · {p.cadence} reminders · via {p.channel === 'in_app' ? 'the portal' : p.channel.toUpperCase()}
+              </span>
+              {p.recomputeReason && <span style={{ fontSize: 11, color: '#8A9089' }}>updated on {p.recomputeReason.replace('event:', '')}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {comm.ledger.length > 0 && (
+        <div style={S.card}>
+          <p style={S.kick}>Send ledger — every SMS, email and push, with what actually happened</p>
+          {comm.ledger.slice(0, 25).map((l) => (
+            <div key={l.id} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '6px 0', borderBottom: '1px solid var(--line)', flexWrap: 'wrap', fontSize: 12.5 }}>
+              <span style={{ fontWeight: 600, minWidth: 90 }}>{l.volunteerName}</span>
+              <span style={{ color: '#5C6B62' }}>{l.channel.toUpperCase()} · {l.kind}{l.offsetKey ? ` · ${l.offsetKey.replace('pre_event:', '')}m out` : ''}</span>
+              <span style={{ fontWeight: 700, color: l.status === 'failed' ? '#B8442C' : l.status === 'sent' || l.status === 'delivered' || l.status === 'read' ? '#1B6B3A' : '#8A6D1F' }}>{l.status}</span>
+              {l.error && <span style={{ color: '#B8442C' }}>{l.error.slice(0, 80)}</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
