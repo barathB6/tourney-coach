@@ -33,7 +33,8 @@ async function snapshot(found: NonNullable<Awaited<ReturnType<typeof lookup>>>) 
   const tournamentId = row.tournament_id as string;
   const volunteerId = row.volunteer_id as string;
 
-  const [profile, { data: role }, { data: tasks }, { data: completions }, { data: inbox }, { data: thread }] = await Promise.all([
+  const [profile, { data: role }, { data: tasks }, { data: completions }, { data: inbox }, { data: thread },
+    { data: events }, { data: me }] = await Promise.all([
     loadProfile(service, tournamentId, volunteerId),
     service.from('role_templates').select('name, description, phase').eq('id', row.role_template_id as string).maybeSingle(),
     service.from('task_templates').select('id, title, description, due_offset_hours, sort_order')
@@ -48,12 +49,33 @@ async function snapshot(found: NonNullable<Awaited<ReturnType<typeof lookup>>>) 
       .select('id, direction, audience, sender_name, body, created_at')
       .eq('tournament_id', tournamentId).eq('volunteer_id', volunteerId)
       .order('created_at', { ascending: true }).limit(100),
+    service.from('tournament_events')
+      .select('kind, fired_at').eq('tournament_id', tournamentId).order('fired_at'),
+    service.from('volunteers')
+      .select('checked_in_at, last_position, last_position_at').eq('id', volunteerId).maybeSingle(),
   ]);
 
   const t = row.tournaments as unknown as { name?: string; event_date?: string | null; shotgun_time?: string | null } | null;
   const v = row.volunteers as unknown as { name?: string } | null;
   const phase = (role?.phase === 'day_of' ? 'day_of' : 'planning') as Phase;
   const done = new Map((completions ?? []).map((c) => [c.task_template_id as string, c.completed_at as string]));
+
+  // One contact, not a roster: the organizer. A volunteer needs somebody to
+  // call, and handing out every other volunteer's number is the privacy
+  // mistake this codebase has avoided since the invite tokens were designed.
+  const contacts: { label: string; name: string | null; email: string | null; phone: string | null }[] = [];
+  const { data: tRow } = await service.from('tournaments')
+    .select('organizer_id, contact_email').eq('id', tournamentId).maybeSingle();
+  if (tRow?.organizer_id) {
+    const { data: prof } = await service.from('profiles')
+      .select('full_name, email, phone').eq('id', tRow.organizer_id as string).maybeSingle();
+    contacts.push({
+      label: 'Tournament organizer',
+      name: (prof?.full_name as string | null) ?? null,
+      email: (prof?.email as string | null) ?? (tRow.contact_email as string | null) ?? null,
+      phone: (prof?.phone as string | null) ?? null,
+    });
+  }
 
   return {
     volunteerName: v?.name ?? 'there',
@@ -86,6 +108,16 @@ async function snapshot(found: NonNullable<Awaited<ReturnType<typeof lookup>>>) 
         completedAt: done.get(task.id as string) ?? null,
       };
     }),
+    // Everything below is cached on the phone so the app still works with one
+    // bar of signal on the 14th tee.
+    checkedInAt: (me?.checked_in_at as string | null) ?? null,
+    lastPosition: (me?.last_position as string | null) ?? null,
+    eventDate: t?.event_date ?? null,
+    shotgunTime: t?.shotgun_time ?? null,
+    // Who to find when something goes wrong. Deliberately narrow: the
+    // organizer only, never the roster.
+    contacts: contacts,
+    firedTriggers: (events ?? []).map((e) => ({ kind: e.kind as string, firedAt: e.fired_at as string })),
     inbox: (inbox ?? []).map((m) => ({
       id: m.id as string, kind: m.kind as string, subject: m.subject as string | null,
       body: m.body as string | null, createdAt: (m.created_at as string) ?? null,
@@ -210,6 +242,27 @@ export async function POST(req: NextRequest) {
       preferredChannel: (['sms', 'email', 'push', 'in_app'] as Channel[]).includes(preferred as Channel) ? preferred : null,
       rating: typeof body?.rating === 'number' ? Math.min(5, Math.max(1, Math.round(body.rating))) : null,
     });
+    return NextResponse.json(await snapshot(found));
+  }
+
+  // ── Day-of: check in, and say where you are ───────────────────────────────
+  // Check-in lives on the volunteer, not the assignment — somebody holding two
+  // roles arrives once. Position is separate and repeatable: a Beverage Cart
+  // Driver checks in at 6:30 and then moves all day.
+  if (action === 'check_in' || action === 'undo_check_in') {
+    await service.from('volunteers')
+      .update({ checked_in_at: action === 'check_in' ? new Date().toISOString() : null })
+      .eq('id', volunteerId).eq('tournament_id', tournamentId);
+    await recordGuidanceEvent(service, tournamentId, volunteerId, 'portal_viewed', { checkedIn: action === 'check_in' });
+    return NextResponse.json(await snapshot(found));
+  }
+
+  if (action === 'position') {
+    const where = str(body?.position, 80);
+    if (!where) return NextResponse.json({ error: 'Where are you?' }, { status: 400 });
+    await service.from('volunteers')
+      .update({ last_position: where, last_position_at: new Date().toISOString() })
+      .eq('id', volunteerId).eq('tournament_id', tournamentId);
     return NextResponse.json(await snapshot(found));
   }
 

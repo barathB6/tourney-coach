@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "../../lib/supabaseClient";
+import VolunteerSignIn from "./VolunteerSignIn";
 
 // Google Identity Services types are minimal here — we only use the one
 // method (renderButton + a credential callback), no need for the full SDK types.
@@ -21,6 +22,14 @@ declare global {
   }
 }
 
+const doorStyle = (primary: boolean): React.CSSProperties => ({
+  display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left',
+  background: '#fff', border: `1px solid ${primary ? 'var(--primary)' : 'var(--line)'}`,
+  borderRadius: 14, padding: '18px 20px', cursor: 'pointer', width: '100%',
+  color: 'var(--ink)', fontFamily: "'DM Sans', sans-serif",
+  boxShadow: '0 4px 24px rgba(15,74,38,.08)',
+});
+
 export default function SignInClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -28,7 +37,15 @@ export default function SignInClient() {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
   const [gsiReady, setGsiReady] = useState(false);
+  // Two audiences, two doors. Organizers have accounts; volunteers never will.
+  // Showing both up front stops a volunteer bouncing off a Google button that
+  // was never meant for them — which, before this, was the only thing here.
+  const [role, setRole] = useState<'choose' | 'organizer' | 'volunteer'>('choose');
   const buttonRef = useRef<HTMLDivElement>(null);
+  // Derived during render, not set from an effect: whether Google sign-in is
+  // configured is a fact about the build, not an event to react to.
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const configError = clientId ? null : 'Sign-in is misconfigured — missing Google client ID.';
 
   useEffect(() => {
     // Use getSession (reads localStorage, no network) to check existing auth
@@ -56,12 +73,7 @@ export default function SignInClient() {
   };
 
   useEffect(() => {
-    if (checking) return;
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      setError('Sign-in is misconfigured — missing Google client ID.');
-      return;
-    }
+    if (checking || role !== 'organizer' || !clientId) return;
 
     // Google Identity Services runs the whole flow client-side on our own
     // domain (no Supabase-hosted redirect), so the Google account picker
@@ -73,12 +85,11 @@ export default function SignInClient() {
     script.onload = () => setGsiReady(true);
     script.onerror = () => setError('Could not load Google sign-in. Check your connection and try again.');
     document.head.appendChild(script);
-    return () => { document.head.removeChild(script); };
-  }, [checking]);
+    return () => { if (script.parentNode) document.head.removeChild(script); };
+  }, [checking, role]);
 
   useEffect(() => {
-    if (!gsiReady || !buttonRef.current || !window.google) return;
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
+    if (role !== 'organizer' || !gsiReady || !buttonRef.current || !window.google || !clientId) return;
     window.google.accounts.id.initialize({
       client_id: clientId,
       callback: handleCredentialResponse,
@@ -91,7 +102,7 @@ export default function SignInClient() {
       text: 'signin_with',
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gsiReady]);
+  }, [gsiReady, role]);
 
   if (checking) {
     return (
@@ -109,15 +120,41 @@ export default function SignInClient() {
           <p style={{ marginTop: 8, color: 'var(--ink)', opacity: 0.6, fontFamily: "'DM Sans', sans-serif" }}>Sign in to get started</p>
         </div>
 
-        <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 16, padding: 24, boxShadow: '0 4px 24px rgba(15,74,38,.08)', display: 'flex', justifyContent: 'center' }}>
-          <div ref={buttonRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} />
-          {!gsiReady && !error && (
-            <p style={{ fontSize: 13, color: 'var(--ink)', opacity: 0.5, fontFamily: "'DM Sans', sans-serif" }}>Loading sign-in…</p>
-          )}
-          {error && (
-            <p style={{ fontSize: 13, textAlign: 'center', color: 'var(--alert)', fontFamily: "'DM Sans', sans-serif" }}>{error}</p>
-          )}
-        </div>
+        {role === 'choose' && (
+          <div style={{ display: 'grid', gap: 12 }}>
+            <button onClick={() => setRole('organizer')} style={doorStyle(true)}>
+              <span style={{ fontSize: 22, lineHeight: 1 }}>🏌️</span>
+              <span>
+                <strong style={{ display: 'block', fontSize: 16 }}>Organizer login</strong>
+                <span style={{ fontSize: 13, opacity: 0.75 }}>Run your tournament — dashboard, team, sponsors</span>
+              </span>
+            </button>
+            <button onClick={() => setRole('volunteer')} style={doorStyle(false)}>
+              <span style={{ fontSize: 22, lineHeight: 1 }}>🤝</span>
+              <span>
+                <strong style={{ display: 'block', fontSize: 16 }}>Volunteer login</strong>
+                <span style={{ fontSize: 13, opacity: 0.75 }}>See your role, checklist and day-of updates. No password.</span>
+              </span>
+            </button>
+          </div>
+        )}
+
+        {role === 'volunteer' && <VolunteerSignIn onBack={() => setRole('choose')} />}
+
+        {role === 'organizer' && (
+          <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 16, padding: 24, boxShadow: '0 4px 24px rgba(15,74,38,.08)' }}>
+            <button onClick={() => setRole('choose')} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, fontFamily: "'DM Sans', sans-serif" }}>&larr; Back</button>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div ref={buttonRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} />
+            </div>
+            {!gsiReady && !error && !configError && (
+              <p style={{ fontSize: 13, textAlign: 'center', color: 'var(--ink)', opacity: 0.5, fontFamily: "'DM Sans', sans-serif" }}>Loading sign-in…</p>
+            )}
+            {(error || configError) && (
+              <p style={{ fontSize: 13, textAlign: 'center', color: 'var(--alert)', fontFamily: "'DM Sans', sans-serif" }}>{error || configError}</p>
+            )}
+          </div>
+        )}
 
         <p style={{ marginTop: 28, fontSize: 12.5, lineHeight: 1.6, textAlign: 'center', color: 'var(--ink)', opacity: 0.55, fontFamily: "'DM Sans', sans-serif" }}>
           TourneyCoach is the AI-powered coaching platform for charity tournament organizers. The platform exists to solve one specific problem better than any incumbent: the volunteer-turnover institutional memory problem that kills most first-year charity tournaments before they reach Year 3. The mechanism is a combination of conversational AI coaching, integrated workflow software that competitors offer only as blog posts or downloadable templates, a privacy-architected player network that compounds in value with every tournament, and a patent-pending GPS data network that creates a structural moat against well-funded incumbents.

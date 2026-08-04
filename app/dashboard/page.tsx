@@ -508,6 +508,16 @@ export default function Dashboard() {
                 Vendor Donations
               </button>
               <button
+                onClick={() => router.push('/dayof')}
+                title="Live board for tournament day — who has arrived, where they are, what is overdue, and the crew alerts"
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M8 4v16" />
+                </svg>
+                Day-of Board
+              </button>
+              <button
                 onClick={() => router.push('/pace')}
                 title="Where every group is, and when the last one finishes — the kitchen is texted automatically"
                 style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}
@@ -775,6 +785,7 @@ export default function Dashboard() {
                     { label: 'Tournament goals', sub: 'track your five', href: '/goals' },
                     { label: 'F&B calculator', sub: 'weather-adjusted quantities', href: '/fb' },
                     { label: 'Vendor donations', sub: 'prospects and outreach', href: '/fb?tab=donations' },
+                    { label: 'Day-of board', sub: 'live crew operations', href: '/dayof' },
                     { label: 'Pace of play', sub: 'where every group is', href: '/pace' },
                     { label: 'Contest holes', sub: 'hole-in-one and more', href: '/contests' },
                     { label: 'Hole map', sub: 'tag each hole', href: '/preview/hole-map' },
