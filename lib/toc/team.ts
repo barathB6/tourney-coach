@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { anchorFor, dueAt, type Phase } from './phase';
 import { sendVolunteerInviteEmail, volunteerInviteSms, volunteerReminderSms } from '@/lib/email/volunteerInvite';
 import { sendSms, toE164 } from '@/lib/sms/twilio';
+import { getPublicAppUrl } from '@/lib/publicUrl';
 
 // Day 27 — the volunteer roles engine.
 //
@@ -56,6 +57,11 @@ export interface TeamMember {
   respondedAt: string | null;
   inviteChannel: string | null;
   inviteError: string | null;
+  /** The volunteer's own portal link, for the organizer to hand over when
+   * delivery fails or the volunteer is standing right there. This payload is
+   * owner-gated (requireOwner on the team route), and the organizer created
+   * these assignments — the token grants them nothing they cannot already do. */
+  inviteUrl: string | null;
   startsAt: string | null;
   remindersSent: number[];     // offsets already delivered
   checkedInAt: string | null;
@@ -127,7 +133,7 @@ export async function loadTeam(
     service.from('role_templates').select('id, name, description, phase, sort_order').order('sort_order'),
     service.from('task_templates').select('role_template_id, title, due_offset_hours').order('sort_order'),
     service.from('tournament_volunteer_assignments')
-      .select('id, volunteer_id, role_template_id, status, invited_at, responded_at, invite_channel, invite_error, volunteers(name, email, phone, checked_in_at)')
+      .select('id, volunteer_id, role_template_id, status, invited_at, responded_at, invite_channel, invite_error, invite_token, volunteers(name, email, phone, checked_in_at)')
       .eq('tournament_id', tournamentId),
   ]);
 
@@ -183,6 +189,7 @@ export async function loadTeam(
         respondedAt: (a.responded_at as string | null) ?? null,
         inviteChannel: (a.invite_channel as string | null) ?? null,
         inviteError: (a.invite_error as string | null) ?? null,
+        inviteUrl: a.invite_token ? `${getPublicAppUrl()}/v/${a.invite_token}` : null,
         startsAt: startsAt ? startsAt.toISOString() : null,
         remindersSent: remindersBy.get(a.id as string) ?? [],
         checkedInAt: v?.checked_in_at ?? null,

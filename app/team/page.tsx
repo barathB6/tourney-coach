@@ -9,6 +9,7 @@ type Member = {
   assignmentId: string; volunteerId: string; name: string; email: string | null; phone: string | null;
   roleId: string; roleName: string; phase: 'planning' | 'day_of'; status: string;
   invitedAt: string | null; respondedAt: string | null; inviteChannel: string | null; inviteError: string | null;
+  inviteUrl: string | null;
   startsAt: string | null; remindersSent: number[];
   checkedInAt: string | null; noShow: boolean;
 };
@@ -279,9 +280,19 @@ export default function TeamPage() {
                                     </button>
                                   )}
                                   <button onClick={() => act(m.assignmentId, { action: 'resend' })} disabled={busy} style={S.mini}>Re-send</button>
+                                  {m.inviteUrl && (
+                                    <button style={S.mini} onClick={() => { navigator.clipboard?.writeText(m.inviteUrl!); setNote(`Link copied — text or hand it to ${m.name.split(' ')[0]} any way you like.`); }}>
+                                      Copy link
+                                    </button>
+                                  )}
                                   {m.status !== 'confirmed' && <button onClick={() => act(m.assignmentId, { status: 'confirmed' })} disabled={busy} style={S.mini}>Confirm</button>}
                                   <button onClick={() => act(m.assignmentId, { action: 'remove' })} disabled={busy} style={{ ...S.mini, color: 'var(--alert)' }}>Remove</button>
-                                  {m.inviteError && <span style={{ width: '100%', fontSize: 12, color: 'var(--alert)' }}>Invite failed: {m.inviteError}</span>}
+                                  {m.inviteError && (
+                                    <span style={{ width: '100%', fontSize: 12, color: 'var(--alert)', lineHeight: 1.5 }}>
+                                      Invite failed: {m.inviteError}
+                                      {m.inviteUrl && <> — use <strong>Copy link</strong> above and send it yourself; the link works regardless.</>}
+                                    </span>
+                                  )}
                                 </div>
                               );
                             })}
