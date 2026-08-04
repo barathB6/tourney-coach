@@ -18,6 +18,9 @@ import { shotgunInstant } from '@/lib/fb/plan';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, 'public', any>;
 
+/** How long an unopened email waits before it counts as ignored. */
+export const IGNORED_EMAIL_AFTER_MS = 48 * 3_600_000;
+
 export type GuidanceEventKind =
   | 'portal_viewed' | 'task_completed' | 'task_uncompleted' | 'message_sent'
   | 'invite_responded' | 'reminder_sent' | 'feedback';
@@ -36,7 +39,7 @@ export async function gatherSignals(service: DB, tournamentId: string, volunteer
     service.from('guidance_events').select('kind, payload, created_at')
       .eq('volunteer_id', volunteerId).order('created_at', { ascending: false }).limit(500),
     service.from('push_subscriptions').select('id').eq('volunteer_id', volunteerId).limit(1),
-    service.from('communication_log').select('channel, status, read_at')
+    service.from('communication_log').select('channel, status, read_at, sent_at')
       .eq('volunteer_id', volunteerId).eq('channel', 'email').limit(50),
   ]);
 
@@ -96,7 +99,15 @@ export async function gatherSignals(service: DB, tournamentId: string, volunteer
       portalViews: evs.filter((e) => e.kind === 'portal_viewed').length,
       responseLatencyHours: latency,
       messagesSent: evs.filter((e) => e.kind === 'message_sent').length,
-      unopenedEmails: (comms ?? []).filter((c) => c.status === 'sent' && !c.read_at).length,
+      // Only emails old enough to be genuinely ignored. An email sent five
+      // minutes ago has not been "unopened" — counting it would bounce someone
+      // onto SMS for being asleep. Opens arrive via the SendGrid event webhook
+      // (custom_args comm_log_id), which stamps read_at.
+      unopenedEmails: (comms ?? []).filter((c) => {
+        if (c.read_at || c.status !== 'sent') return false;
+        const sent = c.sent_at ? Date.parse(c.sent_at as string) : NaN;
+        return Number.isFinite(sent) && now - sent > IGNORED_EMAIL_AFTER_MS;
+      }).length,
       hasPhone: !!(vol.phone as string | null),
       hasPushSubscription: (subs ?? []).length > 0,
     },

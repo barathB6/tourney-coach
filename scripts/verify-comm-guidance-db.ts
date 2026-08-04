@@ -26,7 +26,11 @@ for (const line of env.split('\n')) {
 const db = createClient(get('NEXT_PUBLIC_SUPABASE_URL')!, get('SUPABASE_SERVICE_ROLE_KEY')!);
 
 const TAG = 'ZZZ COMM29';
-const DOM = 'comm29.example.invalid';
+// Unique per run. The experience signal matches prior volunteering BY EMAIL,
+// so a fixed domain means fixtures left behind by a crashed run silently turn
+// the next run's "first-timer" into a "returning" volunteer. That happened.
+const RUN = Date.now().toString(36);
+const DOM = `${RUN}.comm29.example.invalid`;
 
 let failures = 0;
 const ok = (cond: boolean, msg: string, detail = '') => {
@@ -69,19 +73,21 @@ async function main() {
   const dayOfRole = roles!.find((r) => r.phase === 'day_of')!;
 
   const mkVol = async (name: string, email: string | null, phone: string | null, tournamentId = tid) => {
-    const { data } = await db.from('volunteers').insert({
+    const { data, error } = await db.from('volunteers').insert({
       tournament_id: tournamentId, name, email, phone,
     }).select('id').single();
-    return data!.id as string;
+    if (error || !data) throw new Error(`fixture volunteer: ${error?.message ?? 'no row'}`);
+    return data.id as string;
   };
   const mkAssign = async (volId: string, tournamentId = tid, status = 'confirmed') => {
-    const { data } = await db.from('tournament_volunteer_assignments').insert({
+    const { data, error } = await db.from('tournament_volunteer_assignments').insert({
       tournament_id: tournamentId, volunteer_id: volId, role_template_id: dayOfRole.id,
-      status, invite_token: `zzz${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`,
+      status, invite_token: crypto.randomUUID(),
       invited_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
       responded_at: new Date(Date.now() - 2.9 * 86_400_000).toISOString(),
     }).select('id, invite_token').single();
-    return { id: data!.id as string, token: data!.invite_token as string };
+    if (error || !data) throw new Error(`fixture assignment: ${error?.message ?? 'no row'}`);
+    return { id: data.id as string, token: data.invite_token as string };
   };
 
   const rookieId = await mkVol(`${TAG} Rookie`, `rookie@${DOM}`, null);
@@ -102,9 +108,10 @@ async function main() {
   await mkVol(`${TAG} Vet(p2)`, vetEmail, null, prior2!.id as string);
   await mkVol(`${TAG} Vet(p3)`, vetEmail, null, prior3!.id as string);
   const vetId = await mkVol(`${TAG} Veteran`, vetEmail, '9855550134');
-  const vet = await mkAssign(vetId);
-  void vet;
+  const vetAssign = await mkAssign(vetId);
 
+  // Cleanup is defined before any assertion and called from finally, so a
+  // mid-test throw cannot leave fixtures behind for the next run to trip over.
   const cleanup = async () => {
     for (const table of ['guidance_events', 'volunteer_task_completions', 'volunteer_messages',
       'volunteer_guidance_profiles', 'push_subscriptions']) {
@@ -230,8 +237,12 @@ async function main() {
     ok((escMail ?? []).some((m) => (m.recipient_email as string)?.includes('admin@')),
       'and an escalation email to admin@ was attempted and recorded');
 
-    const badToken = await post({ token: 'zzz-not-a-real-token-000', action: 'message', body: 'hi', audience: 'organizer' });
-    ok(badToken.status === 404, 'a made-up token is rejected');
+    // Both shapes must be rejected, and neither may 500: a well-formed token
+    // that belongs to nobody, and a malformed one the database cannot even cast.
+    const unknownToken = await post({ token: crypto.randomUUID(), action: 'message', body: 'hi', audience: 'organizer' });
+    ok(unknownToken.status === 404, 'a well-formed but unknown token is rejected');
+    const malformed = await post({ token: 'zzz-not-a-real-token-000', action: 'message', body: 'hi', audience: 'organizer' });
+    ok(malformed.status === 404, 'a malformed token is rejected without a 500', String(malformed.status));
 
     // Cross-role containment: rookie's token cannot complete a task from a
     // DIFFERENT role.
@@ -247,15 +258,20 @@ async function main() {
       const res = await portalGet(new NextRequest(`http://localhost/api/volunteer/portal?token=${token}`));
       return res.json();
     };
+    // The heart of the demo: two volunteers, the SAME role and the SAME tasks,
+    // rendered at different depths because their profiles differ.
     const rookieSnap = await getSnap(rookie.token);
-    const vetSnap = await getSnap((await mkAssign(vetId, tid, 'confirmed').catch(() => null))?.token ?? '');
-    void vetSnap;
-    // Re-load vet snapshot via a fresh assignment failed (unique) — use profile check instead.
+    const vetSnap = await getSnap(vetAssign.token);
+    const sameTask = rookieSnap.tasks[0].title === vetSnap.tasks[0].title;
+    ok(sameTask, 'both volunteers hold the same role and see the same first task', rookieSnap.tasks[0].title);
     ok(rookieSnap.guidance.depth === 'detailed' && rookieSnap.tasks[0].lines.length >= 4,
-      'the rookie\'s portal renders full numbered steps', `${rookieSnap.tasks[0].lines.length} lines`);
-    const vetProfileNow = await loadProfile(db, tid, vetId);
-    ok(vetProfileNow.depth === 'minimal',
-      'the veteran\'s profile still resolves minimal — same tasks, different rendering');
+      'the first-timer gets full numbered steps', `${rookieSnap.tasks[0].lines.length} lines`);
+    ok(vetSnap.guidance.depth === 'minimal' && vetSnap.tasks[0].lines.length === 1,
+      'the veteran gets one line for the identical task', `${vetSnap.tasks[0].lines.length} line`);
+    ok(rookieSnap.tasks[0].lines.join(' ') !== vetSnap.tasks[0].lines.join(' '),
+      'SIDE BY SIDE: same task, genuinely different content — Concept E, demonstrable');
+    console.log(`      first-timer sees: "${rookieSnap.tasks[0].lines[0].slice(0, 70)}…"`);
+    console.log(`      veteran sees:     "${vetSnap.tasks[0].lines[0].slice(0, 70)}"`);
 
     section('7. Recompute is idempotent and order-independent');
     const before = await recomputeProfile(db, tid, rookieId, 'test');

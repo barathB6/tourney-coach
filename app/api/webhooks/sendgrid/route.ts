@@ -11,6 +11,8 @@ interface SendGridEvent {
   sg_message_id?: string;
   sponsor_id?: string;
   prospect_id?: string;
+  volunteer_id?: string;
+  comm_log_id?: string;
   timestamp?: number;
 }
 
@@ -54,6 +56,17 @@ export async function POST(req: NextRequest) {
       // event — the organizer's outcome outranks an inbox pixel.
       if (p.status === 'sent') patch.status = 'opened';
       await supabase.from('donation_prospects').update(patch).eq('id', evt.prospect_id);
+      continue;
+    }
+
+    // Communication Engine sends tag comm_log_id, which is what makes
+    // "unopened emails" a real guidance signal rather than an assumption:
+    // without an open event the ledger row simply never gets read_at.
+    if (evt.comm_log_id) {
+      if (evt.event !== 'open' && evt.event !== 'click') continue;
+      await supabase.from('communication_log')
+        .update({ read_at: at, status: 'read' })
+        .eq('id', evt.comm_log_id).is('read_at', null);
       continue;
     }
 

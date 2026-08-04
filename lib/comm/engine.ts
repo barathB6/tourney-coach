@@ -55,7 +55,10 @@ export interface SendOutcome {
   alreadyClaimed?: boolean;
 }
 
-async function sendEmailRaw(to: string, subject: string, bodyText: string, fromName: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+async function sendEmailRaw(
+  to: string, subject: string, bodyText: string, fromName: string,
+  tags: { volunteerId?: string; ledgerId?: string },
+): Promise<{ ok: boolean; id?: string; error?: string }> {
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) return { ok: false, error: 'SendGrid is not configured (SENDGRID_API_KEY)' };
   const html = bodyText.split(/\n\n+/)
@@ -65,13 +68,27 @@ async function sendEmailRaw(to: string, subject: string, bodyText: string, fromN
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }] }],
+      // custom_args round-trip through the SendGrid event webhook, which is
+      // what turns "was this email opened?" into a real engagement signal
+      // instead of an assumption. Without this the guidance engine would count
+      // every sent email as unopened.
+      personalizations: [{
+        to: [{ email: to }],
+        custom_args: {
+          ...(tags.volunteerId ? { volunteer_id: tags.volunteerId } : {}),
+          ...(tags.ledgerId ? { comm_log_id: tags.ledgerId } : {}),
+        },
+      }],
       from: { email: 'noreply@tourneycoach.com', name: fromName },
       subject,
       content: [
         { type: 'text/plain', value: bodyText },
         { type: 'text/html', value: `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:560px;">${html}</div>` },
       ],
+      tracking_settings: {
+        open_tracking: { enable: true },
+        click_tracking: { enable: true, enable_text: true },
+      },
       categories: ['comm-engine'],
     }),
   });
@@ -133,7 +150,8 @@ export async function sendComm(service: DB, req: SendRequest, fromName = 'Tourne
     const res = await sendSms({ to: r.phone!, body: `${req.subject}\n${req.body}` });
     ok = res.ok; error = res.error; messageId = res.sid ?? null;
   } else if (channel === 'email') {
-    const res = await sendEmailRaw(r.email!, req.subject, req.body, fromName);
+    const res = await sendEmailRaw(r.email!, req.subject, req.body, fromName,
+      { volunteerId: r.volunteerId, ledgerId });
     ok = res.ok; error = res.error; messageId = res.id ?? null;
   } else if (channel === 'push') {
     const res = await sendWebPush(subs, { title: req.subject, body: req.body });

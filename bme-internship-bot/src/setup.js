@@ -87,7 +87,26 @@ export async function runSetup(envPath, defaults = {}) {
     console.log('bme-internship-bot setup — values are saved to .env (never committed).\n');
 
     const fallbackUser = defaults.user || 'barathb2306@gmail.com';
-    const user = await p.ask(`Gmail address [${fallbackUser}]: `, fallbackUser);
+
+    // The password prompt comes next, and pasting the app password here by
+    // mistake is easy — this field echoes, so catch it before it's stored.
+    let user = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      user = await p.ask(`Gmail address (press Enter for ${fallbackUser}): `, fallbackUser);
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user)) break;
+
+      const looksLikeAppPassword = /^([a-z]{4}\s?){4}$/i.test(user.trim());
+      console.log(
+        looksLikeAppPassword
+          ? "\nThat looks like your app password, not an email address — it goes in the NEXT prompt.\n"
+          : `\n"${user}" isn't a valid email address.\n`,
+      );
+      user = '';
+    }
+    if (!user) {
+      console.log('No valid email address entered — nothing changed.');
+      return false;
+    }
 
     console.log(
       '\nPaste the 16-character app password from https://myaccount.google.com/apppasswords',
