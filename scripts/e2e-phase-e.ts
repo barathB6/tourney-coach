@@ -289,7 +289,13 @@ async function run() {
     method: 'POST',
     body: JSON.stringify({ registrationId: regs[2].id, radiusMiles: 15, homeLat: lat, homeLng: lng }),
   })).data.memberCountNearby;
-  const probes = await Promise.all([probe(30.41, -90.09), probe(40.71, -74.0), probe(51.5, -0.12)]);
+  // Sequential on purpose: this probe WRITES (opt-in upserts the member) and
+  // then reads a count. Running the three in parallel raced the write against
+  // the read and produced a nondeterministic ±1 that looked like a leak.
+  const probes: unknown[] = [];
+  for (const [lat, lng] of [[30.41, -90.09], [40.71, -74.0], [51.5, -0.12]] as const) {
+    probes.push(await probe(lat, lng));
+  }
   ok(new Set(probes.map((p) => JSON.stringify(p))).size === 1,
     'member count does not vary with attacker-supplied coordinates', JSON.stringify(probes));
   // Those probes go through the real opt-in path, which legitimately writes the

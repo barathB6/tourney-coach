@@ -98,8 +98,18 @@ export async function POST(req: NextRequest) {
       .select('lat, lng').eq('course_id', tournament.course_id).limit(5000);
     const reference = centroidOf((tracks ?? []).map((t) => ({ lat: Number(t.lat), lng: Number(t.lng) })));
     if (reference) {
-      const { data: members } = await service.from('tourneycircle_members').select('home_lat, home_lng, member_type');
-      nearby = disclose(countWithinRadius((members ?? []) as Member[], reference, radiusMiles).total);
+      // Exclude the caller from their own count. "How many members are near
+      // you" should never include you — and it is also what makes this number
+      // genuinely invariant to the coordinates in this request. This same call
+      // writes the caller's home location, so counting themselves let an
+      // attacker flip their own membership in and out of the total by varying
+      // the coordinates they sent. That is a far weaker signal than the anchor
+      // leak fixed above (it reveals only where they just claimed to live),
+      // but the response should not move with attacker input at all.
+      const { data: members } = await service.from('tourneycircle_members')
+        .select('player_profile_id, home_lat, home_lng, member_type');
+      const others = (members ?? []).filter((m) => m.player_profile_id !== profileId);
+      nearby = disclose(countWithinRadius(others as Member[], reference, radiusMiles).total);
     }
   }
   return NextResponse.json({
