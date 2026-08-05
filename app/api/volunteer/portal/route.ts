@@ -4,6 +4,7 @@ import type { Phase } from '@/lib/toc/phase';
 import { contentFor, linesAtDepth } from '@/lib/guidance/content';
 import { loadProfile, recordGuidanceEvent } from '@/lib/guidance/profile';
 import { dueAt } from '@/lib/toc/phase';
+import { roleStartAt } from '@/lib/toc/team';
 import { sendComm } from '@/lib/comm/engine';
 import type { Channel } from '@/lib/guidance/engine';
 
@@ -60,6 +61,15 @@ async function snapshot(found: NonNullable<Awaited<ReturnType<typeof lookup>>>) 
   const phase = (role?.phase === 'day_of' ? 'day_of' : 'planning') as Phase;
   const done = new Map((completions ?? []).map((c) => [c.task_template_id as string, c.completed_at as string]));
 
+  // When THIS role starts — its earliest task, not the shotgun. The
+  // Registration Lead's day begins two hours before the horn, and that is the
+  // time a volunteer needs in front of them before they can say yes.
+  const offsets = (tasks ?? [])
+    .map((x) => x.due_offset_hours as number | null)
+    .filter((x): x is number => x != null);
+  const startsAt = roleStartAt(phase, offsets.length ? Math.min(...offsets) : null,
+    t?.event_date ?? null, t?.shotgun_time ?? null);
+
   // One contact, not a roster: the organizer. A volunteer needs somebody to
   // call, and handing out every other volunteer's number is the privacy
   // mistake this codebase has avoided since the invite tokens were designed.
@@ -114,6 +124,7 @@ async function snapshot(found: NonNullable<Awaited<ReturnType<typeof lookup>>>) 
     lastPosition: (me?.last_position as string | null) ?? null,
     eventDate: t?.event_date ?? null,
     shotgunTime: t?.shotgun_time ?? null,
+    startsAt: startsAt ? startsAt.toISOString() : null,
     // Who to find when something goes wrong. Deliberately narrow: the
     // organizer only, never the roster.
     contacts: contacts,

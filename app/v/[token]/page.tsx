@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState, use as usePromise } from 'react';
 import { readCache, writeCache, enqueue, readQueue, flushQueue } from '@/lib/dayof/offlineCache';
+import { formatEventDate, formatEventTime } from '@/lib/formatEventDate';
 
 // The volunteer app. Mobile-first, task-focused, offline-capable — this is what
 // somebody actually holds while standing on the 14th tee.
@@ -26,7 +27,7 @@ type Snapshot = {
   guidance: { depth: string; cadence: string; channel: string; experienceLevel: string; reasons: string[] };
   tasks: Task[];
   checkedInAt: string | null; lastPosition: string | null;
-  eventDate: string | null; shotgunTime: string | null;
+  eventDate: string | null; shotgunTime: string | null; startsAt: string | null;
   contacts: { label: string; name: string | null; email: string | null; phone: string | null }[];
   firedTriggers: { kind: string; firedAt: string }[];
   inbox: { id: string; kind: string; subject: string | null; body: string | null; createdAt: string | null; deliveredVia: string }[];
@@ -240,6 +241,7 @@ function Welcome({ snap, onAnswer }: { snap: Snapshot; onAnswer: (a: 'confirm' |
       <p style={S.kick}>{snap.phase === 'planning' ? 'Planning team' : 'Day of the tournament'}</p>
       <h1 style={S.h1}>Can you take &ldquo;{snap.roleName}&rdquo;?</h1>
       <p style={S.p}>Hi {snap.volunteerName} — you&rsquo;ve been asked to help with <strong>{snap.tournamentName}</strong>.</p>
+      <WhenCard snap={snap} />
       {snap.roleDescription && <p style={S.p}>{snap.roleDescription}</p>}
       {snap.tasks.length > 0 && (
         <div style={S.panel}>
@@ -251,6 +253,27 @@ function Welcome({ snap, onAnswer }: { snap: Snapshot; onAnswer: (a: 'confirm' |
       <button onClick={() => onAnswer('decline')} style={S.bigGhost}>I can&rsquo;t this time</button>
       <p style={S.fine}>No account needed. This link is yours — save it to your home screen.</p>
     </>
+  );
+}
+
+// The one fact a volunteer needs before they can say yes: when. The event
+// date, the shotgun, and — the number that actually governs their morning —
+// when THEIR role starts, which for a Registration Lead is two hours earlier.
+function WhenCard({ snap }: { snap: Snapshot }) {
+  if (!snap.eventDate) return null;
+  const roleTime = formatEventTime(snap.startsAt);
+  return (
+    <div style={{ ...S.hero, textAlign: 'left', padding: '16px 18px' }}>
+      <div style={{ fontSize: 12, opacity: 0.85, letterSpacing: 0.6, textTransform: 'uppercase' }}>When</div>
+      <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "'Fraunces', serif", margin: '3px 0 2px' }}>
+        {formatEventDate(snap.eventDate)}
+      </div>
+      <div style={{ fontSize: 13.5, opacity: 0.9, lineHeight: 1.5 }}>
+        {snap.startsAt && roleTime !== '\u2014'
+          ? <>Your role starts at <strong>{roleTime}</strong>{snap.shotgunTime ? <> · shotgun start {snap.shotgunTime}</> : null}</>
+          : snap.shotgunTime ? <>Shotgun start {snap.shotgunTime}</> : null}
+      </div>
+    </div>
   );
 }
 
@@ -296,6 +319,11 @@ function PreTournamentHub({ snap, doneCount, now, onOpenTask, onToggle, onHelp }
       <p style={S.kick}>{snap.tournamentName}</p>
       <h1 style={S.h1}>{snap.roleName}</h1>
       <Countdown eventDate={snap.eventDate} shotgunTime={snap.shotgunTime} now={now} />
+      {snap.startsAt && (
+        <p style={{ ...S.p, marginTop: -4, fontSize: 13.5 }}>
+          Your role starts at <strong>{formatEventTime(snap.startsAt)}</strong> on the day.
+        </p>
+      )}
       <p style={S.progress}>{doneCount} of {snap.tasks.length} done</p>
       {snap.tasks.map((t) => (
         <TaskRow key={t.id} t={t} onToggle={() => onToggle(t)} onOpen={() => onOpenTask(t.id)} />

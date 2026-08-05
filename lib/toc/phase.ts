@@ -1,3 +1,4 @@
+import { parseShotgunTime } from '@/lib/fb/plan';
 // Day 26 — the phase-distinct task engine.
 //
 // Planning work spans 12–16 weeks. Day-of work spans about four hours. They run
@@ -36,8 +37,13 @@ export function anchorFor(
 ): Date | null {
   if (!eventDate) return null;
   if (phase === 'planning') return new Date(`${eventDate}T00:00:00`);
-  const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(shotgunTime ?? '') ? shotgunTime : '08:00';
-  return new Date(`${eventDate}T${time}:00`);
+  // Real rows hold "8:30 AM", not "08:30" — the strict-format check here used
+  // to reject them and silently anchor every day-of task to 08:00. Same bug,
+  // same fix as the F&B kitchen timeline (parseShotgunTime).
+  const t = parseShotgunTime(shotgunTime) ?? { hour: 8, minute: 0 };
+  const hh = String(t.hour).padStart(2, '0');
+  const mm = String(t.minute).padStart(2, '0');
+  return new Date(`${eventDate}T${hh}:${mm}:00`);
 }
 
 export function dueAt(

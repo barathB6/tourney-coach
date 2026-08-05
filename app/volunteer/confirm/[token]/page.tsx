@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, use as usePromise } from 'react';
+import { formatEventDate, formatEventTime } from '@/lib/formatEventDate';
 
 type Invite = {
   volunteerName: string; tournamentName: string; roleName: string; roleDescription: string | null;
@@ -42,8 +43,11 @@ export default function ConfirmPage({ params }: { params: Promise<{ token: strin
     setAnswered(d.status);
   }
 
+  // Schedule instants are wall-clock at the course — format in UTC, or a
+  // viewer in another timezone sees the wrong morning. Same rule as the
+  // kitchen sheet (lib/formatEventDate).
   const when = invite?.startsAt
-    ? new Date(invite.startsAt).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })
+    ? `${formatEventDate(invite.startsAt)} at ${formatEventTime(invite.startsAt)}`
     : null;
 
   return (
