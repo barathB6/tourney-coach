@@ -81,6 +81,16 @@ async function makeOrganizer(label: string) {
 const bearer = (jwt: string) => ({ Authorization: `Bearer ${jwt}` });
 
 async function run() {
+  // Purge first, not just last.
+  //
+  // This suite deliberately LEAVES its entities behind so they can be
+  // inspected after a run — but its fixture emails use a fixed domain, so two
+  // runs stack: the second one counted 16 members within 15mi where 8 were
+  // seeded, and three disclosure assertions failed for a reason that had
+  // nothing to do with the product. Clearing at the start keeps runs
+  // independent without giving up the inspect-afterwards property.
+  await purge(true);
+
   console.log(`Phase E integration test against ${BASE}`);
   console.log(`disclosure threshold = ${MIN_DISCLOSABLE_COUNT}\n`);
 
@@ -510,8 +520,9 @@ async function run() {
 }
 
 // ── Purge ───────────────────────────────────────────────────────────────────
-async function purge() {
-  console.log('Purging ZZZ E2E PHASE-E entities…');
+async function purge(quiet = false) {
+  const say = (m: string) => { if (!quiet) say(m); };
+  say('Purging ZZZ E2E PHASE-E entities…');
 
   const { data: tournaments } = await db.from('tournaments').select('id, name').ilike('name', `${TAG}%`);
   const tIds = (tournaments ?? []).map((t) => t.id);
@@ -528,23 +539,23 @@ async function purge() {
     : { data: [] as { id: string; email: string | null }[] };
   const safeProfileIds = (testProfiles ?? []).filter((p) => p.email?.endsWith(EMAIL_DOMAIN)).map((p) => p.id);
   const unsafe = (testProfiles ?? []).length - safeProfileIds.length;
-  if (unsafe > 0) console.log(`  !! ${unsafe} linked profile(s) are NOT test emails — leaving them untouched`);
+  if (unsafe > 0) say(`  !! ${unsafe} linked profile(s) are NOT test emails — leaving them untouched`);
 
   for (const table of ['tourneycircle_visits', 'tourneycircle_sends', 'tourneycircle_members', 'tourneycircle_declines']) {
     if (!safeProfileIds.length) continue;
     const { error } = await db.from(table).delete().in('player_profile_id', safeProfileIds);
-    console.log(error ? `  !! ${table}: ${error.message}` : `  cleared ${table}`);
+    say(error ? `  !! ${table}: ${error.message}` : `  cleared ${table}`);
   }
   if (safeProfileIds.length) {
     await db.from('registrations').update({ player_profile_id: null }).in('player_profile_id', safeProfileIds);
     const { error } = await db.from('player_profiles').delete().in('id', safeProfileIds);
-    console.log(error ? `  !! player_profiles: ${error.message}` : `  deleted ${safeProfileIds.length} test player profile(s)`);
+    say(error ? `  !! player_profiles: ${error.message}` : `  deleted ${safeProfileIds.length} test player profile(s)`);
   }
 
   for (const id of tIds) {
     await db.from('gps_tracks').delete().eq('tournament_id', id);
     const { error } = await db.from('tournaments').delete().eq('id', id);
-    console.log(error ? `  !! tournament ${id}: ${error.message}` : `  deleted tournament ${id}`);
+    say(error ? `  !! tournament ${id}: ${error.message}` : `  deleted tournament ${id}`);
   }
 
   const { data: courses } = await db.from('courses').select('id').eq('name', COURSE_NAME);
@@ -552,7 +563,7 @@ async function purge() {
     await db.from('course_pro_access').delete().eq('course_id', c.id);
     await db.from('gps_tracks').delete().eq('course_id', c.id);
     const { error } = await db.from('courses').delete().eq('id', c.id); // cascades course_holes
-    console.log(error ? `  !! course ${c.id}: ${error.message}` : `  deleted course ${c.id}`);
+    say(error ? `  !! course ${c.id}: ${error.message}` : `  deleted course ${c.id}`);
   }
 
   // Throwaway auth users.
@@ -561,11 +572,11 @@ async function purge() {
   for (const u of users?.users ?? []) {
     if (u.email?.endsWith(EMAIL_DOMAIN)) { await db.auth.admin.deleteUser(u.id); removed++; }
   }
-  console.log(`  deleted ${removed} test auth user(s)`);
+  say(`  deleted ${removed} test auth user(s)`);
 
   const { data: leftT } = await db.from('tournaments').select('id').ilike('name', `${TAG}%`);
   const { data: leftC } = await db.from('courses').select('id').eq('name', COURSE_NAME);
-  console.log(`Remaining: ${leftT?.length ?? 0} tournament(s), ${leftC?.length ?? 0} course(s)`);
+  say(`Remaining: ${leftT?.length ?? 0} tournament(s), ${leftC?.length ?? 0} course(s)`);
   if ((leftT?.length ?? 0) + (leftC?.length ?? 0) > 0) process.exit(1);
 }
 
