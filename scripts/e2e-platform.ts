@@ -202,6 +202,18 @@ async function main() {
     ok(r3.status === 409, 'CAPACITY: the ninth player is refused with 409, not silently accepted',
       `HTTP ${r3.status} ${String((r3.data as { error?: string }).error ?? '')}`);
 
+    // PRICE: what the card is billed comes from THIS tournament's entry fee,
+    // computed server-side. It used to come from a module-level constant, so
+    // every tournament on the platform charged $600 a foursome no matter what
+    // its organizer set. Entry fee here is $165, so a foursome is 4 x 165 =
+    // $660, plus the 2.5% new-member fee = $676.50.
+    const { data: priced } = await db.from('registrations')
+      .select('total_amount_cents, platform_fee_cents')
+      .eq('tournament_id', tid).limit(1).maybeSingle();
+    ok(priced?.total_amount_cents === 67_650,
+      'PRICE: a foursome is billed 4x the entry fee the organizer set, plus the platform fee',
+      `$${((priced?.total_amount_cents ?? 0) / 100).toFixed(2)} (fee $${((priced?.platform_fee_cents ?? 0) / 100).toFixed(2)})`);
+
     const { data: regs } = await db.from('registrations').select('id, payment_status, starting_hole, foursome_number')
       .eq('tournament_id', tid);
     ok((regs ?? []).length === 2, 'exactly two registrations exist', `${regs?.length}`);

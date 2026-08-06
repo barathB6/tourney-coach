@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 type Tournament = {
   id: string;
@@ -153,7 +154,7 @@ function SponsorPageInner() {
 
   if (!tournament) return null;
 
-  const dateStr = new Date(tournament.event_date).toLocaleDateString('en-US', {
+  const dateStr = formatEventDate(tournament.event_date, {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
 

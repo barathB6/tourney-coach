@@ -24,8 +24,8 @@ type Snapshot = {
 const SOURCE: Record<Goal['key'], { note: string; href?: string; cta?: string }> = {
   players:     { note: 'Counts paid registrations — a foursome is 4, a single is 1. Sponsor packages are money, not players.', href: '/dashboard/registrations', cta: 'Registrations' },
   sponsorship: { note: 'Counts sponsors marked verbal, invoiced or paid. Cold prospects do not count until someone says yes.', href: '/sponsors', cta: 'Sponsorships' },
-  donations:   { note: 'Counts donation prospects logged for this tournament.' },
-  marketing:   { note: 'Counts messages sent from the communication log.' },
+  donations:   { note: 'Counts items a vendor has actually committed. A prospect you have only contacted — or who said no — does not move this.', href: '/fb', cta: 'Vendor donations' },
+  marketing:   { note: 'Counts messages actually delivered, once each. A failed send does not count, and the in-app copy of an email is not a second message.', href: '/team', cta: 'Communication' },
   volunteers:  { note: 'Counts distinct roles with at least one volunteer who has not declined.' },
 };
 

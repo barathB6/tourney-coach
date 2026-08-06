@@ -67,10 +67,9 @@ export const PACK_SIZE: Record<ConsumableKey, { size: number; unit: string }> = 
 };
 
 /** "box" → "boxes", "case" → "cases". Sibilants take -es. */
-export function pluralUnit(unit: string, n: number): string {
-  if (n === 1) return unit;
-  return /(s|x|z|ch|sh)$/i.test(unit) ? `${unit}es` : `${unit}s`;
-}
+// Re-exported: this now lives in lib/plural.ts so the rest of the app can
+// reach it without importing the F&B calculator.
+export { plural as pluralUnit } from '@/lib/plural';
 
 // Consumption vs temperature, anchored and linearly interpolated. Anchors
 // rather than buckets so that 79°F and 80°F don't differ by 35%.

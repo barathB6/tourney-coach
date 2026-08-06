@@ -178,10 +178,16 @@ export default function TeamPage() {
         <div style={{ margin: '14px 0 20px' }}>
           <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 36, lineHeight: 1.05, color: 'var(--ink)', margin: '0 0 10px' }}>Volunteer Command Center</h1>
           <p style={{ fontSize: 15.5, lineHeight: 1.55, color: '#5C6B62', maxWidth: 680, margin: 0 }}>
-            Role-based assignments with the task library built in. Text reminders go out 7 days, 2 days and 90 minutes before each role starts.
+            {/* The offsets here are the real ones (lib/comm/cadence.ts), not a
+                rounded description of them: this said "7 days, 2 days and 90
+                minutes", which named a slot that does not exist and omitted two
+                that do. And the channel is whatever the guidance engine picks —
+                calling it "text" is wrong for every volunteer who has no phone
+                on file, which today is all of them. */}
+            Role-based assignments with the task library built in. Reminders go out 7 days, 48 hours, 24 hours, 6 hours and 30 minutes before each role starts — by text where we have a mobile number, otherwise by email.
           </p>
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            {['Twilio texts', 'Role library', 'No-show alerts'].map((c) => (
+            {['Text or email', 'Role library', 'No-show alerts'].map((c) => (
               <span key={c} style={S.chip}>{c}</span>
             ))}
           </div>

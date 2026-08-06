@@ -246,7 +246,13 @@ export default function FbPage() {
         <p style={S.kick}>Module 07</p>
         <h1 style={{ fontSize: 30, margin: '4px 0 6px', fontFamily: "'Fraunces', serif" }}>F&amp;B Planner</h1>
         <p style={{ color: '#5C6B62', fontSize: 15, lineHeight: 1.6, margin: 0, maxWidth: 640 }}>
-          Weather-adjusted quantity calculator. {plan ? `${plan.inputs.playerCount} players × ${Math.round(plan.inputs.temperatureF)}°F` : '96 players × hot day'} = more cold drinks.
+          {/* The no-plan fallback used to read "96 players × hot day" — a made-up
+              number sitting directly above the live headcount, so the page
+              appeared to disagree with itself before the organizer had done
+              anything wrong. Use the real count and name what is missing. */}
+          Weather-adjusted quantity calculator. {plan
+            ? `${plan.inputs.playerCount} players × ${Math.round(plan.inputs.temperatureF)}°F`
+            : `${fb ? (locked ? fb.lockedPlayerCount : fb.livePlayerCount) : 0} players — add a temperature`} = more cold drinks.
           Kitchen prep timing built in.
         </p>
         <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>

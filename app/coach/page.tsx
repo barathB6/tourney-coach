@@ -6,6 +6,7 @@ import supabase from '@/lib/supabaseClient';
 import { authedFetch } from '@/lib/authedFetch';
 import { FAQ_CHIPS, lookupScript, resolveScriptKey, escalationAnswer, ESCALATION_KEY, daysOut, computeNudges } from '@/lib/coach/scripts';
 import { toPlainText } from '@/lib/coach/format';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -68,6 +69,26 @@ function scoreLabel(n: number) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
+// The countdown owns its own tick.
+//
+// It used to live as `kitchenSecs` on CoachPage, which meant a setState every
+// second re-rendered a 950-line component — the whole chat transcript, the
+// leaderboard, every inline style object — for a clock in one corner. Moving
+// the state down here is the entire fix: React re-renders this div and nothing
+// else. Same visual result, ~1/60th of the work per minute.
+function KitchenCountdown({ from = 2700 }: { from?: number }) {
+  const [secs, setSecs] = useState(from);
+  useEffect(() => {
+    const timer = setInterval(() => setSecs((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', borderRadius: 7, padding: '4px 8px', color: '#fff', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
+      {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
+    </div>
+  );
+}
+
 export default function CoachPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ id: string; name: string; initials: string } | null>(null);
@@ -99,7 +120,6 @@ export default function CoachPage() {
   // Leaderboard state
   const [teams, setTeams] = useState<LbTeam[]>(INITIAL_TEAMS);
   const [kitchenShown, setKitchenShown] = useState(false);
-  const [kitchenSecs, setKitchenSecs] = useState(2700);
   const [updatedTeam, setUpdatedTeam] = useState<string | null>(null);
   const lbStartedRef = useRef(false);
   const msgsRef = useRef<HTMLDivElement>(null);
@@ -278,13 +298,6 @@ export default function CoachPage() {
     }, 3500);
     return () => { clearTimeout(kitchenDelay); clearInterval(sim); };
   }, [screen]);
-
-  // Kitchen countdown
-  useEffect(() => {
-    if (!kitchenShown) return;
-    const timer = setInterval(() => setKitchenSecs(s => (s > 0 ? s - 1 : 0)), 1000);
-    return () => clearInterval(timer);
-  }, [kitchenShown]);
 
   async function switchTournament(t: Tournament) {
     setTournament(t);
@@ -484,7 +497,7 @@ export default function CoachPage() {
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a18', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tournament?.name || 'No Tournament'}</div>
                 <div style={{ fontSize: 11.5, color: '#6b6b67', marginTop: 1 }}>
                   {tournament ? [
-                    new Date(tournament.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                    formatEventDate(tournament.event_date, { month: 'short', day: 'numeric', year: 'numeric' }),
                     tournament.format ? tournament.format.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null,
                     tournament.max_players ? `${tournament.max_players} players` : null,
                     days !== null ? `${days} days out` : null,
@@ -517,7 +530,7 @@ export default function CoachPage() {
                     <div>
                       <div style={{ fontSize: 13.5, fontWeight: 600, color: '#1a1a18' }}>{t.name}</div>
                       <div style={{ fontSize: 11.5, color: '#6b6b67', marginTop: 1 }}>
-                        {new Date(t.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {formatEventDate(t.event_date, { month: 'short', day: 'numeric', year: 'numeric' })}
                         {t.format ? ` · ${t.format.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}` : ''}
                       </div>
                     </div>
@@ -835,9 +848,7 @@ export default function CoachPage() {
                 <h4 style={{ color: '#fff', fontSize: 12, fontWeight: 600, margin: 0 }}>Kitchen Notification Sent</h4>
                 <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10.5, marginTop: 1, marginBottom: 0 }}>Estimated finish in 45 minutes — auto-triggered by TourneyCoach</p>
               </div>
-              <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', borderRadius: 7, padding: '4px 8px', color: '#fff', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                {Math.floor(kitchenSecs / 60)}:{String(kitchenSecs % 60).padStart(2, '0')}
-              </div>
+              <KitchenCountdown />
             </div>
             )}
 

@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import LiveSpotsStat from '@/components/LiveSpotsStat';
 import { renderRichText } from '@/lib/richtext/render';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 function getSupabase() {
   return createClient(
@@ -22,11 +23,26 @@ async function getTournament(slug: string) {
   return data;
 }
 
+// Service role, like the sponsor logos below — `registrations` has no public
+// read policy (migration 048 revoked the anon grant that was exposing every
+// player's name, email and phone). This counted with the anon key, so after
+// that lockdown the microsite told visitors "0 / 18 foursomes claimed" on a
+// tournament with eleven — killing the social proof the page exists to show.
+//
+// Filtered the same way as /api/tournaments/[id]/progress, which is what
+// LiveSpotsStat polls fifteen seconds later: without that, the number visibly
+// jumped on first poll.
 async function getRegistrationCount(tournamentId: string) {
-  const { count } = await getSupabase()
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return 0;
+  const client = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+  );
+  const { count } = await client
     .from('registrations')
     .select('id', { count: 'exact', head: true })
-    .eq('tournament_id', tournamentId);
+    .eq('tournament_id', tournamentId)
+    .in('payment_status', ['pending', 'paid']);
   return count ?? 0;
 }
 
@@ -66,7 +82,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const t = await getTournament(slug);
   if (!t) return { title: 'Tournament Not Found' };
 
-  const dateStr = new Date(t.event_date).toLocaleDateString('en-US', {
+  const dateStr = formatEventDate(t.event_date, {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
 
@@ -145,7 +161,7 @@ export default async function MicrositePage({
   // Preserve the attribution tag (from a shared link) through to registration
   const registerUrl = `/register?id=${t.id}${src ? `&src=${encodeURIComponent(src)}` : ''}`;
 
-  const dateStr = new Date(t.event_date).toLocaleDateString('en-US', {
+  const dateStr = formatEventDate(t.event_date, {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
   const foursomes = Math.floor(t.max_players / 4);
@@ -306,7 +322,7 @@ export default async function MicrositePage({
             }}>
               {t.edition_label && <span>{t.edition_label}</span>}
               {t.edition_label && <span style={{ opacity: 0.4 }}>·</span>}
-              <span>{new Date(t.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+              <span>{formatEventDate(t.event_date, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
             </div>
 
             {/* Impact headline */}

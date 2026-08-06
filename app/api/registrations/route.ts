@@ -7,11 +7,11 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const PRICES: Record<string, number> = {
-  foursome: 60000,  // cents
-  single: 16500,
-  sponsor: 500000,
-};
+// Fallbacks only — used when a tournament has no entry fee recorded, which
+// should not happen (the setup wizard requires one) but must not produce a
+// free registration if it does.
+const FALLBACK_ENTRY_CENTS = 16500;
+const FALLBACK_SPONSOR_CENTS = 500000;
 const ADD_ON_PRICES: Record<string, number> = {
   mulligans: 8000,
   putting: 4000,
@@ -26,6 +26,34 @@ const PLAYERS_PER_TYPE: Record<string, number> = {
 // returning members (anyone who already has a player_profiles row, i.e.
 // has registered for a TourneyCoach tournament before). Confirmed Day 7.
 const PLATFORM_FEE_RATE = 0.025;
+
+/**
+ * What this tournament charges for one registration of this type.
+ *
+ * A single is the entry fee. A foursome is four of them — the number the
+ * organizer set, times the number of people it covers. A sponsor package is
+ * priced by the organizer's own top tier when they have configured one, since
+ * that is the package the public page is offering.
+ *
+ * This is server-side and authoritative: the browser shows a price, but the
+ * amount charged is computed here from the tournament row, so editing the page
+ * cannot change what a card is billed.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function priceFor(supabase: any, tournament: { id: string; entry_fee_cents: number | null }, type: string): Promise<number> {
+  const entry = tournament.entry_fee_cents ?? FALLBACK_ENTRY_CENTS;
+  if (type === 'single') return entry;
+  if (type === 'foursome') return entry * PLAYERS_PER_TYPE.foursome;
+
+  const { data: top } = await supabase
+    .from('sponsorship_tiers')
+    .select('price_cents')
+    .eq('tournament_id', tournament.id)
+    .order('price_cents', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (top?.price_cents as number | undefined) ?? FALLBACK_SPONSOR_CENTS;
+}
 
 async function isReturningMember(email: string): Promise<boolean> {
   const supabase = getSupabase();
@@ -59,7 +87,7 @@ export async function POST(req: NextRequest) {
     if (!tournament_id || !registration_type || !contact_name || !contact_email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    if (!PRICES[registration_type]) {
+    if (!PLAYERS_PER_TYPE[registration_type]) {
       return NextResponse.json({ error: 'Invalid registration type' }, { status: 400 });
     }
 
@@ -93,26 +121,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Calculate total. New-member fee is added on top; returning members pay
-    // exactly the listed price. "Returning" is determined by the contact's
-    // email already having a player_profiles row from a prior registration —
-    // computed server-side, never trusted from the client.
-    const base = PRICES[registration_type];
-    const addOnTotal = (add_ons as string[]).reduce((s, a) => s + (ADD_ON_PRICES[a] ?? 0), 0);
-    const subtotal_cents = base + addOnTotal;
-    const returning = await isReturningMember(contact_email);
-    const platform_fee_cents = returning ? 0 : Math.round(subtotal_cents * PLATFORM_FEE_RATE);
-    const total_amount_cents = subtotal_cents + platform_fee_cents;
-
-    // Fetch tournament for email
+    // Fetch the tournament BEFORE pricing — its entry fee is what the player
+    // is charged.
     const { data: tournament, error: tErr } = await supabase
       .from('tournaments')
-      .select('name, event_date, max_players, location_name, status')
+      .select('id, name, event_date, max_players, location_name, status, entry_fee_cents')
       .eq('id', tournament_id)
       .single();
     if (tErr || !tournament) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
+
+    // Calculate total. New-member fee is added on top; returning members pay
+    // exactly the listed price. "Returning" is determined by the contact's
+    // email already having a player_profiles row from a prior registration —
+    // computed server-side, never trusted from the client.
+    //
+    // The price comes from THIS tournament's entry fee. It used to come from a
+    // module-level PRICES constant, so the setup wizard asked every organizer
+    // to set an entry fee and then charged all of them the same $600 a
+    // foursome regardless of what they answered. A $125-a-head club scramble
+    // and a $300-a-head corporate outing were billed identically.
+    const priced = await priceFor(supabase, tournament, registration_type);
+    const addOnTotal = (add_ons as string[]).reduce((s, a) => s + (ADD_ON_PRICES[a] ?? 0), 0);
+    const subtotal_cents = priced + addOnTotal;
+    const returning = await isReturningMember(contact_email);
+    const platform_fee_cents = returning ? 0 : Math.round(subtotal_cents * PLATFORM_FEE_RATE);
+    const total_amount_cents = subtotal_cents + platform_fee_cents;
 
     // A draft tournament is not open to the public — it's a plan, not an event.
     // The board (app/api/tournament/[id]/board), the scorecard and the

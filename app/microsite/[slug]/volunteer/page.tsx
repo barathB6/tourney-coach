@@ -3,6 +3,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 type Tournament = {
   id: string;
@@ -55,7 +56,7 @@ export default function VolunteerPage() {
 
   if (!tournament) return null;
 
-  const dateStr = new Date(tournament.event_date).toLocaleDateString('en-US', {
+  const dateStr = formatEventDate(tournament.event_date, {
     month: 'long', day: 'numeric', year: 'numeric',
   });
 

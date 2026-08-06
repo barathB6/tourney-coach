@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
 import '@adyen/adyen-web/styles/adyen.css';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 interface Tournament {
   id: string;
@@ -47,10 +48,18 @@ const START_LABELS: Record<string, string> = {
 
 interface Player { name: string; email: string; }
 
+// Prices are DERIVED from the tournament, not written here.
+//
+// These were flat literals — $600 a foursome, $165 a player, $5,000 to sponsor
+// — for every tournament on the platform. The setup wizard asked each organizer
+// to set an entry fee and then nobody read it: a $125-a-head club scramble and
+// a $300-a-head corporate outing both charged $600 a team. The server computes
+// the same numbers independently (app/api/registrations), so this is display
+// only and cannot be edited into a discount.
 const REG_TYPES = [
-  { id: 'foursome', label: 'Foursome — Scramble Team', desc: 'Four players · cart · lunch · range balls · gift bag · contests included', price: 600, unit: '/team', playerCount: 4 },
-  { id: 'single',   label: 'Single Player',             desc: "We'll match you with three others. Same inclusions.",                       price: 165, unit: '/player', playerCount: 1 },
-  { id: 'sponsor',  label: 'Title Sponsor + Foursome',  desc: 'Top-line logo placement, banner at 1st tee, 4 players, premium gifts',    price: 5000, unit: '', playerCount: 4 },
+  { id: 'foursome', label: 'Foursome — Scramble Team', desc: 'Four players · cart · lunch · range balls · gift bag · contests included', unit: '/team', playerCount: 4 },
+  { id: 'single',   label: 'Single Player',             desc: "We'll match you with three others. Same inclusions.",                       unit: '/player', playerCount: 1 },
+  { id: 'sponsor',  label: 'Title Sponsor + Foursome',  desc: 'Top-line logo placement, banner at 1st tee, 4 players, premium gifts',    unit: '', playerCount: 4 },
 ];
 
 const SOURCES = [
@@ -68,7 +77,7 @@ const ADD_ONS = [
 ];
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+  return formatEventDate(d, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
 }
 function fmtMoney(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -176,7 +185,18 @@ function RegisterInner() {
     fetch('/api/circle/visit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tc }) }).catch(() => {});
   }, [searchParams]);
 
-  const regType = REG_TYPES.find(r => r.id === selectedType) ?? REG_TYPES[0];
+  // Entry fee in dollars, from this tournament. Mirrors priceFor() on the
+  // server; if the two ever disagree the server wins, and the receipt shows the
+  // charged amount.
+  const entryDollars = Math.round((tournament?.entry_fee_cents ?? 16500) / 100);
+  const topTierDollars = sponsorTiers.length
+    ? Math.round(Math.max(...sponsorTiers.map((t) => t.price_cents)) / 100)
+    : 5000;
+  const priceOf = (id: string) =>
+    id === 'single' ? entryDollars : id === 'foursome' ? entryDollars * 4 : topTierDollars;
+
+  const baseType = REG_TYPES.find(r => r.id === selectedType) ?? REG_TYPES[0];
+  const regType = { ...baseType, price: priceOf(baseType.id) };
 
   // Keep players array sized to selected type
   useEffect(() => {
@@ -233,7 +253,12 @@ function RegisterInner() {
 
   const addOnTotal = ADD_ONS.filter(a => selectedAddOns.includes(a.id)).reduce((s, a) => s + a.price, 0);
   const subtotal = regType.price + addOnTotal;
-  const platformFee = isReturningMember ? 0 : Math.round(subtotal * 0.025);
+  // Rounded in CENTS, like the server (app/api/registrations does
+  // Math.round(subtotal_cents * 0.025)). Rounding the same 2.5% in dollars gave
+  // $17.00 against the server's $16.50 — the page quoted a total fifty cents
+  // above what the card was actually charged, so the receipt never matched the
+  // checkout screen.
+  const platformFee = isReturningMember ? 0 : Math.round(subtotal * 100 * 0.025) / 100;
   const total = subtotal + platformFee;
   const impactText = impactBlurb(tournament);
   const spotsTotal = tournament?.max_players ?? 96;
@@ -549,7 +574,7 @@ function RegisterInner() {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={s.typePrice}>
-                      {rt.price >= 1000 ? `$${rt.price.toLocaleString()}` : `$${rt.price}`}
+                      {priceOf(rt.id) >= 1000 ? `$${priceOf(rt.id).toLocaleString()}` : `$${priceOf(rt.id)}`}
                       {rt.unit && <span style={s.typeUnit}>{rt.unit}</span>}
                     </div>
                   </div>

@@ -1,5 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { createClient } from '@supabase/supabase-js';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 export const runtime = 'nodejs';
 
@@ -30,7 +31,7 @@ export async function GET(
 
   const foursomes = Math.floor((t.max_players ?? 0) / 4);
   const primaryColor = t.microsite_color ?? '#1B6B3A';
-  const dateStr = new Date(t.event_date).toLocaleDateString('en-US', {
+  const dateStr = formatEventDate(t.event_date, {
     month: 'long', day: 'numeric', year: 'numeric',
   });
 

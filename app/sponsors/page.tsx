@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { authedFetch } from '@/lib/authedFetch';
 import { useRouter } from 'next/navigation';
+import { countOf } from '@/lib/plural';
 
 type Tier = {
   id: string;
@@ -73,6 +74,11 @@ const TIER_PRESETS = [
   { name: 'Custom Package', label: null, price_cents: 100000, quantity: null,
     benefits: ['Program listing'] },
 ];
+
+// The one definition of "committed", shared with the goals dashboard
+// (lib/toc/load.ts) and the organizer's home tiles: a verbal handshake counts,
+// a cold prospect does not.
+const COMMITTED_STATUSES = ['verbal', 'invoiced', 'paid'];
 
 function money(cents: number) {
   return '$' + (cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -351,7 +357,12 @@ export default function SponsorsPage() {
             <div>
               <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 700, margin: 0 }}>Sponsorships</h1>
               <p style={{ color: '#6B7775', margin: '4px 0 0', fontSize: 14 }}>
-                {tournamentName} · {tiers.length} packages · {sponsors.filter(sp => ['paid', 'invoiced'].includes(sp.status)).length} confirmed sponsors
+                {/* "Committed" here means what it means on the goals dashboard
+                    and the organizer's home tiles: verbal, invoiced or paid.
+                    This counted paid+invoiced only, so the same tournament read
+                    "Sponsors 2" on one page and "1 confirmed sponsors" on this
+                    one — two numbers, two vocabularies, one concept. */}
+                {tournamentName} · {countOf(tiers.length, 'package')} · {countOf(sponsors.filter(sp => COMMITTED_STATUSES.includes(sp.status)).length, 'committed sponsor')}
               </p>
             </div>
             {tournamentId && (

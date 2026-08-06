@@ -3,6 +3,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 type Tournament = {
   id: string;
@@ -64,7 +65,7 @@ export default function SharePage() {
     </div>
   );
 
-  const dateStr = new Date(tournament.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const dateStr = formatEventDate(tournament.event_date, { month: 'long', day: 'numeric', year: 'numeric' });
   const imageUrl = `/api/share/${tournament.id}/image`;
   const facebookUrl = buildShareUrl(tournament.slug, 'facebook');
   const instagramUrl = buildShareUrl(tournament.slug, 'instagram');

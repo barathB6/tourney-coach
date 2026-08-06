@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
 import { authedFetch } from '@/lib/authedFetch';
+import { formatEventDate } from '@/lib/formatEventDate';
 
 interface Tournament {
   id: string;
@@ -14,6 +15,7 @@ interface Tournament {
   cause_story: string | null;
   status: string;
   course_id: string | null;
+  fundraising_goal_cents: number | null;
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -37,9 +39,22 @@ function daysUntil(dateStr: string) {
 function weeksUntil(dateStr: string) {
   return Math.max(0, Math.round(daysUntil(dateStr) / 7));
 }
+// Through the shared helper: `event_date` is a DATE with no zone, so
+// `new Date("2026-08-27")` is UTC midnight and renders as Aug 26 for every
+// organizer west of UTC — on their own dashboard, about their own tournament.
+// Fixed in three emails on Day 28; the browser pages were never converted.
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatEventDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
 }
+// Tile-sized money. At 40px there is no room for cents, and "$10,500" already
+// tells the organizer everything "$10,500.00" would.
+function fmtShortMoney(cents: number): string {
+  const dollars = Math.round(cents / 100);
+  if (dollars >= 1_000_000) return `$${(dollars / 1_000_000).toFixed(dollars % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (dollars >= 10_000) return `$${(dollars / 1000).toFixed(dollars % 1000 === 0 ? 0 : 1)}k`;
+  return `$${dollars.toLocaleString('en-US')}`;
+}
+
 function fmtFormat(f: string) {
   const m: Record<string, string> = { scramble: 'Scramble', best_ball: 'Best Ball', stableford: 'Stableford', captains_choice: "Captain's Choice" };
   return m[f] ?? f;
@@ -64,6 +79,12 @@ export default function Dashboard() {
   // Real completion signals for the game-plan spine, so the "you're here"
   // marker moves as data accumulates instead of being pinned to step 4.
   const [progress, setProgress] = useState({ sponsors: false, volunteers: false, dayOf: false });
+  // The Stage 2 money tiles. These were hardcoded to $0 / 0 / "none yet" — three
+  // static literals on the organizer's primary dashboard, so a tournament that
+  // had banked ten thousand dollars still read "Raised so far $0 · Sponsors 0 ·
+  // none yet". The Field-filled tile beside them was live the whole time, which
+  // is what made it read as truth rather than as a placeholder.
+  const [money, setMoney] = useState({ raisedCents: 0, sponsorCount: 0, committedCents: 0 });
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -118,8 +139,8 @@ export default function Dashboard() {
       let selectedId: string | null = null;
       try { selectedId = localStorage.getItem(`tourney_selected_tournament_${u.id}`); } catch { /* ignore */ }
 
-      const fields = 'id, name, event_date, format, max_players, cause_story, status, course_id';
-      let picked = null as { id: string; name: string; event_date: string; format: string; max_players: number; cause_story: string | null; status: string; course_id: string | null } | null;
+      const fields = 'id, name, event_date, format, max_players, cause_story, status, course_id, fundraising_goal_cents';
+      let picked = null as Tournament | null;
 
       if (selectedId) {
         const { data } = await supabase
@@ -166,14 +187,34 @@ export default function Dashboard() {
         // goals dashboard's rule), volunteers count from day-of signups or a
         // committee member, and the day-of plan counts once any foursome has
         // a starting hole.
-        const [spon, signups, holes] = await Promise.all([
+        const [spon, signups, holes, sponsorRows, paidRegs] = await Promise.all([
           supabase.from('sponsors').select('id', { count: 'exact', head: true })
             .eq('tournament_id', data.id).in('status', ['verbal', 'invoiced', 'paid']),
           supabase.from('volunteer_signups').select('id', { count: 'exact', head: true })
             .eq('tournament_id', data.id),
           supabase.from('registrations').select('id', { count: 'exact', head: true })
             .eq('tournament_id', data.id).not('starting_hole', 'is', null),
+          // Committed sponsorship uses the same rule as the goals dashboard —
+          // verbal handshakes count toward progress; declined never does.
+          supabase.from('sponsors').select('amount_cents, status')
+            .eq('tournament_id', data.id).in('status', ['verbal', 'invoiced', 'paid']),
+          // "Raised" is money actually collected, so entry fees only count once
+          // paid. A pending card is not raised.
+          supabase.from('registrations').select('total_amount_cents')
+            .eq('tournament_id', data.id).eq('payment_status', 'paid'),
         ]);
+
+        const sponsorRowsData = sponsorRows.data ?? [];
+        const committedCents = sponsorRowsData.reduce((n, r) => n + (r.amount_cents ?? 0), 0);
+        const sponsorCashCents = sponsorRowsData
+          .filter((r) => r.status === 'paid')
+          .reduce((n, r) => n + (r.amount_cents ?? 0), 0);
+        const entryCents = (paidRegs.data ?? []).reduce((n, r) => n + (r.total_amount_cents ?? 0), 0);
+        setMoney({
+          raisedCents: sponsorCashCents + entryCents,
+          sponsorCount: spon.count ?? 0,
+          committedCents,
+        });
         let volunteers = (signups.count ?? 0) > 0;
         if (!volunteers) {
           // Committee members built on /team live behind an owner-checked API
@@ -234,6 +275,8 @@ export default function Dashboard() {
   const days = tournament ? daysUntil(tournament.event_date) : null;
   const foursomes = tournament ? Math.floor(tournament.max_players / 4) : 18;
   const foursomesFilled = registrationCount;
+  const goalCents = tournament?.fundraising_goal_cents ?? 0;
+  const raisedPct = goalCents > 0 ? Math.min(100, Math.round((money.raisedCents / goalCents) * 100)) : 0;
   // This tournament's own course. Open its builder if it has one; otherwise
   // start a new course and link it back to this tournament on save.
   const courseHref = tournament?.course_id
@@ -716,14 +759,22 @@ export default function Dashboard() {
                 </div>
                 <div style={s.tileLead}>
                   <div style={s.tileLab}>Raised so far</div>
-                  <div style={s.tileNum}>$0</div>
-                  <div style={s.tileSub}>of goal TBD</div>
-                  <div style={s.bar}><span style={{ display: 'block', height: '100%', borderRadius: 999, background: 'var(--gold)', width: '0%' }} /></div>
+                  <div style={s.tileNum}>{fmtShortMoney(money.raisedCents)}</div>
+                  <div style={s.tileSub}>
+                    {goalCents
+                      ? `of ${fmtShortMoney(goalCents)} goal`
+                      : money.raisedCents > 0 ? 'set a goal on Tournament Goals' : 'no goal set yet'}
+                  </div>
+                  <div style={s.bar}><span style={{ display: 'block', height: '100%', borderRadius: 999, background: 'var(--gold)', width: `${raisedPct}%` }} /></div>
                 </div>
                 <div style={s.tileBase}>
                   <div style={s.tileLabDark}>Sponsors</div>
-                  <div style={s.tileNumGreen}>0</div>
-                  <div style={s.tileSubDark}>none yet</div>
+                  <div style={s.tileNumGreen}>{money.sponsorCount}</div>
+                  <div style={s.tileSubDark}>
+                    {money.sponsorCount === 0
+                      ? 'none yet'
+                      : `${fmtShortMoney(money.committedCents)} committed`}
+                  </div>
                 </div>
                 <div style={s.tileBase}>
                   <div style={s.tileLabDark}>Days left</div>

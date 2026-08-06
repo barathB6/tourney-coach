@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, use as usePromise } from 'react';
+import { useEffect, useMemo, useState, use as usePromise } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -36,7 +36,6 @@ export function TVBoardView({ id, showBackButton = false }: { id: string; showBa
   const [error, setError] = useState('');
   const [live, setLive] = useState(false);
   const [sort, setSort] = useState<SortKey>('score');
-  const [sponsorIdx, setSponsorIdx] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -55,13 +54,6 @@ export function TVBoardView({ id, showBackButton = false }: { id: string; showBa
 
   // Rotate sponsor logos every 6s (calm motion; respects reduced-motion).
   const sponsors = board?.sponsors ?? [];
-  const reduceMotionRef = useRef(false);
-  useEffect(() => { reduceMotionRef.current = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; }, []);
-  useEffect(() => {
-    if (sponsors.length <= 1 || reduceMotionRef.current) return;
-    const t = setInterval(() => setSponsorIdx((i) => (i + 1) % sponsors.length), 6000);
-    return () => clearInterval(t);
-  }, [sponsors.length]);
 
   const sorted = useMemo(() => {
     const rows = [...(board?.standings ?? [])];
@@ -181,7 +173,7 @@ export function TVBoardView({ id, showBackButton = false }: { id: string; showBa
         {raisedCents > 0 && <span>Raised Live · <span style={{ color: '#E4B94B' }}>{money(raisedCents)}</span></span>}
         <span style={{ minHeight: 52, display: 'flex', alignItems: 'center', gap: 8 }}>
           {sponsors.length > 0 && <span style={{ fontSize: 'clamp(10px,1vw,13px)', color: '#7FA085' }}>Thanks to</span>}
-          {sponsors.length > 0 && <SponsorLogo key={sponsors[sponsorIdx % sponsors.length].company} sponsor={sponsors[sponsorIdx % sponsors.length]} />}
+          {sponsors.length > 0 && <SponsorRotator sponsors={sponsors} />}
         </span>
       </div>
     </TVShell>
@@ -191,6 +183,24 @@ export function TVBoardView({ id, showBackButton = false }: { id: string; showBa
 // A sponsor's real logo needs to read against the dark-green board without
 // destroying it — so we place it (as uploaded, no color-mangling filter) on a
 // small light chip. If the image fails to load, fall back to the company name.
+// The rotation owns its own tick, and its own reduced-motion check.
+//
+// This lived on TVBoardView, so a sponsor changing every six seconds
+// re-rendered the entire leaderboard — every team row, on a screen that is
+// left running all day in a clubhouse. Only the logo needs to change, so only
+// the logo re-renders now.
+function SponsorRotator({ sponsors }: { sponsors: { company: string; logoUrl: string }[] }) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (sponsors.length <= 1 || reduceMotion) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % sponsors.length), 6000);
+    return () => clearInterval(t);
+  }, [sponsors.length]);
+  const s = sponsors[idx % sponsors.length];
+  return <SponsorLogo key={s.company} sponsor={s} />;
+}
+
 function SponsorLogo({ sponsor }: { sponsor: { company: string; logoUrl: string } }) {
   const [failed, setFailed] = useState(false);
   if (failed) return <span style={{ color: '#fff', fontWeight: 700, fontSize: 'clamp(13px,1.4vw,18px)' }}>{sponsor.company}</span>;
