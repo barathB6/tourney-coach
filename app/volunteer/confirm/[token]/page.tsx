@@ -158,14 +158,27 @@ function Portal({ token }: { token: string }) {
       const reg = await navigator.serviceWorker.register('/push-sw.js');
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') { setNote('Notifications were not allowed.'); return; }
+      // Fetched, not inlined. NEXT_PUBLIC_VAPID_PUBLIC_KEY is marked Sensitive
+      // in Vercel, and sensitive vars are withheld at BUILD time — which is
+      // when Next.js inlines NEXT_PUBLIC_* values. This shipped as `undefined`,
+      // subscribe() threw, and the catch below blamed the browser. Push had
+      // never worked in production on any device.
+      const keyRes = await fetch('/api/push/key');
+      if (!keyRes.ok) { setNote('Notifications are not set up for this tournament yet.'); return; }
+      const { key } = (await keyRes.json()) as { key: string };
+
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        applicationServerKey: key,
       });
       await act({ action: 'subscribe_push', subscription: sub.toJSON() });
       setNote('Notifications on.');
-    } catch {
-      setNote('Could not turn on notifications on this device.');
+    } catch (err) {
+      // Distinguish "this device said no" from "we are misconfigured" — the
+      // single message hid a server-side fault as a device quirk for weeks.
+      setNote(err instanceof Error && /applicationServerKey|InvalidAccessError|InvalidStateError/.test(err.name + err.message)
+        ? 'Notifications could not be set up — the organizer has been notified.'
+        : 'Could not turn on notifications on this device.');
     }
   }
 

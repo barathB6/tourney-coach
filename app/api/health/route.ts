@@ -85,7 +85,16 @@ export async function GET() {
     critical: false,
     note: 'unset since Day 27 — every SMS path falls back to email or to nothing',
   });
-  checks.push({ name: 'push (VAPID)', ok: has('VAPID_PRIVATE_KEY') && has('NEXT_PUBLIC_VAPID_PUBLIC_KEY'), critical: false });
+  // Checked against the RUNTIME variables, not NEXT_PUBLIC_VAPID_PUBLIC_KEY.
+  // That one is inlined at build time and comes back `undefined` when the var
+  // is marked Sensitive in Vercel — which is how this check found that push had
+  // never worked in production. The client now fetches the key from
+  // /api/push/key, so VAPID_PUBLIC_KEY is the one that matters.
+  checks.push({
+    name: 'push (VAPID)',
+    ok: has('VAPID_PRIVATE_KEY') && (has('VAPID_PUBLIC_KEY') || has('NEXT_PUBLIC_VAPID_PUBLIC_KEY')),
+    critical: false,
+  });
   checks.push({ name: 'payments (Adyen)', ok: has('ADYEN_API_KEY') && has('ADYEN_WEBHOOK_HMAC_KEY'), critical: true });
   checks.push({ name: 'ai coach (Anthropic)', ok: has('ANTHROPIC_API_KEY'), critical: false });
 
