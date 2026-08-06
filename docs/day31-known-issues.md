@@ -80,8 +80,20 @@ path and says so.
 - **A2P 10DLC registration** — a Twilio console task. Without it, US carriers
   filter application-to-person SMS regardless of credentials.
 - **Real-phone testing** — no SMS has been delivered to a real handset.
-- **Push delivery is unproven.** VAPID keys are set and the service worker is
-  written, but no push has been confirmed received on a real device.
+- **Push is BROKEN in production, not merely unproven.** The Day 32 health
+  check caught it on its first production run. `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+  is marked Sensitive in Vercel, and sensitive variables are withheld at BUILD
+  time — which is when Next.js inlines `NEXT_PUBLIC_*` values — so the client
+  shipped `applicationServerKey: undefined` and every subscribe threw. Verified
+  by grepping all ten production chunks of the volunteer confirm page for the
+  key: absent. The code is fixed (the key is served at runtime from
+  `/api/push/key`), but **`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and
+  `VAPID_SUBJECT` still read as empty at runtime in production** even though
+  Vercel lists them as set for Production. Other Sensitive Production-only vars
+  (`SUPABASE_SERVICE_ROLE_KEY`, `SENDGRID_API_KEY`, `CRON_SECRET`) work fine, so
+  the Sensitive flag is not the cause — the values themselves appear to be
+  blank. Re-enter all four in the Vercel dashboard and redeploy; `/api/health`
+  will flip `push (VAPID)` to OK and `/api/push/key` will return the key.
 - **Offline mode is unproven in a real dead zone.** The localStorage cache and
   replay queue are unit-tested; a golf course with no signal is not the same
   test.
