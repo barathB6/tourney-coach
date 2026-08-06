@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { captureError, captureEvent } from '@/lib/observability/report';
 import { detectTeeClusters } from '@/lib/gps/clustering';
 import { aggregateCourseProfiles } from '@/lib/gps/aggregate';
 
@@ -14,7 +15,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const clusters = await detectTeeClusters();
-  const aggregation = await aggregateCourseProfiles();
-  return NextResponse.json({ clustersDetected: clusters.length, aggregation });
+  const started = Date.now();
+  try {
+    const clusters = await detectTeeClusters();
+    const aggregation = await aggregateCourseProfiles();
+    captureEvent('cron completed', {
+      scope: 'cron.gps-clusters',
+      detail: { ms: Date.now() - started, clustersDetected: clusters.length },
+    });
+    return NextResponse.json({ clustersDetected: clusters.length, aggregation });
+  } catch (err) {
+    // The GPS network is the structural moat; a clustering run that quietly
+    // stops means the course profiles stop improving and nobody notices for
+    // months.
+    captureError(err, { scope: 'cron.gps-clusters', detail: { ms: Date.now() - started } });
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : 'unknown error' }, { status: 500 });
+  }
 }

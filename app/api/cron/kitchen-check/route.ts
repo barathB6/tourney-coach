@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { captureError, captureEvent } from '@/lib/observability/report';
 import { runKitchenCheck } from '@/lib/pace/field';
 
 const getSupabase = () => createClient(
@@ -45,9 +46,16 @@ export async function GET(req: NextRequest) {
       const r = await runKitchenCheck(supabase, t.id as string);
       results.push({ tournament: t.name as string, fired: r.fired, reason: r.reason });
     } catch (e) {
+      // This runs on tournament DAY. A swallowed error here is the kitchen
+      // never being told the real headcount.
+      captureError(e, { scope: 'cron.kitchen-check', tournamentId: t.id as string });
       results.push({ tournament: t.name as string, fired: false, reason: e instanceof Error ? e.message : 'check failed' });
     }
   }
 
+  captureEvent('cron completed', {
+    scope: 'cron.kitchen-check',
+    detail: { liveToday: (live ?? []).length, fired: results.filter((r) => r.fired).length },
+  });
   return NextResponse.json({ checked: results.length, fired: results.filter((r) => r.fired).length, results });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { captureError, captureEvent } from '@/lib/observability/report';
 import { draftOutreachEmail } from '@/lib/ai/sponsorOutreachDraft';
 import { sendSponsorOutreachEmail } from '@/lib/email/sponsorOutreach';
 
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
     .not('email', 'is', null);
 
   if (error) {
+    captureError(error.message, { scope: 'cron.sponsor-followups', detail: { stage: 'query' } });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -121,9 +123,22 @@ export async function GET(req: NextRequest) {
 
       results.push({ sponsorId: sponsor.id, company: sponsor.company, ok: true });
     } catch (err) {
+      // One prospect failing must not be silent: this cron runs once a day and
+      // nothing retries, so a swallowed error is a follow-up that never goes.
+      captureError(err, {
+        scope: 'cron.sponsor-followups',
+        tournamentId: sponsor.tournament_id,
+        detail: { sponsorId: sponsor.id },
+      });
       results.push({ sponsorId: sponsor.id, company: sponsor.company, ok: false, error: err instanceof Error ? err.message : 'unknown error' });
     }
   }
+
+  const failed = results.filter((r) => !r.ok).length;
+  captureEvent('cron completed', {
+    scope: 'cron.sponsor-followups',
+    detail: { due: (due ?? []).length, sent: results.filter((r) => r.ok && !r.skipped).length, skipped: results.filter((r) => r.skipped).length, failed },
+  });
 
   return NextResponse.json({ processed: results.length, results });
 }

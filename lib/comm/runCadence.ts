@@ -63,6 +63,24 @@ export async function runCadence(service: DB, now = new Date(), tournamentId?: s
   if (tournamentId) q = q.eq('id', tournamentId);
   const { data: tournaments } = await q;
 
+  // The role→earliest-task-offset map, fetched ONCE.
+  //
+  // This used to be a query per assignment, inside two nested loops. task_templates
+  // is a small reference table that is identical for every tournament, so the
+  // nightly sweep was issuing one round trip per volunteer per tournament to
+  // re-read the same handful of rows — the single worst N+1 on the cron path,
+  // and it grows with the whole platform rather than with one event.
+  const { data: allTasks } = await service.from('task_templates')
+    .select('role_template_id, due_offset_hours');
+  const earliestOffsetByRole = new Map<string, number>();
+  for (const t of allTasks ?? []) {
+    const rid = t.role_template_id as string | null;
+    const off = t.due_offset_hours as number | null;
+    if (!rid || off == null) continue;
+    const prev = earliestOffsetByRole.get(rid);
+    if (prev == null || off < prev) earliestOffsetByRole.set(rid, off);
+  }
+
   for (const t of tournaments ?? []) {
     result.tournaments++;
 
@@ -79,10 +97,8 @@ export async function runCadence(service: DB, now = new Date(), tournamentId?: s
       // Reminders anchor to when THIS role starts, not the shotgun: the
       // registration lead's "30 minutes out" is 30 minutes before their
       // 6:30am call time, not before the horn.
-      const { data: tasks } = await service.from('task_templates')
-        .select('due_offset_hours').eq('role_template_id', a.role_template_id as string);
-      const offsets = (tasks ?? []).map((x) => x.due_offset_hours as number | null).filter((x): x is number => x != null);
-      const startsAt = roleStartAt(phase, offsets.length ? Math.min(...offsets) : null,
+      const earliest = earliestOffsetByRole.get(a.role_template_id as string) ?? null;
+      const startsAt = roleStartAt(phase, earliest,
         t.event_date as string | null, t.shotgun_time as string | null);
       if (!startsAt) continue;
 

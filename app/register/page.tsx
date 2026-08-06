@@ -199,10 +199,17 @@ function RegisterInner() {
   useEffect(() => {
     async function load() {
       if (!tournamentId) { setLoading(false); return; }
-      const [{ data: t }, { count }] = await Promise.all([
+      // The spots-remaining count comes from the server, not from counting
+      // rows here. Reading `registrations` with the anon key is what made the
+      // table anon-grantable in the first place, and that grant exposed every
+      // player's name, email and phone across every tournament (048).
+      const [{ data: t }, progress] = await Promise.all([
         supabase.from('tournaments').select('id, name, event_date, format, max_players, entry_fee_cents, cause_story, cause_story_one_liner, cause_story_short, location_name, course_id, shotgun_type, shotgun_time, slug').eq('id', tournamentId).single(),
-        supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('tournament_id', tournamentId).in('payment_status', ['pending', 'paid']),
+        fetch(`/api/tournaments/${tournamentId}/progress`)
+          .then((r) => (r.ok ? r.json() : { count: 0 }))
+          .catch(() => ({ count: 0 })) as Promise<{ count: number }>,
       ]);
+      const count = progress.count;
       if (t) {
         setTournament(t);
         // Pull the course profile the organizer built (name + city/state) so the

@@ -16,6 +16,7 @@
 //     this file only degrades to what is actually reachable.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { captureError } from '@/lib/observability/report';
 import { sendSms, twilioConfigured } from '@/lib/sms/twilio';
 import { usableChannel, type Channel } from '@/lib/guidance/engine';
 import { sendWebPush, pushConfigured } from '@/lib/comm/push';
@@ -163,6 +164,17 @@ export async function sendComm(service: DB, req: SendRequest, fromName = 'Tourne
     message_id: messageId,
     error: error ? error.slice(0, 500) : null,
   }).eq('id', ledgerId);
+
+  // A failed send is the quietest failure in the product: the ledger row says
+  // 'failed', the in-app mirror still shows the volunteer the message, and
+  // nobody finds out until the person doesn't turn up.
+  if (!ok) {
+    captureError(error ?? `${channel} send failed`, {
+      scope: 'comm.send',
+      tournamentId: r.tournamentId,
+      detail: { channel, kind: req.kind, offsetKey: req.offsetKey ?? null, ledgerId, attempted },
+    });
+  }
 
   // ── In-app mirror ─────────────────────────────────────────────────────────
   // The portal shows everything we tried to tell them, whichever pipe carried

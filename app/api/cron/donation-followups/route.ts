@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { captureError, captureEvent } from '@/lib/observability/report';
 import { runDonationFollowups } from '@/lib/donations/outreach';
 
 const getSupabase = () => createClient(
@@ -15,6 +16,16 @@ export async function GET(req: NextRequest) {
   if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const result = await runDonationFollowups(getSupabase());
-  return NextResponse.json({ ok: true, ...result });
+  const started = Date.now();
+  try {
+    const result = await runDonationFollowups(getSupabase());
+    captureEvent('cron completed', {
+      scope: 'cron.donation-followups',
+      detail: { ms: Date.now() - started, ...result },
+    });
+    return NextResponse.json({ ok: true, ...result });
+  } catch (err) {
+    captureError(err, { scope: 'cron.donation-followups', detail: { ms: Date.now() - started } });
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : 'unknown error' }, { status: 500 });
+  }
 }

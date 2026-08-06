@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { captureError } from '@/lib/observability/report';
 import { getPaymentProcessor } from '@/lib/payments';
 import { sendConfirmationEmail } from '@/lib/email/confirmation';
 import { sendSponsorConfirmationEmail } from '@/lib/email/sponsorConfirmation';
@@ -42,6 +43,20 @@ export async function POST(req: NextRequest) {
             .eq('status', 'pending')
             .select('id, company, contact_name, email, amount_cents, logo_url, tournament_id, sponsorship_tiers(name), tournaments(name, slug, event_date, location_name)')
             .single();
+
+          // The .eq('status','pending') guard is right — it stops a replayed
+          // notification double-processing — but matching ZERO rows means the
+          // card was charged and the sponsor was NOT marked paid. That is the
+          // most expensive silent failure in the product, and until now the
+          // webhook ACKed it and moved on. (Day 31 fixed one cause: an inbound
+          // email moving the row out of 'pending'. This reports whatever the
+          // next cause turns out to be.)
+          if (!paidSponsor) {
+            captureError('AUTHORISATION matched no pending sponsor — card charged, sponsor not marked paid', {
+              scope: 'payments.adyen',
+              detail: { sponsorId, pspReference, merchantReference },
+            });
+          }
 
           if (paidSponsor?.email) {
             const tier = paidSponsor.sponsorship_tiers as unknown as { name: string } | null;
@@ -88,6 +103,16 @@ export async function POST(req: NextRequest) {
           .eq('payment_status', 'pending')
           .select('id, contact_name, contact_email, team_name, foursome_number, starting_hole, total_amount_cents, platform_fee_cents, tournaments(name, event_date, location_name)')
           .single();
+
+        // Same reasoning as the sponsor branch: zero rows matched means a
+        // player's card was charged and their registration is still 'pending'
+        // — no confirmation email, and they are not on the roster.
+        if (!updated) {
+          captureError('AUTHORISATION matched no pending registration — card charged, entry not confirmed', {
+            scope: 'payments.adyen',
+            detail: { registrationId: merchantReference, pspReference },
+          });
+        }
 
         if (updated) {
           const tournament = updated.tournaments as unknown as { name: string; event_date: string; location_name: string | null } | null;
