@@ -50,18 +50,38 @@ export interface IssueResult { ok: boolean; code?: string; rateLimited?: boolean
  */
 export async function issueCode(service: DB, contact: string): Promise<IssueResult> {
   const ch = hashContact(contact);
-  const since = new Date(Date.now() - 3_600_000).toISOString();
-  const { data: recent } = await service.from('volunteer_access_codes')
-    .select('id').eq('contact_hash', ch).gte('created_at', since);
-  if ((recent ?? []).length >= MAX_REQUESTS_PER_HOUR) return { ok: false, rateLimited: true };
-
   const code = generateCode();
-  const { error } = await service.from('volunteer_access_codes').insert({
-    contact_hash: ch,
-    code_hash: hashCode(contact, code),
-    expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString(),
+  const expiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
+
+  // Count-then-insert from app code is not a rate limit. Ten simultaneous
+  // requests each read the same zero and each inserted, so the cap of 5 became
+  // "as many as you can send at once" — which widens the guessing window and,
+  // worse, is an unbounded SendGrid/Twilio bill anyone can run up by knowing a
+  // volunteer's email. The check and the insert are one statement under an
+  // advisory lock now (migration 047).
+  const { data, error } = await service.rpc('issue_volunteer_code', {
+    p_contact_hash: ch,
+    p_code_hash: hashCode(contact, code),
+    p_expires_at: expiresAt,
+    p_max_per_hour: MAX_REQUESTS_PER_HOUR,
   });
-  if (error) return { ok: false };
+
+  if (error) {
+    // Pre-migration fallback. Racy, and says so — but a self-hosted install
+    // that hasn't run 047 should still be able to sign a volunteer in.
+    if (/issue_volunteer_code/.test(error.message)) {
+      const since = new Date(Date.now() - 3_600_000).toISOString();
+      const { data: recent } = await service.from('volunteer_access_codes')
+        .select('id').eq('contact_hash', ch).gte('created_at', since);
+      if ((recent ?? []).length >= MAX_REQUESTS_PER_HOUR) return { ok: false, rateLimited: true };
+      const { error: insErr } = await service.from('volunteer_access_codes')
+        .insert({ contact_hash: ch, code_hash: hashCode(contact, code), expires_at: expiresAt });
+      return insErr ? { ok: false } : { ok: true, code };
+    }
+    return { ok: false };
+  }
+
+  if (data === false) return { ok: false, rateLimited: true };
   return { ok: true, code };
 }
 
@@ -75,6 +95,30 @@ export type VerifyOutcome =
  */
 export async function verifyCode(service: DB, contact: string, code: string): Promise<VerifyOutcome> {
   const ch = hashContact(contact);
+  const givenHash = hashCode(contact, code);
+
+  // Read the row, compare, then write the attempt was three round trips, so
+  // five simultaneous wrong guesses all read attempts = 0 and all wrote 1 —
+  // the five-attempt cap cost an attacker one attempt, and the code never
+  // died. Select-for-update inside one statement makes them queue (047).
+  const { data, error } = await service.rpc('verify_volunteer_code', {
+    p_contact_hash: ch,
+    p_code_hash: givenHash,
+    p_max_attempts: MAX_ATTEMPTS,
+  });
+
+  if (!error) {
+    switch (data as string) {
+      case 'ok': return { ok: true };
+      case 'expired': return { ok: false, reason: 'expired' };
+      case 'exhausted': return { ok: false, reason: 'exhausted' };
+      case 'wrong': return { ok: false, reason: 'wrong' };
+      default: return { ok: false, reason: 'none' };
+    }
+  }
+  if (!/verify_volunteer_code/.test(error.message)) return { ok: false, reason: 'none' };
+
+  // Pre-migration fallback — see issueCode.
   const { data: rows } = await service.from('volunteer_access_codes')
     .select('id, code_hash, expires_at, attempts, consumed_at')
     .eq('contact_hash', ch).is('consumed_at', null)
@@ -86,7 +130,7 @@ export async function verifyCode(service: DB, contact: string, code: string): Pr
   if ((row.attempts as number) >= MAX_ATTEMPTS) return { ok: false, reason: 'exhausted' };
 
   const expected = Buffer.from(row.code_hash as string, 'utf8');
-  const given = Buffer.from(hashCode(contact, code), 'utf8');
+  const given = Buffer.from(givenHash, 'utf8');
   const match = expected.length === given.length && timingSafeEqual(expected, given);
 
   if (!match) {

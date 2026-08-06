@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { causeBreakdown, countWithinRadius, disclose, discloseLadder, expectedClicks, isValidRadius, membersWithinRadius, MIN_DISCLOSABLE_COUNT, NOTIFICATION_COST_CENTS, RADIUS_OPTIONS, type Member } from '@/lib/tourneycircle';
-import { courseCentroid, notSuppressed, sendCircleNotification, suppressedProfileIds } from '@/lib/circle/send';
+import { causeBreakdown, countWithinRadius, disclose, discloseLadder, expectedClicks, isValidRadius, membersWithinRadius, MIN_DISCLOSABLE_COUNT, NOTIFICATION_COST_CENTS, RADIUS_OPTIONS, type DisclosedCount, type Member } from '@/lib/tourneycircle';
+import { courseCentroid, declinedProfileIds, notSuppressed, sendCircleNotification } from '@/lib/circle/send';
 
 function getAuthedSupabase(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -37,7 +37,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const ref = await courseCentroid(gate.service, gate.courseId);
   const { data: members, error } = await gate.service.from('tourneycircle_members').select('home_lat, home_lng, member_type, player_profile_id, cause_preferences');
   if (error) return NextResponse.json({ error: MIGRATION_HINT }, { status: 500 });
-  const eligible = notSuppressed((members ?? []) as RawMember[], await suppressedProfileIds(gate.service, id));
+
+  // Everything DISCLOSED below is computed from the population minus declines
+  // only — NOT minus behavioral suppression.
+  //
+  // Behavioral suppression keys off this tournament's own registrations and
+  // visits, both of which the organizer can manufacture one row at a time. If
+  // the displayed count moved with it, adding a single registration for a known
+  // player profile and watching the number fall by one would answer "is this
+  // person in TourneyCircle?" — the 037 visit-forgery attack, wearing a
+  // different hat. Suppression still governs who is actually SENT to
+  // (lib/circle/send.ts), where it belongs: you never pay to notify someone
+  // already registered. The estimate is therefore an upper bound, and the page
+  // says so.
+  const declined = await declinedProfileIds(gate.service);
+  const eligible = notSuppressed((members ?? []) as RawMember[], declined);
   const rawMatched = countWithinRadius(eligible, ref, radiusMiles);
 
   // Nested radii need the laddered rule, not a per-bucket floor: two totals that
@@ -55,13 +69,54 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // construction, so neither can be played off against the other.
   const rung = byRadius.find((r) => r.radiusMiles === radiusMiles);
   const matchedSuppressed = rung ? rung.suppressed : disclose(rawMatched.total).suppressed;
+
+  // The member_type split gets its own ladder, per type, across the same radii.
+  // Passing `rawMatched` straight through once the TOTAL cleared the ladder was
+  // wrong twice over: a disclosed total of 6 could carry "1 corporate", which
+  // is one identifiable company; and the three sub-counts are themselves nested
+  // across radii, so they difference exactly like the total does.
+  const typeLadders = (['individual', 'corporate', 'coe'] as const).map((k) => ({
+    key: k,
+    rungs: discloseLadder(RADIUS_OPTIONS.map((r) => countWithinRadius(eligible, ref, r)[k])),
+  }));
+  const radiusIndex = RADIUS_OPTIONS.indexOf(radiusMiles as (typeof RADIUS_OPTIONS)[number]);
+  const subCount = (k: 'individual' | 'corporate' | 'coe') => {
+    if (matchedSuppressed || radiusIndex < 0) return 0;
+    const rungs = typeLadders.find((t) => t.key === k)!.rungs[radiusIndex];
+    return rungs.suppressed ? 0 : rungs.value;
+  };
   const matched = matchedSuppressed
     ? { total: 0, individual: 0, corporate: 0, coe: 0 }
-    : rawMatched;
+    : {
+        total: rawMatched.total,
+        individual: subCount('individual'),
+        corporate: subCount('corporate'),
+        coe: subCount('coe'),
+      };
+  // A sub-count withheld while the total is shown would otherwise read as a
+  // hard zero. The UI needs to tell "none" from "too few to say".
+  const typeBreakdownPartial = !matchedSuppressed && (['individual', 'corporate', 'coe'] as const)
+    .some((k) => rawMatched[k] > 0 && subCount(k) === 0);
 
-  const byCause = causeBreakdown(membersWithinRadius(eligible, ref, radiusMiles))
-    .map((row) => ({ cause: row.cause, ...disclose(row.count) }))
-    .filter((row) => !row.suppressed);
+  // Causes are nested across radii for exactly the same reason the totals are,
+  // and a per-bucket floor doesn't stop a cause counted 5 at 15mi and 6 at 25mi
+  // from naming the one person in that ring. Each cause therefore runs its own
+  // ladder over the radius options before the requested rung is read off.
+  const causeRungs = new Map<string, DisclosedCount[]>();
+  for (const r of RADIUS_OPTIONS) {
+    for (const row of causeBreakdown(membersWithinRadius(eligible, ref, r))) {
+      if (!causeRungs.has(row.cause)) causeRungs.set(row.cause, []);
+    }
+  }
+  for (const cause of causeRungs.keys()) {
+    const perRadius = RADIUS_OPTIONS.map((r) =>
+      causeBreakdown(membersWithinRadius(eligible, ref, r)).find((x) => x.cause === cause)?.count ?? 0);
+    causeRungs.set(cause, discloseLadder(perRadius));
+  }
+  const byCause = matchedSuppressed || radiusIndex < 0 ? [] : [...causeRungs.entries()]
+    .map(([cause, rungs]) => ({ cause, ...rungs[radiusIndex] }))
+    .filter((row) => !row.suppressed && row.value > 0)
+    .sort((a, b) => b.value - a.value || a.cause.localeCompare(b.cause));
 
   const { data: history } = await gate.service
     .from('tourneycircle_notifications').select('radius_miles, reached_count, clicked_count, registered_count, sent_at')
@@ -74,6 +129,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     matchedSuppressed,
     byRadius,
     byCause,
+    typeBreakdownPartial,
     minDisclosableCount: MIN_DISCLOSABLE_COUNT,
     expectedClicks: expectedClicks(matched.total),
     costCents: NOTIFICATION_COST_CENTS,

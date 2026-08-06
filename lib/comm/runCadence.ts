@@ -41,16 +41,27 @@ export interface CadenceRunResult {
 const dayLabel = (d: Date) =>
   `${d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })} at ${formatEventTime(d.toISOString())}`;
 
-export async function runCadence(service: DB, now = new Date()): Promise<CadenceRunResult> {
+// `tournamentId` narrows the run to one event. The nightly cron omits it and
+// sweeps everything; ANY caller acting for a single organizer must pass it.
+//
+// It used to be optional in practice as well as in the signature, and the
+// organizer's "Send due reminders now" button did not pass it. One organizer
+// pressing that button therefore sent another organizer's volunteers their
+// SMS and email, and got back `details` rows carrying the other tenant's
+// volunteer UUIDs and raw provider errors. The owner check upstream proved
+// ownership of the tournament in the URL and nothing else.
+export async function runCadence(service: DB, now = new Date(), tournamentId?: string): Promise<CadenceRunResult> {
   const result: CadenceRunResult = { tournaments: 0, considered: 0, sent: 0, failed: 0, alreadyClaimed: 0, details: [] };
 
   // Tournaments starting within the largest offset window (7 days + a day of
   // slack for the daily cron).
   const horizon = new Date(now.getTime() + 8 * 86_400_000).toISOString().slice(0, 10);
   const today = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
-  const { data: tournaments } = await service.from('tournaments')
+  let q = service.from('tournaments')
     .select('id, name, event_date, shotgun_time')
     .gte('event_date', today).lte('event_date', horizon);
+  if (tournamentId) q = q.eq('id', tournamentId);
+  const { data: tournaments } = await q;
 
   for (const t of tournaments ?? []) {
     result.tournaments++;

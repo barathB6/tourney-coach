@@ -43,6 +43,18 @@ export async function suppressedProfileIds(service: SupabaseClient, tournamentId
   return set;
 }
 
+// "Not interested" has to mean it. tourneycircle_declines was written by the
+// opt-in prompt and then read by nothing — a player who tapped "no thanks", or
+// who left the Circle, stayed in every subsequent paid blast. This is consent,
+// not a nicety, so it is enforced on the send path itself rather than left to
+// whichever caller remembers.
+export async function declinedProfileIds(service: SupabaseClient): Promise<Set<string>> {
+  const { data } = await service.from('tourneycircle_declines').select('player_profile_id');
+  const set = new Set<string>();
+  for (const d of data ?? []) if (typeof d.player_profile_id === 'string') set.add(d.player_profile_id);
+  return set;
+}
+
 export const notSuppressed = <T extends { player_profile_id: string | null }>(members: T[], suppressed: Set<string>): T[] =>
   members.filter((m) => !(m.player_profile_id && suppressed.has(m.player_profile_id)));
 
@@ -63,7 +75,11 @@ export async function sendCircleNotification(opts: {
     .select('home_lat, home_lng, member_type, player_profile_id, cadence_days');
   if (error) return { ok: false, reached: 0, error: CIRCLE_MIGRATION_HINT };
 
-  const suppressed = await suppressedProfileIds(service, tournamentId);
+  const [suppressed, declined] = await Promise.all([
+    suppressedProfileIds(service, tournamentId),
+    declinedProfileIds(service),
+  ]);
+  for (const id of declined) suppressed.add(id);
   const limit = milesToMeters(radiusMiles);
   const withinReach = notSuppressed((members ?? []) as RawMember[], suppressed).filter(
     (m) => m.home_lat != null && m.home_lng != null && haversineMeters({ lat: m.home_lat, lng: m.home_lng }, ref) <= limit,

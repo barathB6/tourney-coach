@@ -130,7 +130,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // The manual trigger for the cadence — the honest answer to daily-only crons.
   if (action === 'run_reminders') {
-    const run = await runCadence(gate.service);
+    // Scoped to THIS tournament. Unscoped, the button ran every organizer's
+    // cadence and handed this one the resulting per-volunteer details.
+    const run = await runCadence(gate.service, new Date(), id);
     return NextResponse.json({ ...(await snapshot(gate.service, id)), run });
   }
 

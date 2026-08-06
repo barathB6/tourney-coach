@@ -107,11 +107,28 @@ export async function POST(req: NextRequest) {
     // Fetch tournament for email
     const { data: tournament, error: tErr } = await supabase
       .from('tournaments')
-      .select('name, event_date, max_players, location_name')
+      .select('name, event_date, max_players, location_name, status')
       .eq('id', tournament_id)
       .single();
     if (tErr || !tournament) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+    }
+
+    // A draft tournament is not open to the public — it's a plan, not an event.
+    // The board (app/api/tournament/[id]/board), the scorecard and the
+    // microsite all gate on this; this route did not, so a stranger holding the
+    // id could register and be CHARGED for an event that had not been
+    // announced, with a date and price the organizer was still editing.
+    //
+    // The organizer's own manual path is exempt on purpose: entering the paper
+    // registrations you already collected, before you publish, is the normal
+    // way to open a tournament that pre-sold offline.
+    if (!manual && !['published', 'live'].includes(tournament.status as string)) {
+      return NextResponse.json({
+        error: tournament.status === 'completed'
+          ? 'This tournament is over and is no longer accepting registrations.'
+          : 'This tournament is not open for registration yet.',
+      }, { status: 409 });
     }
 
     // Capacity check, team-join check, foursome/hole assignment, and the

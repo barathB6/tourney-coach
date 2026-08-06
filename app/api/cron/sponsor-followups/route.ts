@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const results: { sponsorId: string; company: string; ok: boolean; error?: string }[] = [];
+  const results: { sponsorId: string; company: string; ok: boolean; error?: string; skipped?: string }[] = [];
 
   for (const sponsor of due ?? []) {
     try {
@@ -74,6 +74,17 @@ export async function GET(req: NextRequest) {
         isFollowUp: true,
       });
 
+      // Re-read immediately before sending. Drafting the email above is an
+      // Anthropic round trip, so this row's status may be minutes stale by now
+      // — and mailing "just following up, haven't heard back" to somebody who
+      // replied ten minutes ago is worse than sending nothing.
+      const { data: fresh } = await supabase
+        .from('sponsors').select('status').eq('id', sponsor.id).maybeSingle();
+      if (fresh?.status !== 'contacted') {
+        results.push({ sponsorId: sponsor.id, company: sponsor.company, ok: true, skipped: `status moved to ${fresh?.status ?? 'gone'}` });
+        continue;
+      }
+
       const { messageId } = await sendSponsorOutreachEmail({
         to: sponsor.email!,
         toName: sponsor.contact_name,
@@ -97,7 +108,16 @@ export async function GET(req: NextRequest) {
           last_touch: now,
           sendgrid_message_id: messageId ?? null,
         })
-        .eq('id', sponsor.id);
+        .eq('id', sponsor.id)
+        // Still 'contacted' — the guard, not decoration. Seconds to minutes
+        // pass between the query at the top and this write (an Anthropic draft
+        // and a SendGrid send in between), and a reply landing in that window
+        // moves the row to 'replied'. Without the guard this update dragged it
+        // back to 'contacted' — or to terminal 'no_reply' — burying a real
+        // reply behind a "No reply" chip, since the pipeline only surfaces
+        // reply_snippet while status === 'replied'. It also stomped anything
+        // the organizer set by hand mid-run.
+        .eq('status', 'contacted');
 
       results.push({ sponsorId: sponsor.id, company: sponsor.company, ok: true });
     } catch (err) {

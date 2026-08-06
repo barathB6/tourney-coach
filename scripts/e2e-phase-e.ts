@@ -190,10 +190,40 @@ async function run() {
   const { data: declineRow } = await db.from('tourneycircle_declines').select('id').eq('player_profile_id', declineReg.profileId).maybeSingle();
   ok(!!declineRow, 'decline persisted to tourneycircle_declines');
 
-  // Preferences read-back (the participant dashboard).
-  const { data: prefs } = await call(`/api/circle/opt-in?reg=${regs[0].id}`);
-  ok(prefs.optedIn === true && prefs.radiusMiles === 25, 'player can read back their own preferences');
+  // Preferences read-back — with the PLAYER'S OWN credential, not a
+  // registration id. A registration id is the round-link credential and the
+  // organizer holds one for every player at their event; keying this read on it
+  // let them read a named player's membership, radius and causes straight out
+  // of the API. prefs_token (046) is emailed to the player and nowhere else.
+  const byReg = await call(`/api/circle/opt-in?reg=${regs[0].id}`);
+  ok(byReg.status === 404,
+    'a REGISTRATION ID no longer reads anyone\u2019s TourneyCircle preferences', `HTTP ${byReg.status}`);
+
+  const { data: tokenRow } = await db.from('tourneycircle_members')
+    .select('prefs_token').eq('player_profile_id', regs[0].profileId).maybeSingle();
+  ok(!!tokenRow?.prefs_token, 'every member carries a prefs token (migration 046)');
+  const { data: prefs } = await call(`/api/circle/opt-in?token=${tokenRow?.prefs_token}`);
+  ok(prefs.optedIn === true && prefs.radiusMiles === 25, 'the player reads back their own preferences with it');
   ok(Array.isArray(prefs.causes) && (prefs.causes as string[]).includes('youth education'), 'cause preferences round-trip');
+
+  const guessed = await call(`/api/circle/opt-in?token=${crypto.randomUUID()}`);
+  ok(guessed.status === 404, 'a guessed token opens nothing', `HTTP ${guessed.status}`);
+
+  // Writes are gated the same way: the id-holder cannot move somebody else's
+  // home location or preferences.
+  const beforeRadius = prefs.radiusMiles;
+  await call('/api/circle/opt-in', {
+    method: 'POST',
+    body: JSON.stringify({ registrationId: regs[0].id, radiusMiles: 50, homeLat: 0, homeLng: 0 }),
+  });
+  const { data: after } = await call(`/api/circle/opt-in?token=${tokenRow?.prefs_token}`);
+  ok(after.radiusMiles === beforeRadius,
+    'and a registration id cannot OVERWRITE an existing member\u2019s preferences',
+    `${beforeRadius} \u2192 ${after.radiusMiles}`);
+  const { data: homeAfter } = await db.from('tourneycircle_members')
+    .select('home_lat, home_lng').eq('player_profile_id', regs[0].profileId).maybeSingle();
+  ok(Number(homeAfter?.home_lat) !== 0,
+    'nor move their home location \u2014 the anchor-forgery attack, closed on the write side too');
 
   // ── 4. Module 10 — behavioral suppression inputs ──────────────────────────
   section('4. Module 10 — behavioral suppression');
@@ -231,21 +261,51 @@ async function run() {
   ok(circle15.status === 200, 'organizer can read their own tournament counts', `HTTP ${circle15.status}`);
   ok(circle15.data.courseLocated === true, 'course location resolved from GPS tracks');
 
-  // 8 near players − 2 suppressed = 6 reachable inside 15mi.
+  // 8 near players inside 15mi. Behavioral suppression is deliberately NOT
+  // applied to the displayed count any more: it keys off this tournament's own
+  // registrations and visits, both of which the organizer can manufacture one
+  // row at a time, so a count that moved with it answered "is this person in
+  // TourneyCircle?" for one dollar of forged registration. Suppression still
+  // governs who is actually SENT to — asserted in section 7.
   const matched = circle15.data.matched as { total: number; individual: number };
-  ok(matched?.total === 6, 'matched count excludes registered + visited players', `got ${matched?.total}, expected 6`);
+  ok(matched?.total === 8, 'matched count is the in-range population, not attacker-movable',
+    `got ${matched?.total}, expected 8`);
 
   const byRadius = circle15.data.byRadius as { radiusMiles: number; value: number; suppressed: boolean }[];
   ok(Array.isArray(byRadius) && byRadius.length === RADIUS_OPTIONS.length, 'byRadius covers every radius option');
   const r15 = byRadius.find((r) => r.radiusMiles === 15)!;
   const r25 = byRadius.find((r) => r.radiusMiles === 25)!;
-  ok(!r15.suppressed && r15.value === 6, '15mi discloses (6 ≥ threshold)', JSON.stringify(r15));
-  // 25mi raw is 7; 7−6=1 would name the single player in that ring.
+  ok(!r15.suppressed && r15.value === 8, '15mi discloses (8 ≥ threshold)', JSON.stringify(r15));
+  // 25mi raw is 9; 9−8=1 would name the single player in that ring.
   ok(r25.suppressed, '25mi SUPPRESSED — its increment over 15mi is a single person', JSON.stringify(r25));
 
   const byCause = circle15.data.byCause as { cause: string; value: number }[];
-  ok(byCause.some((c) => c.cause === 'youth education' && c.value === 6), 'common cause reported', JSON.stringify(byCause));
+  ok(byCause.some((c) => c.cause === 'youth education' && c.value === 8), 'common cause reported', JSON.stringify(byCause));
   ok(!byCause.some((c) => c.value < MIN_DISCLOSABLE_COUNT), 'no cause bucket below the threshold is listed');
+
+  // Causes are nested across radii exactly like the totals are, so each cause
+  // runs its own ladder — a cause counted 5 at 15mi and 6 at 25mi would
+  // otherwise name the one person in that ring.
+  const causeWalk: string[] = [];
+  for (const r of RADIUS_OPTIONS) {
+    const res = await call(`/api/tournament/${tTarget.id}/circle?radius=${r}`, { headers: bearer(organizer.jwt) });
+    const rows = (res.data.byCause as { cause: string; value: number }[]) ?? [];
+    const yv = rows.find((c) => c.cause === 'youth education')?.value ?? null;
+    causeWalk.push(`${r}mi=${yv ?? '—'}`);
+  }
+  console.log(`     cause walk: ${causeWalk.join('  ')}`);
+  const causeNums = causeWalk.map((w) => Number(w.split('=')[1])).filter((n) => Number.isFinite(n));
+  const causeGaps = causeNums.slice(1).map((n, i) => n - causeNums[i]);
+  ok(causeGaps.every((g) => g === 0 || g >= MIN_DISCLOSABLE_COUNT),
+    'NO CAUSE RING BELOW THE THRESHOLD IS DIFFERENCEABLE', `gaps: ${causeGaps.join(',') || 'none'}`);
+
+  // Same rule for the member_type split, which used to pass through raw the
+  // moment the total cleared: a disclosed total of 6 could carry "1 corporate",
+  // which is one identifiable company.
+  ok(!([matched.individual, (circle15.data.matched as { corporate: number }).corporate,
+        (circle15.data.matched as { coe: number }).coe].some((n) => n > 0 && n < MIN_DISCLOSABLE_COUNT)),
+    'no member_type sub-count below the threshold is printed',
+    JSON.stringify(circle15.data.matched));
 
   // ── 6. Privacy firewall — attack the aggregate surface ────────────────────
   section('6. Privacy firewall — attacks from a real organizer session');
@@ -332,13 +392,30 @@ async function run() {
   const sendSmall = await call(`/api/tournament/${tTarget.id}/circle`, {
     method: 'POST', headers: bearer(organizer.jwt), body: JSON.stringify({ radiusMiles: 15 }),
   });
-  // 6 reachable at 15mi ≥ threshold, so this one should go through.
+  // The SEND is where behavioral suppression belongs — you never pay to notify
+  // someone already registered. 8 in range at 15mi, minus the one registered
+  // for TARGET and the one who visited its page, = 6 actually notified. (The
+  // decliner lives at 20mi, outside this radius; declines are asserted below.)
   ok(sendSmall.status === 200, 'send accepted when enough players are reachable', `HTTP ${sendSmall.status} ${sendSmall.raw.slice(0, 120)}`);
-  ok(sendSmall.data.reached === 6, 'reached count matches the eligible population', `got ${sendSmall.data.reached}`);
+  ok(sendSmall.data.reached === 6,
+    'SUPPRESSION STILL APPLIES TO THE SEND — registered and visited players are not paid for',
+    `got ${sendSmall.data.reached}`);
 
   const { count: sendRowCount } = await db.from('tourneycircle_sends')
     .select('id', { count: 'exact', head: true }).eq('tournament_id', tTarget.id);
   ok((sendRowCount ?? 0) >= 6, 'per-player send rows written (cadence + Module 25 tokens)', `${sendRowCount} rows`);
+
+  // "Not interested" has to mean it. tourneycircle_declines was written by the
+  // opt-in prompt and read by nothing, so a player who tapped "no thanks" —
+  // or who left the Circle entirely — stayed in every subsequent paid blast.
+  const wide = await call(`/api/tournament/${tTarget.id}/circle`, {
+    method: 'POST', headers: bearer(organizer.jwt), body: JSON.stringify({ radiusMiles: 50 }),
+  });
+  const { data: declinedSends } = await db.from('tourneycircle_sends')
+    .select('id').eq('tournament_id', tTarget.id).eq('player_profile_id', declineReg.profileId);
+  ok((declinedSends ?? []).length === 0,
+    'A DECLINED PLAYER IS NEVER SENT TO — consent is enforced on the send path',
+    `${declinedSends?.length} send row(s), wide send HTTP ${wide.status}`);
 
   // Cadence: an immediate second send has nobody outside their window.
   const sendAgain = await call(`/api/tournament/${tTarget.id}/circle`, {

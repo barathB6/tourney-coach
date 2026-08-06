@@ -330,7 +330,22 @@ export async function sendDonationOutreach(
   if (!email) return { ok: false, error: 'That prospect has no email address.', followUpNumber: -1 };
 
   const isFollowUp = opts.isFollowUp ?? (p.status as string) !== 'prospect';
-  const followUpNumber = isFollowUp ? int(p.follow_up_count) + 1 : 0;
+
+  // The claim slot is derived from the OUTREACH LOG, not from the prospect's
+  // mutable follow_up_count.
+  //
+  // The unique index that makes this idempotent is on
+  // (prospect_id, follow_up_number) — so the number two racers compute has to
+  // come from the same place the index lives, or they don't collide and the
+  // vendor gets two emails back to back. Deriving it from follow_up_count let
+  // the nightly cron and a manual "Send now" disagree: the cron's post-send
+  // update moves that column, and whichever caller read it on the other side of
+  // that write computed a different slot and sailed straight past the guard.
+  // Counting the log is stable for both.
+  const { count: sentCount } = await service.from('donation_outreach_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('prospect_id', prospectId).eq('direction', 'outbound');
+  const followUpNumber = sentCount ?? (isFollowUp ? int(p.follow_up_count) + 1 : 0);
 
   let subject = opts.subject?.trim();
   let body = opts.body?.trim();

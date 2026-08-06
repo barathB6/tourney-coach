@@ -36,14 +36,24 @@ export function anchorFor(
   shotgunTime: string | null,
 ): Date | null {
   if (!eventDate) return null;
-  if (phase === 'planning') return new Date(`${eventDate}T00:00:00`);
+  // The trailing Z is not cosmetic. Without it these strings parse in
+  // SERVER-local time, so the same tournament anchored at 08:30 on Vercel (UTC)
+  // and at 12:30 UTC on a developer's laptop in Eastern — while every consumer
+  // formats the result with timeZone:'UTC' (formatEventTime). Pinning it makes
+  // the anchor match what gets printed, in every environment.
+  //
+  // Note this is the platform's wall-clock convention, not a real instant:
+  // shotgun_time is free text with no zone, and tournaments have no timezone
+  // column yet. "8:30 AM" is carried through as 08:30Z end to end. See
+  // docs/day31-known-issues.md.
+  if (phase === 'planning') return new Date(`${eventDate}T00:00:00Z`);
   // Real rows hold "8:30 AM", not "08:30" — the strict-format check here used
   // to reject them and silently anchor every day-of task to 08:00. Same bug,
   // same fix as the F&B kitchen timeline (parseShotgunTime).
   const t = parseShotgunTime(shotgunTime) ?? { hour: 8, minute: 0 };
   const hh = String(t.hour).padStart(2, '0');
   const mm = String(t.minute).padStart(2, '0');
-  return new Date(`${eventDate}T${hh}:${mm}:00`);
+  return new Date(`${eventDate}T${hh}:${mm}:00Z`);
 }
 
 export function dueAt(

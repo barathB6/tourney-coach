@@ -1,3 +1,5 @@
+import { parseShotgunTime } from '@/lib/shotgunTime';
+
 export const FORMATS = ['scramble', 'best_ball', 'stableford', 'captains_choice', 'alternate_shot', 'stroke_play'] as const;
 export const MAX_SCORE_RULES = ['par', 'double_bogey', 'none'] as const;
 export const START_METHODS = ['single', 'double', 'wave', 'tee_times'] as const;
@@ -11,6 +13,8 @@ export type TournamentStatus = (typeof STATUSES)[number];
 export interface TournamentInput {
   name: string;
   event_date: string;
+  /** Free text, canonically "8:30 AM". See lib/shotgunTime.ts. */
+  shotgun_time?: string;
   course_id?: string;
   format?: TournamentFormat;
   max_score_rule?: MaxScoreRule;
@@ -48,6 +52,15 @@ export function validateTournament(data: Partial<TournamentInput>): ValidationEr
     } else if (date < today) {
       errors.push({ field: 'event_date', message: 'Event date must be in the future' });
     }
+  }
+
+  // A tournament with no start time is not a scheduling edge case — it is the
+  // default a tournament USED to be created with, because the wizard never
+  // asked. Everything downstream anchors to the shotgun (volunteer reminders,
+  // the day-of run sheet, the kitchen timeline, the "WHEN" card in the
+  // volunteer app) and every one of them quietly fell back to 8:00 AM.
+  if (data.shotgun_time !== undefined && data.shotgun_time !== '' && parseShotgunTime(data.shotgun_time) == null) {
+    errors.push({ field: 'shotgun_time', message: 'Start time must look like 8:30 AM' });
   }
 
   if (data.course_id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.course_id)) {

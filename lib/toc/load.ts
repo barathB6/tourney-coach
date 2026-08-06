@@ -70,8 +70,8 @@ export async function loadOperationsCenter(
     service.from('tournament_goals').select('*').eq('tournament_id', tournamentId).maybeSingle(),
     service.from('registrations').select('registration_type, payment_status').eq('tournament_id', tournamentId),
     service.from('sponsors').select('status, amount_cents').eq('tournament_id', tournamentId),
-    service.from('donation_prospects').select('id').eq('tournament_id', tournamentId),
-    service.from('communication_log').select('id, status').eq('tournament_id', tournamentId),
+    service.from('donation_prospects').select('id, status').eq('tournament_id', tournamentId),
+    service.from('communication_log').select('id, status, channel, meta').eq('tournament_id', tournamentId),
   ]);
 
   // Assignments grouped by role.
@@ -149,11 +149,31 @@ export async function loadOperationsCenter(
       .map((a) => a.role_template_id as string),
   ).size;
 
+  // "Donation items" is what has actually been SECURED, not how many vendors
+  // are in the list. Counting every row meant adding a prospect you never
+  // contacted — or one who said no — moved the goal bar, which is the opposite
+  // of what a goal is for.
+  const donationItems = (donations ?? []).filter((d) => d.status === 'committed').length;
+
+  // Marketing reach counts DELIVERIES, once each.
+  //
+  // sendComm writes two ledger rows per send: the delivery row, plus an
+  // unconditional in-app mirror so the volunteer portal shows everything we
+  // tried to tell them. Counting the whole table therefore doubled every
+  // send — and a FAILED email still scored one, because its mirror is written
+  // with status 'delivered' regardless. Ten emails read as reach 20; ten
+  // bounced emails read as reach 10.
+  const marketingReach = (comms ?? []).filter((c) => {
+    const meta = c.meta as { mirror_of?: string } | null;
+    if (meta?.mirror_of) return false;   // the copy, not the send
+    return c.status !== 'failed';
+  }).length;
+
   const goals = buildGoals(goalRow as Parameters<typeof buildGoals>[0], {
     players,
     sponsorshipCents,
-    donationItems: (donations ?? []).length,
-    marketingReach: (comms ?? []).filter((c) => c.status !== 'failed').length,
+    donationItems,
+    marketingReach,
     rolesFilled,
   });
 

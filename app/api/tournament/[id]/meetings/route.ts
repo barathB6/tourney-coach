@@ -173,8 +173,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { data: m } = await gate.service.from('planning_meetings')
       .select('id').eq('id', str(body?.meetingId, 64)).eq('tournament_id', id).maybeSingle();
     if (!m) return NextResponse.json({ error: 'That meeting is not part of this tournament.' }, { status: 404 });
-    await gate.service.from('meeting_attendance')
-      .upsert({ meeting_id: m.id, volunteer_id: str(body?.volunteerId, 64), status }, { onConflict: 'meeting_id,volunteer_id' });
+    // The volunteer has to be on THIS tournament — same check the action-item
+    // branch already makes. meeting_attendance only has an FK to the global
+    // volunteers table, so without this any volunteer uuid in the system was
+    // accepted: a cross-tenant row, and an existence oracle for volunteer ids
+    // (a real one upserted, a fake one silently did nothing and still returned
+    // 200).
+    const { data: vol } = await gate.service.from('volunteers')
+      .select('id').eq('id', str(body?.volunteerId, 64)).eq('tournament_id', id).maybeSingle();
+    if (!vol) return NextResponse.json({ error: 'That volunteer is not on this tournament.' }, { status: 400 });
+    const { error: attErr } = await gate.service.from('meeting_attendance')
+      .upsert({ meeting_id: m.id, volunteer_id: vol.id, status }, { onConflict: 'meeting_id,volunteer_id' });
+    if (attErr) return NextResponse.json({ error: 'Could not record attendance — run migration 040.' }, { status: 500 });
     return NextResponse.json(await snapshot(gate.service, id));
   }
 
@@ -194,8 +204,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { data: m } = await gate.service.from('planning_meetings')
     .select('id').eq('id', meetingId).eq('tournament_id', id).maybeSingle();
   if (!m) return NextResponse.json({ error: 'That meeting is not part of this tournament.' }, { status: 404 });
+  // Only what was actually sent. Writing both fields unconditionally meant the
+  // "save notes" button erased the agenda (and vice versa) — str() turns an
+  // absent field into '' and the `|| null` then wrote NULL over real text.
+  const patch: Record<string, string | null> = {};
+  if (body?.notes !== undefined) patch.notes = str(body.notes, 8000) || null;
+  if (body?.agenda !== undefined) patch.agenda = str(body.agenda, 4000) || null;
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: 'Nothing to save.' }, { status: 400 });
+  }
   await gate.service.from('planning_meetings')
-    .update({ notes: str(body?.notes, 8000) || null, agenda: str(body?.agenda, 4000) || null })
-    .eq('id', meetingId).eq('tournament_id', id);
+    .update(patch).eq('id', meetingId).eq('tournament_id', id);
   return NextResponse.json(await snapshot(gate.service, id));
 }

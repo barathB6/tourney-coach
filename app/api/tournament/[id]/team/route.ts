@@ -57,11 +57,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Reuse an existing volunteer on this tournament when the email matches —
   // one person taking three roles should be one row, so a phone-number change
   // updates every role at once.
+  //
+  // Matched case-insensitively but NOT with ilike — ilike treats `_` and `%`
+  // as wildcards, and both are legal in a local part. Adding "a_b@x.com" would
+  // silently attach the new role to whoever holds "axb@x.com", and
+  // "%@x.com" would match the first volunteer at that domain outright.
   let volunteerId: string | null = null;
   if (email) {
     const { data: existing } = await gate.service.from('volunteers')
-      .select('id').eq('tournament_id', id).ilike('email', email).maybeSingle();
-    volunteerId = existing?.id ?? null;
+      .select('id, email').eq('tournament_id', id);
+    const needle = email.toLowerCase();
+    volunteerId = (existing ?? []).find((v) => (v.email as string | null)?.trim().toLowerCase() === needle)?.id ?? null;
   }
   if (!volunteerId) {
     const { data: created, error } = await gate.service.from('volunteers')

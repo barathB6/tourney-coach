@@ -15,6 +15,7 @@ type CircleData = {
   matchedSuppressed: boolean;
   byRadius: ({ radiusMiles: number } & Disclosed)[];
   byCause: ({ cause: string } & Disclosed)[];
+  typeBreakdownPartial?: boolean;
   minDisclosableCount: number;
   expectedClicks: number;
   costCents: number;
@@ -134,6 +135,15 @@ export default function CirclePage() {
                 {total > 0 && (
                   <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)', marginTop: 8 }}>
                     {bd.individual} individual · {bd.corporate} corporate · {bd.coe} Circle of Excellence
+                    {/* Each of those three runs the same disclosure ladder as the
+                        total, so a split like "5 individual · 1 corporate" — one
+                        identifiable company — is withheld rather than printed.
+                        Saying so keeps a withheld bucket from reading as a zero. */}
+                    {data?.typeBreakdownPartial && (
+                      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>
+                        A category showing 0 here is too small to report, not necessarily empty — the split follows the same {data?.minDisclosableCount ?? 5}-player floor as the total.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

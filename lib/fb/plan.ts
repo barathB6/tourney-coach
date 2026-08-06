@@ -16,6 +16,11 @@ import { calculateFb, type FbPlan, type ConsumableKey, DEFAULT_BASELINES } from 
 import { countPlayers, type HeadcountRow } from '@/lib/registrations/headcount';
 import { getEventWeather, geocodeAddress, type EventWeather } from '@/lib/fb/weather';
 import { ASSUMED_MIN_PER_HOLE } from '@/lib/pace';
+import { parseShotgunTime } from '@/lib/shotgunTime';
+
+// Re-exported: this used to be defined here and several modules import it
+// from this path.
+export { parseShotgunTime } from '@/lib/shotgunTime';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, 'public', any>;
@@ -63,18 +68,7 @@ export const DEFAULT_SHOTGUN_HOUR = 8;
  * back to 8:00 and the entire kitchen timeline shifted by half an hour.
  * Returns null when there is genuinely nothing parseable.
  */
-export function parseShotgunTime(raw: string | null | undefined): { hour: number; minute: number } | null {
-  if (!raw) return null;
-  const m = raw.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
-  if (!m) return null;
-  let hour = Number(m[1]);
-  const minute = m[2] ? Number(m[2]) : 0;
-  const meridiem = m[3]?.toLowerCase();
-  if (hour > 23 || minute > 59) return null;
-  if (meridiem === 'pm' && hour < 12) hour += 12;
-  if (meridiem === 'am' && hour === 12) hour = 0;
-  return { hour, minute };
-}
+
 
 /** Combine an event date and a shotgun time into an ISO instant. */
 export function shotgunInstant(eventDate: string | null, shotgunTime: string | null): string | null {

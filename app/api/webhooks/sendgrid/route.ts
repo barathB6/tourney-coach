@@ -1,10 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createVerify } from 'crypto';
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
+
+// SendGrid's Event Webhook signs each batch with an ECDSA key you enable in
+// Settings → Mail Settings → Signed Event Webhook. Without it this endpoint
+// takes anyone's word for what happened to an email: the events carry
+// sponsor_id / prospect_id / comm_log_id, so a forged batch can inflate open
+// counts, advance a prospect to 'opened', or mark a volunteer's reminder read
+// (which is a real input — the guidance engine reads unopened email to decide
+// whether to escalate someone to SMS).
+//
+// The events are POSTed by SendGrid, not by us, so this reads the public key
+// from the environment. When it isn't set the endpoint stays open, because
+// silently dropping every event would break tracking with no visible cause —
+// but it says so in the log, once, rather than pretending it is verified.
+const SIGNATURE_HEADER = 'x-twilio-email-event-webhook-signature';
+const TIMESTAMP_HEADER = 'x-twilio-email-event-webhook-timestamp';
+let warnedUnverified = false;
+
+function verifySignature(raw: string, signature: string | null, timestamp: string | null): boolean {
+  const key = process.env.SENDGRID_WEBHOOK_PUBLIC_KEY?.trim();
+  if (!key) {
+    if (!warnedUnverified) {
+      warnedUnverified = true;
+      console.warn('SendGrid event webhook is UNVERIFIED — set SENDGRID_WEBHOOK_PUBLIC_KEY to reject forged batches.');
+    }
+    return true;
+  }
+  if (!signature || !timestamp) return false;
+  try {
+    const pem = `-----BEGIN PUBLIC KEY-----\n${key.replace(/-----(BEGIN|END) PUBLIC KEY-----/g, '').replace(/\s+/g, '').match(/.{1,64}/g)?.join('\n')}\n-----END PUBLIC KEY-----\n`;
+    return createVerify('sha256')
+      .update(timestamp + raw)
+      .verify(pem, Buffer.from(signature, 'base64'));
+  } catch {
+    return false;
+  }
+}
 
 interface SendGridEvent {
   event: string;
@@ -23,9 +60,15 @@ interface SendGridEvent {
 // reply is handled by the inbound-parse webhook, and commit/decline flow
 // from the Adyen payment webhook and the organizer's status changes.
 export async function POST(req: NextRequest) {
+  // Signature is over the RAW body, so it has to be read as text first.
+  const raw = await req.text();
+  if (!verifySignature(raw, req.headers.get(SIGNATURE_HEADER), req.headers.get(TIMESTAMP_HEADER))) {
+    return NextResponse.json({ error: 'Bad signature' }, { status: 403 });
+  }
+
   let events: SendGridEvent[];
   try {
-    events = await req.json();
+    events = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }

@@ -388,7 +388,13 @@ function MeetingsView({ meetings, busy, mtgDraft, setMtgDraft, itemDraft, setIte
           style={{ ...S.input, marginTop: 10, resize: 'vertical' }} />
         <button
           onClick={async () => {
-            await call('POST', { title: mtgDraft.title, scheduledAt: mtgDraft.scheduledAt, agenda: mtgDraft.agenda });
+            // A datetime-local input yields a naked wall-clock string with no
+            // zone ("2026-09-15T18:30"). Parsing that on the SERVER read it as
+            // server time — UTC on Vercel — so a chair in Central booked 6:30pm
+            // and the meeting came back as 1:30pm. The browser is the only place
+            // that knows which 6:30 they meant, so it resolves the instant here.
+            const localIso = new Date(mtgDraft.scheduledAt).toISOString();
+            await call('POST', { title: mtgDraft.title, scheduledAt: localIso, agenda: mtgDraft.agenda });
             setMtgDraft({ title: '', scheduledAt: '', agenda: '' });
           }}
           disabled={busy || !mtgDraft.scheduledAt}

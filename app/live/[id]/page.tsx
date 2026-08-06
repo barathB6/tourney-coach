@@ -373,8 +373,11 @@ export default function LiveRoundPage() {
       });
       const d = await res.json().catch(() => ({}));
       if (decline) { setCirclePrompt(false); return; }
+      // The preferences link is deliberately not in this response — it carries
+      // the player's own credential, and this request is authenticated by a
+      // registration id, which their organizer also holds. It goes by email.
       setCircleResult(res.ok
-        ? `You're in.${d.memberCountNearby ? ` ${d.memberCountNearby} TourneyCircle golfer${d.memberCountNearby === 1 ? '' : 's'} near you.` : ''}`
+        ? `You're in.${d.memberCountNearby ? ` ${d.memberCountNearby} TourneyCircle golfer${d.memberCountNearby === 1 ? '' : 's'} near you.` : ''} Check your email for a link to manage what you hear about.`
         : (d.error || 'Could not save — try again.'));
     } catch {
       setCircleResult('Could not save — check your connection.');

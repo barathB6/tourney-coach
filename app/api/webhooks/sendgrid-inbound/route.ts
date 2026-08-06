@@ -11,9 +11,26 @@ const getSupabase = () => createClient(
 // Always ack so SendGrid Inbound Parse doesn't retry — we own our own errors.
 const ACK = NextResponse.json({ ok: true }, { status: 200 });
 
-// Statuses that already represent a resolved outcome — a late reply shouldn't
-// downgrade a committed or declined sponsor, but we still record it.
-const TERMINAL = new Set(['paid', 'invoiced', 'declined']);
+// An inbound email may only advance the two states that MEAN "we are waiting
+// to hear back". Every other status was established by the organizer or by a
+// payment, and an email must not undo it. The reply itself (replied_at,
+// reply_snippet, last_touch) is recorded either way, and forwarded either way.
+//
+// This was an allow-list of terminal states — paid/invoiced/declined — which
+// left two live states exposed, both reachable by anyone who has the sponsor
+// uuid from the Reply-To of an outreach email:
+//
+//   'verbal'  counts as SOLD inventory (api/sponsors/purchase counts
+//             paid+invoiced+verbal against tier quantity). Knocking it back to
+//             'replied' reopened a quantity-1 tier for a second sale, and took
+//             away the "Send invoice" action, which only renders on 'verbal'.
+//             An out-of-office auto-reply was enough to do it.
+//
+//   'pending' is mid-checkout. The Adyen webhook flips to paid with
+//             .eq('status','pending'); moving the row out from under it meant
+//             the card was charged and the sponsor never marked paid — no
+//             confirmation, absent from sold counts and the recognition list.
+const AWAITING_REPLY = new Set(['contacted', 'no_reply']);
 
 function extractSponsorId(...candidates: (string | null | undefined)[]): string | null {
   const re = /reply-([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
@@ -133,7 +150,7 @@ export async function POST(req: NextRequest) {
       }
       return ACK;
     }
-    const nextStatus = TERMINAL.has(sponsor.status) ? sponsor.status : 'replied';
+    const nextStatus = AWAITING_REPLY.has(sponsor.status) ? 'replied' : sponsor.status;
 
     await supabase
       .from('sponsors')

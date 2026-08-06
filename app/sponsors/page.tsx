@@ -137,9 +137,18 @@ export default function SponsorsPage() {
     setTiers((data ?? []).map(t => ({ ...t, benefits: (t.benefits as string[]) ?? [] })));
   }
 
-  // Prospects marked "contacted" with no reply after this many days are
-  // auto-flagged "no reply" so follow-up surfaces without manual bookkeeping.
+  // Prospects sitting at "contacted" this long with no reply get a visible
+  // nudge in the table.
+  //
+  // This used to WRITE status = 'no_reply' on page load. That silently killed
+  // the automated cadence: the follow-up cron only matches rows still at
+  // 'contacted' and only becomes eligible at 7 days, so this 5-day flip always
+  // got there first and no prospect ever received an automated follow-up.
+  // Staleness is a property of last_touch, so it is derived on render now —
+  // the organizer sees the same signal, and the row stays eligible.
   const NO_REPLY_THRESHOLD_DAYS = 5;
+  const isStale = (sp: { status: string; last_touch?: string | null }) =>
+    sp.status === 'contacted' && !!sp.last_touch && daysSince(sp.last_touch) >= NO_REPLY_THRESHOLD_DAYS;
 
   async function loadSponsors(tid: string) {
     const { data } = await supabase
@@ -147,17 +156,7 @@ export default function SponsorsPage() {
       .select('*')
       .eq('tournament_id', tid)
       .order('created_at', { ascending: false });
-    let rows = data ?? [];
-
-    const staleIds = rows
-      .filter(s => s.status === 'contacted' && s.last_touch && daysSince(s.last_touch) >= NO_REPLY_THRESHOLD_DAYS)
-      .map(s => s.id);
-    if (staleIds.length > 0) {
-      await supabase.from('sponsors').update({ status: 'no_reply' }).in('id', staleIds);
-      rows = rows.map(s => staleIds.includes(s.id) ? { ...s, status: 'no_reply' } : s);
-    }
-
-    setSponsors(rows);
+    setSponsors(data ?? []);
   }
 
   // ── Tier operations ──────────────────────────────────────────────────────
@@ -503,7 +502,8 @@ export default function SponsorsPage() {
                       const tier = tierOf(sp);
                       const meta = STATUS_META[sp.status] ?? STATUS_META.not_contacted;
                       const isExpanded = expandedId === sp.id;
-                      const noReplyDays = sp.status === 'no_reply' && sp.last_touch ? daysSince(sp.last_touch) : null;
+                      const noReplyDays = ((sp.status === 'no_reply' || isStale(sp)) && sp.last_touch)
+                        ? daysSince(sp.last_touch) : null;
                       return (
                         <React.Fragment key={sp.id}>
                         <tr style={{ borderBottom: '1px solid #E5E0D5' }}>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { validateTournament, TournamentInput } from '@/lib/tournaments';
 import { holeParsFromRows } from '@/lib/course';
+import { formatShotgunTime } from '@/lib/shotgunTime';
 
 function generateSlug(name: string): string {
   return name
@@ -58,6 +59,9 @@ export async function POST(req: NextRequest) {
     name: body.name.trim(),
     slug: generateSlug(body.name.trim()),
     event_date: body.event_date,
+    // Normalised to "8:30 AM" on the way in, so every reader (parseShotgunTime)
+    // and every display (the microsite, the run sheet) sees one shape.
+    shotgun_time: formatShotgunTime(body.shotgun_time),
     course_id: body.course_id || null,
     format: body.format || 'scramble',
     max_score_rule: body.max_score_rule || 'par',
@@ -76,6 +80,12 @@ export async function POST(req: NextRequest) {
   }
 
   let { data, error } = await supabase.from('tournaments').insert(insertRow).select().single();
+
+  // Pre-migration fallback: shotgun_time predates some deployments.
+  if (error && /shotgun_time/.test(error.message)) {
+    delete insertRow.shotgun_time;
+    ({ data, error } = await supabase.from('tournaments').insert(insertRow).select().single());
+  }
 
   // Pre-migration fallback: hole_pars may not exist yet (022_shotgun_start).
   if (error && insertRow.hole_pars && /hole_pars/.test(error.message)) {

@@ -62,6 +62,7 @@ export default function SetupClient() {
     name: '',
     causeName: '',
     eventDate: '',
+    startTime: '08:30',
     courseId: '',
     selectedTees: [] as string[],
     customCourseName: '',
@@ -187,7 +188,7 @@ export default function SetupClient() {
     switch (step) {
       case 1: return !!formData.format;
       case 2: return !!(formData.maxPlayers && formData.shotgunType);
-      case 3: return !!(formData.eventDate && (formData.courseId || (useCustomCourse && formData.customCourseName)));
+      case 3: return !!(formData.eventDate && formData.startTime && (formData.courseId || (useCustomCourse && formData.customCourseName)));
       case 4: return !!(formData.entryFee && formData.name);
       case 5: return true;
       default: return true;
@@ -207,6 +208,7 @@ export default function SetupClient() {
       const payload: TournamentInput = {
         name: formData.name,
         event_date: formData.eventDate,
+        shotgun_time: formData.startTime,
         course_id: formData.courseId || undefined,
         selected_tees: formData.selectedTees.length > 0 ? formData.selectedTees : undefined,
         format: formData.format as TournamentInput['format'],
@@ -356,10 +358,22 @@ export default function SetupClient() {
                 <h2 className="text-xl font-bold text-gray-900">Date & course</h2>
                 <p className="text-sm text-gray-500 mt-1">When and where is the tournament?</p>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-1.5">Event Date *</label>
-                <input type="date" name="eventDate" value={formData.eventDate} onChange={handleChange}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-700 focus:border-transparent outline-none text-sm" required />
+              {/* Date AND time. The start time is not a nicety: volunteer
+                  reminders, the day-of run sheet, the kitchen timeline and the
+                  "WHEN" card in the volunteer app all measure their offsets
+                  from it. Without it every one of them silently assumed 8:00. */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Event Date *</label>
+                  <input type="date" name="eventDate" value={formData.eventDate} onChange={handleChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-700 focus:border-transparent outline-none text-sm" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-1.5">Shotgun Start *</label>
+                  <input type="time" name="startTime" value={formData.startTime} onChange={handleChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-700 focus:border-transparent outline-none text-sm" required />
+                  <p className="text-xs text-gray-500 mt-1.5">Volunteer call times and the kitchen schedule count backwards from this.</p>
+                </div>
               </div>
               {!useCustomCourse ? (
                 <>
