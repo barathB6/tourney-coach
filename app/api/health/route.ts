@@ -89,10 +89,18 @@ export async function GET() {
     //
     // Gated on having sent something first, so a fresh install with no
     // outreach does not cry wolf.
+    // An open only counts as EVIDENCE if the same row also shows a real send.
+    // Demo seed data breaks this otherwise: a "Riverbend Realty" fixture in
+    // this database carries email_opens=2 dated July 2025 with no message id
+    // and outreach_sent_at null — an email that was never sent cannot have
+    // been opened. Without the corroboration clause that single fake row made
+    // this check report OK while the condition it exists to catch was true.
     const [{ count: outreachSent }, { count: sponsorOpens }, { count: prospectOpens }] = await Promise.all([
       db.from('sponsors').select('id', { count: 'exact', head: true }).not('sendgrid_message_id', 'is', null),
-      db.from('sponsors').select('id', { count: 'exact', head: true }).gt('email_opens', 0),
-      db.from('donation_prospects').select('id', { count: 'exact', head: true }).gt('email_opens', 0),
+      db.from('sponsors').select('id', { count: 'exact', head: true })
+        .gt('email_opens', 0).not('sendgrid_message_id', 'is', null),
+      db.from('donation_prospects').select('id', { count: 'exact', head: true })
+        .gt('email_opens', 0).not('last_contact_at', 'is', null),
     ]);
     const anyOpens = (sponsorOpens ?? 0) + (prospectOpens ?? 0) > 0;
     checks.push({
