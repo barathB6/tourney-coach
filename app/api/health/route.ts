@@ -73,6 +73,38 @@ export async function GET() {
       const note = await p.run().catch((e) => String(e));
       checks.push({ name: p.name, ok: note == null, critical: true, note: note ?? 'applied' });
     }
+
+    // ── Is the SendGrid Event Webhook actually delivering? ──────────────────
+    //
+    // Nothing else notices when it is not. `email_opens` on sponsors and
+    // donation prospects can ONLY be written by that webhook, so if outreach
+    // has gone out and neither counter has ever moved, engagement events are
+    // not reaching us.
+    //
+    // This is not cosmetic. The guidance engine escalates a volunteer to SMS
+    // after two emails it believes went unopened (lib/guidance/engine.ts) —
+    // and with no webhook, `read_at` is never stamped, so EVERY email older
+    // than 48 hours looks ignored. The organizer is then told "2 unopened
+    // emails" about someone who may have read all of them.
+    //
+    // Gated on having sent something first, so a fresh install with no
+    // outreach does not cry wolf.
+    const [{ count: outreachSent }, { count: sponsorOpens }, { count: prospectOpens }] = await Promise.all([
+      db.from('sponsors').select('id', { count: 'exact', head: true }).not('sendgrid_message_id', 'is', null),
+      db.from('sponsors').select('id', { count: 'exact', head: true }).gt('email_opens', 0),
+      db.from('donation_prospects').select('id', { count: 'exact', head: true }).gt('email_opens', 0),
+    ]);
+    const anyOpens = (sponsorOpens ?? 0) + (prospectOpens ?? 0) > 0;
+    checks.push({
+      name: 'email open tracking',
+      ok: anyOpens || (outreachSent ?? 0) === 0,
+      critical: false,
+      note: anyOpens
+        ? undefined
+        : (outreachSent ?? 0) === 0
+          ? 'no tracked outreach sent yet — nothing to measure'
+          : `${outreachSent} tracked email(s) sent and ZERO opens ever recorded — the SendGrid Event Webhook may not be pointed at /api/webhooks/sendgrid. Guidance will read every email as ignored and escalate volunteers to SMS.`,
+    });
   } catch (e) {
     checks.push({ name: 'database', ok: false, critical: true, note: e instanceof Error ? e.message : 'unreachable' });
   }
