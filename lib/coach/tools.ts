@@ -21,6 +21,9 @@ import { applyScoreCorrection } from '@/lib/scoring/correct';
 import type { MaxScoreRule } from '@/lib/scoring/leaderboard';
 import { hashPassword, issuedPassword, newLinkToken, normalizeEmail } from '@/lib/proAccess';
 import { sendProAccessInviteEmail } from '@/lib/email/proAccessInvite';
+import { loadOperationsCenter } from '@/lib/toc/load';
+import { loadFbPlan, saveFbInputs } from '@/lib/fb/plan';
+import { plural } from '@/lib/plural';
 
 // Anthropic tool definitions passed to the model.
 export const COACH_TOOLS = [
@@ -281,6 +284,49 @@ export const COACH_TOOLS = [
       required: ['email'],
     },
   },
+  {
+    name: 'get_goals',
+    description:
+      "Read the tournament's five goals — players, sponsorship $, donation items, marketing reach, volunteer roles — with LIVE progress toward each. Use to answer 'how are we tracking?' or before setting a goal. Progress is derived from the real data, so it is always current.",
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'set_goals',
+    description:
+      "Set the tournament's goal TARGETS. Only include the goals the organizer wants to set; the others are left alone. Progress toward them is always computed live and can never be set here. Internal setting, safe to change.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        playerGoal: { type: 'integer', description: 'target number of players' },
+        sponsorshipGoalDollars: { type: 'integer', description: 'sponsorship target in dollars' },
+        donationItemsGoal: { type: 'integer', description: 'target count of secured donation items' },
+        marketingReachGoal: { type: 'integer', description: 'target number of people reached' },
+        volunteerRolesGoal: { type: 'integer', description: 'target number of filled volunteer roles' },
+      },
+    },
+  },
+  {
+    name: 'get_fb_plan',
+    description:
+      "Read the weather-adjusted food & beverage plan: how much beer, water, soft drinks, sports drinks and snacks to order for the current headcount and temperature, in both servings and whole cases/boxes. Use for 'how much beer do I need?' or F&B ordering questions. If no temperature has been set the plan can't be computed yet — tell them to set one on the F&B page or ask you to.",
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'set_fb_temperature',
+    description:
+      "Set the forecast temperature (°F) the F&B plan is calculated against, entered by hand. Use for 'plan for 85 degrees'. Recomputes every quantity. For an automatic forecast the organizer uses the Fetch Forecast button on the F&B page.",
+    input_schema: {
+      type: 'object',
+      properties: { temperatureF: { type: 'integer', description: 'forecast high in Fahrenheit, 40–120' } },
+      required: ['temperatureF'],
+    },
+  },
+  {
+    name: 'list_donations',
+    description:
+      "List the tournament's vendor donation prospects — the businesses being asked for raffle/auction items or in-kind support — with their category, status (prospect → contacted → opened → responded → committed → declined) and contact. Use before reporting on donations or the 'donation items' goal.",
+    input_schema: { type: 'object', properties: {} },
+  },
 ] as const;
 
 export interface ToolResult { ok: boolean; summary: string; error?: string }
@@ -402,7 +448,74 @@ export async function executeCoachTool(name: string, input: Record<string, unkno
       return { ok: true, summary: lines.join('\n') };
     }
 
+    case 'get_goals': {
+      // Reuse the exact derivation the goals dashboard uses, so the coach and
+      // the page can never disagree about progress.
+      const oc = await loadOperationsCenter(ctx.service, tid);
+      if (!oc) return { ok: false, summary: '', error: 'Could not read the goals.' };
+      const fmt = (g: { unit: string; target: number | null; actual: number }) => {
+        const v = (n: number) => (g.unit === 'cents' ? `$${(n / 100).toLocaleString()}` : `${n}`);
+        return g.target == null ? `${v(g.actual)} (no target set)` : `${v(g.actual)} of ${v(g.target)}`;
+      };
+      const lines = oc.goals.map((g) => `${g.label}: ${fmt(g)}${g.met ? ' ✓ met' : ''}`);
+      const met = oc.goals.filter((g) => g.met).length;
+      return { ok: true, summary: `${met} of ${oc.goals.length} goals met.\n${lines.join('\n')}` };
+    }
+
+    case 'list_donations': {
+      const { data, error } = await ctx.service.from('donation_prospects')
+        .select('id, name, company, category, status, contact_name, email').eq('tournament_id', tid).order('created_at').limit(200);
+      if (error) return { ok: false, summary: '', error: 'Could not read donation prospects — the donation engine may need migration 041.' };
+      if (!data?.length) return { ok: true, summary: 'no donation prospects yet' };
+      const committed = data.filter((d) => d.status === 'committed').length;
+      const lines = data.map((d) => `${d.company || d.name} | ${d.category ?? 'uncategorized'} | ${d.status}${d.contact_name ? ` | ${d.contact_name}` : ''}`);
+      return { ok: true, summary: `${data.length} prospect(s), ${committed} committed:\n${lines.join('\n')}` };
+    }
+
+    case 'get_fb_plan': {
+      const rec = await loadFbPlan(ctx.service, tid);
+      if (!rec) return { ok: false, summary: '', error: 'Could not read the F&B plan.' };
+      if (!rec.plan) return { ok: true, summary: `No temperature is set yet, so quantities can't be computed. Headcount is ${rec.livePlayerCount} players. Set a temperature and I'll build the order.` };
+      const lines = rec.plan.lines.map((l) => `${l.label}: ${l.packs} ${plural(l.packUnit, l.packs)} (${l.packedUnits} servings)`);
+      return { ok: true, summary: `F&B plan for ${rec.plan.inputs.playerCount} players at ${Math.round(rec.plan.inputs.temperatureF)}°F:\n${lines.join('\n')}` };
+    }
+
     // ── Safe writes ─────────────────────────────────────────────────────────
+    case 'set_goals': {
+      const patch: Record<string, unknown> = { tournament_id: tid };
+      const changes: string[] = [];
+      const pg = int(input.playerGoal);
+      if (pg !== null && pg >= 0) { patch.player_goal = pg; changes.push(`player goal ${pg}`); }
+      const sg = int(input.sponsorshipGoalDollars);
+      if (sg !== null && sg >= 0) { patch.sponsorship_goal_cents = sg * 100; changes.push(`sponsorship goal $${sg.toLocaleString()}`); }
+      const dg = int(input.donationItemsGoal);
+      if (dg !== null && dg >= 0) { patch.donation_items_goal = dg; changes.push(`donation items goal ${dg}`); }
+      const mg = int(input.marketingReachGoal);
+      if (mg !== null && mg >= 0) { patch.marketing_reach_goal = mg; changes.push(`marketing reach goal ${mg}`); }
+      const vg = int(input.volunteerRolesGoal);
+      if (vg !== null && vg >= 0) { patch.volunteer_roles_goal = vg; changes.push(`volunteer roles goal ${vg}`); }
+      if (!changes.length) return { ok: false, summary: '', error: 'Nothing valid to set there.' };
+      const { error } = await ctx.service.from('tournament_goals').upsert(patch, { onConflict: 'tournament_id' });
+      if (error) return { ok: false, summary: '', error: 'Could not save the goals — the goals table may need its migration.' };
+      return { ok: true, summary: `set ${changes.join(', ')}` };
+    }
+
+    case 'set_fb_temperature': {
+      const temp = int(input.temperatureF);
+      if (temp === null || temp < 40 || temp > 120) return { ok: false, summary: '', error: 'Give me a temperature between 40 and 120°F.' };
+      try {
+        await saveFbInputs(ctx.service, tid, {
+          temperature_f: temp, weather_source: 'manual',
+          weather_summary: `Entered via the coach: ${temp}°F.`, weather_fetched_at: new Date().toISOString(),
+        });
+      } catch {
+        return { ok: false, summary: '', error: 'Could not save the temperature — the F&B planner may need migration 041.' };
+      }
+      const rec = await loadFbPlan(ctx.service, tid);
+      const beer = rec?.plan?.lines.find((l) => l.key === 'beer');
+      return { ok: true, summary: `F&B plan set to ${temp}°F for ${rec?.plan?.inputs.playerCount ?? '?'} players${beer ? ` — e.g. ${beer.packs} ${plural(beer.packUnit, beer.packs)} of beer` : ''}.` };
+    }
+
     case 'update_event_settings': {
       const patch: Record<string, unknown> = {};
       const changes: string[] = [];
@@ -453,7 +566,19 @@ export async function executeCoachTool(name: string, input: Record<string, unkno
         return { ok: false, summary: '', error: `I need an email address for ${contactName} — that's how their confirmation and scorecard link get to them.` };
       }
       const type = ['single', 'foursome', 'sponsor'].includes(str(input.type)) ? str(input.type) : 'foursome';
-      const price = type === 'single' ? 16500 : type === 'sponsor' ? 500000 : 60000;
+      // Price from THIS tournament's entry fee, like the public registration
+      // route (Day 31). These were flat constants — $600/foursome on every
+      // tournament regardless of what the organizer set — so a coach-entered
+      // paper registration was billed differently from an online one at the
+      // same event. entry_fee_cents is the per-player fee; a foursome is 4.
+      const { data: tRow } = await ctx.service.from('tournaments').select('entry_fee_cents').eq('id', tid).maybeSingle();
+      const entry = (tRow?.entry_fee_cents as number | null) ?? 12500;
+      let price = type === 'single' ? entry : entry * 4;
+      if (type === 'sponsor') {
+        const { data: top } = await ctx.service.from('sponsorship_tiers')
+          .select('price_cents').eq('tournament_id', tid).order('price_cents', { ascending: false }).limit(1).maybeSingle();
+        price = (top?.price_cents as number | null) ?? 500000;
+      }
       const { error } = await ctx.service.from('registrations').insert({
         tournament_id: tid,
         contact_name: contactName,
