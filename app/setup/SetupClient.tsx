@@ -225,7 +225,24 @@ export default function SetupClient() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.errors?.[0]?.message || data.error || 'Something went wrong');
-      setSuccess('Tournament created!');
+
+      // Actually publish it. The create route makes a DRAFT on purpose — an
+      // abandoned wizard should never leave a public tournament behind — but
+      // this final button says "Publish Tournament", and until now it lied:
+      // the tournament stayed draft forever, with no control anywhere to
+      // publish it. A draft microsite 404s and registration is refused, so the
+      // organizer's event was born un-shareable. This explicit click is the
+      // organizer saying "make it live", so we transition it here.
+      let published = true;
+      if (data.id) {
+        const pub = await authedFetch(`/api/tournaments/${data.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'published' }),
+        });
+        published = pub.ok;
+      }
+      setSuccess(published ? 'Tournament published!' : 'Created as a draft — publish it from your dashboard.');
       // The draft's job is done — clear it so a future "new tournament" run
       // doesn't reopen this one's now-published data.
       if (userId) { try { localStorage.removeItem(draftKey(userId)); } catch { /* ignore */ } }

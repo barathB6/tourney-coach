@@ -521,7 +521,7 @@ async function run() {
 
 // ── Purge ───────────────────────────────────────────────────────────────────
 async function purge(quiet = false) {
-  const say = (m: string) => { if (!quiet) say(m); };
+  const say = (m: string) => { if (!quiet) console.log(m); };
   say('Purging ZZZ E2E PHASE-E entities…');
 
   const { data: tournaments } = await db.from('tournaments').select('id, name').ilike('name', `${TAG}%`);

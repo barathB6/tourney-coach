@@ -135,12 +135,24 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     if (pars) update.hole_pars = pars;
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('tournaments')
     .update(update)
     .eq('id', id)
     .select()
     .single();
+
+  // Pre-migration fallback: the status-transition timestamp columns
+  // (published_at / live_at / completed_at) are referenced by
+  // getTimestampField but were never added to the table (migration 050 adds
+  // them). Until then, writing one 500s — which meant PUBLISHING A TOURNAMENT
+  // FAILED OUTRIGHT, because the wizard's "Publish" and the new dashboard
+  // toggle both go through here. The transition itself doesn't need the
+  // timestamp, so drop it and retry rather than block the publish.
+  if (error && /(published_at|live_at|completed_at)/.test(error.message)) {
+    for (const f of ['published_at', 'live_at', 'completed_at']) delete update[f];
+    ({ data, error } = await supabase.from('tournaments').update(update).eq('id', id).select().single());
+  }
 
   if (error) {
     if (error.code === '23505') {

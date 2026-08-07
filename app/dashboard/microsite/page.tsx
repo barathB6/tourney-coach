@@ -1,6 +1,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabaseClient';
+import { authedFetch } from '@/lib/authedFetch';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -42,6 +43,27 @@ export default function MicrositeEditorPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [publishing, setPublishing] = useState(false);
+
+  // Publish / unpublish. Until now there was NO control anywhere in the product
+  // that moved a tournament out of 'draft' — the setup wizard's "Publish"
+  // button created a draft and stopped, so every tournament was born
+  // un-shareable: a draft microsite 404s and registration is refused. This is
+  // that missing control. draft→published makes the public page live and opens
+  // registration; published→draft pulls it back while you keep editing.
+  const togglePublish = async () => {
+    if (!tournament || publishing) return;
+    const next = tournament.status === 'draft' ? 'published' : 'draft';
+    setPublishing(true); setError('');
+    const res = await authedFetch(`/api/tournaments/${tournament.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: next }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setPublishing(false);
+    if (!res.ok) { setError(d.error || 'Could not change the publish state.'); return; }
+    setTournament(t => (t ? { ...t, status: next } : t));
+  };
 
   useEffect(() => {
     supabase.auth.getUser().then(async (response) => {
@@ -160,6 +182,39 @@ export default function MicrositeEditorPage() {
               style={{ fontSize: 13, color: '#1B6B3A', border: '1px solid #1B6B3A', padding: '6px 14px', borderRadius: 4, textDecoration: 'none', whiteSpace: 'nowrap' }}>
               View live ↗
             </a>
+          )}
+        </div>
+
+        {/* Publish status — the single most important control on this page.
+            A draft is invisible to the public; only a published tournament has
+            a working microsite and open registration. */}
+        <div style={{ ...s.card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+          borderColor: tournament.status === 'draft' ? '#E7C97A' : '#A9D9BD',
+          background: tournament.status === 'draft' ? '#FBF6E8' : '#EEF6F0' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 9, height: 9, borderRadius: 999, background: tournament.status === 'draft' ? '#C79A2E' : '#1B6B3A', display: 'inline-block' }} />
+              <strong style={{ fontSize: 15 }}>
+                {tournament.status === 'draft' ? 'Draft — not visible to anyone yet'
+                  : tournament.status === 'published' ? 'Published — your page is live'
+                  : tournament.status === 'live' ? 'Live — the tournament is underway'
+                  : 'Completed'}
+              </strong>
+            </div>
+            <p style={{ fontSize: 13, color: '#6B7775', margin: '6px 0 0' }}>
+              {tournament.status === 'draft'
+                ? 'Players cannot register and your microsite link will not open until you publish.'
+                : 'Your microsite is public and players can register.'}
+            </p>
+          </div>
+          {(tournament.status === 'draft' || tournament.status === 'published') && (
+            <button type="button" onClick={togglePublish} disabled={publishing}
+              style={{ ...s.btn, background: tournament.status === 'draft' ? '#1B6B3A' : 'transparent',
+                color: tournament.status === 'draft' ? '#fff' : '#6B7775',
+                border: tournament.status === 'draft' ? 'none' : '1px solid #C9C2B4',
+                whiteSpace: 'nowrap', opacity: publishing ? 0.6 : 1 }}>
+              {publishing ? 'Working…' : tournament.status === 'draft' ? 'Publish tournament' : 'Unpublish'}
+            </button>
           )}
         </div>
 
