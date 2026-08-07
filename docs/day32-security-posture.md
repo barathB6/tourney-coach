@@ -60,11 +60,13 @@ and anon key, the Google client id, the VAPID **public** key, the app URL.
    unopened email to decide whether to escalate someone to SMS. **Fix: enable
    Signed Event Webhook in SendGrid and set the key.**
 
-2. **`VOLUNTEER_CODE_PEPPER` is unset**, so code hashing falls back to the
-   service role key. It works, and the fallback is documented, but it couples
-   two secrets: rotating one rotates the other, and a service-key rotation
-   silently invalidates every outstanding volunteer code. **Fix: set a
-   dedicated pepper.**
+2. ~~**`VOLUNTEER_CODE_PEPPER` is unset**~~ — **RESOLVED 2026-08-07.** A
+   dedicated 64-character pepper is now set in Vercel production and locally, so
+   code hashing no longer borrows the service role key and the two secrets can
+   be rotated independently. Rotated at a moment when zero codes were live, so
+   nothing in flight was invalidated; the two orphaned rows hashed with the old
+   pepper were purged, since no code could ever verify against them again.
+   `scripts/verify-volunteer-login.ts` passes end to end on the new pepper.
 
 3. **The registration id is a bearer credential** for the live round, the
    scorecard and GPS. That is a deliberate design — a player has no account —
@@ -106,8 +108,8 @@ All three are asserted by `scripts/stress-concurrency.ts`.
 
 ## Production readiness
 
-**Ready, with two configuration items outstanding** (the two SendGrid/pepper
-gaps above, neither of which blocks a beta) and the items in
+**Ready, with one configuration item outstanding** (SendGrid webhook signing,
+which does not block a beta) and the items in
 `docs/day31-known-issues.md` — Twilio unset since Day 27, push blocked on empty
 VAPID values in Vercel, and the missing tournament timezone column.
 
