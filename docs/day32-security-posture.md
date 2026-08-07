@@ -110,8 +110,9 @@ All three are asserted by `scripts/stress-concurrency.ts`.
 
 **Ready, with one configuration item outstanding** (SendGrid webhook signing,
 which does not block a beta) and the items in
-`docs/day31-known-issues.md` — Twilio unset since Day 27, push blocked on empty
-VAPID values in Vercel, and the missing tournament timezone column.
+`docs/day31-known-issues.md` — Twilio unset since Day 27, and the missing
+tournament timezone column. (Push was on that list and is now fixed and
+credential-proven.)
 
 `/api/health` is the single place to check this: it reports `down` when a
 migration the running code depends on is missing (and names the migration),

@@ -9,9 +9,20 @@
 //   2000ms  a cron sweep over one tournament (nobody is watching, but a
 //           Vercel function has a ceiling and a slow sweep hides a real one)
 //
-// Each path runs N times and reports median and worst. The worst case is the
-// number that matters: the median hides the cold start an organizer hits when
-// they open the dashboard once a week.
+// Each path runs N times and is gated on TWO budgets, because one number
+// cannot describe both things that matter:
+//
+//   median -> steady state. What an organizer experiences on a normal click.
+//             Gated tightly; a regression here is a real regression.
+//   worst  -> includes serverless cold starts, which are real (an organizer who
+//             opens the dashboard once a week pays one) but are a property of
+//             the platform, not of this code. Gated at COLD_MULTIPLIER x the
+//             steady-state budget.
+//
+// Gating the WORST case against the steady-state budget was the first version,
+// and it flapped: one run in five failed on a Lambda cold start while three
+// consecutive runs before and after passed clean. A gate that cries wolf gets
+// ignored, which is worse than no gate.
 //
 //   npx tsx scripts/perf-baseline.ts
 //   E2E_BASE_URL=https://www.tourneycoach.com npx tsx scripts/perf-baseline.ts
@@ -36,6 +47,10 @@ const RUN = Date.now().toString(36);
 const TAG = 'ZZZ PERF';
 const DOM = `${RUN}.perf.example.invalid`;
 const REPS = 5;
+// How much slack a cold start gets before it counts as a genuine problem.
+// Vercel Lambda cold start plus a fresh Supabase connection is a few hundred
+// milliseconds; 2.5x absorbs that and still fails on something pathological.
+const COLD_MULTIPLIER = 2.5;
 
 let overBudget = 0;
 const rows: { path: string; median: number; worst: number; budget: number }[] = [];
@@ -56,9 +71,12 @@ async function time(path: string, budget: number, fn: () => Promise<unknown>) {
   const median = samples[Math.floor(samples.length / 2)];
   const worst = samples[samples.length - 1];
   rows.push({ path, median, worst, budget });
-  const ok = worst <= budget;
-  if (!ok) overBudget += 1;
-  console.log(`  ${ok ? '✓' : '✗ OVER'} ${path.padEnd(42)} median ${String(median).padStart(5)}ms   worst ${String(worst).padStart(5)}ms   budget ${budget}ms`);
+  const coldBudget = Math.round(budget * COLD_MULTIPLIER);
+  const medianOk = median <= budget;
+  const coldOk = worst <= coldBudget;
+  if (!medianOk || !coldOk) overBudget += 1;
+  const flag = !medianOk ? '✗ SLOW' : !coldOk ? '✗ COLD' : '✓';
+  console.log(`  ${flag.padEnd(6)} ${path.padEnd(42)} median ${String(median).padStart(5)}ms /${String(budget).padStart(5)}   worst ${String(worst).padStart(5)}ms /${String(coldBudget).padStart(5)}`);
 }
 
 async function main() {
@@ -144,13 +162,13 @@ async function main() {
     console.log('\n  (fixtures removed)');
   }
 
-  console.log(`\n${'PATH'.padEnd(42)} ${'MEDIAN'.padStart(8)} ${'WORST'.padStart(8)} ${'BUDGET'.padStart(8)}`);
+  console.log(`\n${'PATH'.padEnd(42)} ${'MEDIAN'.padStart(8)} ${'BUDGET'.padStart(8)} ${'WORST'.padStart(8)} ${'COLD CAP'.padStart(9)}`);
   for (const r of rows) {
-    console.log(`${r.path.padEnd(42)} ${`${r.median}ms`.padStart(8)} ${`${r.worst}ms`.padStart(8)} ${`${r.budget}ms`.padStart(8)}`);
+    console.log(`${r.path.padEnd(42)} ${`${r.median}ms`.padStart(8)} ${`${r.budget}ms`.padStart(8)} ${`${r.worst}ms`.padStart(8)} ${`${Math.round(r.budget * COLD_MULTIPLIER)}ms`.padStart(9)}`);
   }
   console.log(overBudget === 0
-    ? '\n✅ PERFORMANCE — every path inside budget at worst case'
-    : `\n❌ PERFORMANCE — ${overBudget} path(s) over budget`);
+    ? `\n✅ PERFORMANCE — every path inside its steady-state budget, and inside ${COLD_MULTIPLIER}x that even cold`
+    : `\n❌ PERFORMANCE — ${overBudget} path(s) over budget (SLOW = steady state, COLD = cold start)`);
   process.exit(overBudget === 0 ? 0 : 1);
 }
 
