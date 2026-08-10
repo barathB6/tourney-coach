@@ -1,11 +1,13 @@
 // A logical backup of one tournament's whole configuration and state.
 //
 // Supabase's own automated backups (daily on the paid plan, PITR on Pro+) are
-// the real disaster-recovery story — this is not a replacement for them. It is
-// the cheap, human-readable safety net for the case that actually happens to a
-// beta: someone fat-fingers an edit, a bad script deletes the wrong rows, a
-// status flips by accident. One JSON file you can diff and, if need be, restore
-// from without a point-in-time recovery.
+// the real disaster-recovery story and the ONLY thing to rely on for a full
+// restore — confirm your backup tier in the Supabase dashboard before the
+// event. This is a lighter, human-readable companion: a JSON capture you can
+// DIFF to catch a fat-fingered edit or an accidental status flip, and to hand
+// to whoever does the restore as the "this is what it should look like"
+// reference. There is deliberately no auto-restore mode — restoring is a
+// deliberate, reviewed act, not a script you run in a panic.
 //
 //   npx tsx scripts/snapshot-tournament.ts <slug-or-id>            # write snapshot
 //   npx tsx scripts/snapshot-tournament.ts <slug-or-id> --verify   # compare live vs newest snapshot

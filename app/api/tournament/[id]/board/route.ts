@@ -109,5 +109,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     })),
     raisedCents: entryRaised + sponsorRaised,
     updatedAt: new Date().toISOString(),
+  }, {
+    // A short shared-cache window. The public board is hit by every player's
+    // phone and every clubhouse TV, and each realtime score broadcast makes
+    // them all refetch at once — an uncached herd of full recomputes during a
+    // scoring wave. 10s of CDN caching collapses that herd to one recompute
+    // per window while still feeling live (the page also polls on its own), and
+    // stale-while-revalidate serves instantly while the next one warms.
+    headers: { 'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30' },
   });
 }

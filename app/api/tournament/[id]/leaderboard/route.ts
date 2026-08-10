@@ -85,5 +85,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     standings,
     teamsTotal: teams.length,
     updatedAt: new Date().toISOString(),
+  }, {
+    headers: { 'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30' },
   });
 }
