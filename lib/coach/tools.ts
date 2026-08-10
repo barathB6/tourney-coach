@@ -829,13 +829,38 @@ export async function executeCoachTool(name: string, input: Record<string, unkno
     case 'refund_registration': {
       const registrationId = str(input.registrationId);
       const { data: reg } = await ctx.service.from('registrations')
-        .select('id, contact_name, team_name, payment_status, total_amount_cents').eq('id', registrationId).eq('tournament_id', tid).maybeSingle();
+        .select('id, contact_name, team_name, payment_status, total_amount_cents, adyen_psp_reference').eq('id', registrationId).eq('tournament_id', tid).maybeSingle();
       if (!reg) return { ok: false, summary: '', error: 'That registration isn\'t part of this tournament.' };
       if (reg.payment_status !== 'paid') return { ok: false, summary: '', error: `That registration is ${reg.payment_status}, so there's nothing to refund.` };
-      // Mirrors the dashboard's refund: the Adyen webhook flips the final state.
-      const { error } = await ctx.service.from('registrations').update({ payment_status: 'refunded' }).eq('id', registrationId).eq('tournament_id', tid);
-      if (error) return { ok: false, summary: '', error: 'Could not start that refund.' };
-      return { ok: true, summary: `refunded $${((reg.total_amount_cents ?? 0) / 100).toLocaleString()} to ${reg.team_name || reg.contact_name}` };
+
+      // This MUST move real money, not just relabel a row. The old version wrote
+      // payment_status='refunded' directly and told the organizer "refunded $X"
+      // — but no money was returned, and worse, the real refund path
+      // (app/api/payments/refund) rejects a non-'paid' row with 409, so that
+      // false terminal state made the charge unrecoverable without hand-editing
+      // the DB. It now does exactly what the dashboard does: call Adyen and let
+      // the REFUND webhook flip the state. The DB is never written here.
+      if (!reg.adyen_psp_reference) {
+        // A paper/check registration marked paid was never charged through
+        // Adyen, so there is nothing for the platform to refund — that money is
+        // handed back offline. Refuse rather than fake it.
+        return { ok: false, summary: '', error: `${reg.team_name || reg.contact_name} was marked paid manually (no card charge on file), so I can't refund it through the platform — hand that back offline, and delete or adjust the registration if you need to.` };
+      }
+      try {
+        const { getPaymentProcessor } = await import('@/lib/payments');
+        const processor = await getPaymentProcessor();
+        await processor.refund({
+          pspReference: reg.adyen_psp_reference as string,
+          amountCents: (reg.total_amount_cents as number | null) ?? 0,
+          currency: 'USD',
+          reason: 'Organizer-initiated refund via coach',
+        });
+      } catch {
+        return { ok: false, summary: '', error: 'The refund did not go through at the payment processor — nothing was changed. Try the dashboard, or check the Adyen status.' };
+      }
+      // Requested, not yet settled — the webhook will flip the row to 'refunded'
+      // when Adyen confirms. Say so honestly rather than claiming it is done.
+      return { ok: true, summary: `refund of $${((reg.total_amount_cents ?? 0) / 100).toLocaleString()} requested for ${reg.team_name || reg.contact_name} — it will show as refunded once the processor confirms (usually a few minutes).` };
     }
 
     case 'delete_registration': {
