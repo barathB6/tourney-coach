@@ -99,6 +99,9 @@ async function main() {
       await db.from('tourneycircle_declines').delete().eq('player_profile_id', p.id).then(() => {}, () => {});
     }
     await db.from('gps_tracks').delete().eq('course_id', courseId).then(() => {}, () => {});
+    // Cluster detection may have aggregated the pings into course features —
+    // they FK the course and would block its delete.
+    await db.from('course_gps_features').delete().eq('course_id', courseId).then(() => {}, () => {});
     await db.from('course_holes').delete().eq('course_id', courseId);
     await db.from('tournaments').delete().eq('id', tid);
     await db.from('courses').delete().eq('id', courseId);
